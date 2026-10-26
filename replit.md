@@ -1,6 +1,6 @@
-# [Project name]
+# AvatarRouter
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Independent live-avatar integration service using official LiveKit plugins; RoleplayX remains responsible for dialogue and assessment.
 
 ## Run & Operate
 
@@ -22,23 +22,34 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- API: `artifacts/api-server`; Studio: `artifacts/avatar-router` (root preview).
+- Contracts: `lib/api-spec/openapi.yaml`; regenerate after every change.
+- Schema: `lib/db/src/schema/avatar-sessions.ts`.
+- Operator worker and PCM spike: `scripts/src/avatar/`.
+- Scope, risks and repository findings: `docs/architecture-compatibility.md`.
+- Setup and validation boundary: `docs/phase-1-setup.md`.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Preserve the provided monorepo instead of moving it to a parallel apps/packages tree.
+- The public initial Playground is explicitly mock-only until managed auth, dispatch and live validation exist; credentials alone must not enable paid access.
+- An anonymous browser capability protects local mock history. It is not tenant/application authentication.
+- Never silently replace Gemini Live, invent provider catalogs/pricing, or certify compatibility using synthetic PCM tests.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Phase 1 foundation: provider discovery, mock lifecycle Playground, persisted sessions/events, honest usage and setup diagnostics. Full MVP and real-provider E2E remain pending.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- AvatarRouter must run independently; RoleplayX integration must be additive and preserve existing scenarios, personas, dialogue, transcript persistence and assessment.
+- Do not modify RoleplayX initially or deploy production changes without explicit approval.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Tavus installed plugin uses faceId/palId; inspect installed declarations instead of assuming older replica/persona examples.
+- Import query operators from `@workspace/db` to keep them on the same Drizzle peer instance as tables.
+- Generated client requires DOM.Iterable and React Query v5 codegen.
 
 ## Pointers
 

@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { expireSessions } from "./lib/session-service";
+import { pool } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -23,3 +25,10 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+const cleanup = setInterval(() => {
+  expireSessions().catch(() => logger.error("Session expiration cleanup failed"));
+}, 10_000);
+cleanup.unref();
+expireSessions().catch(() => logger.error("Initial session expiration cleanup failed"));
+process.on("SIGTERM", () => { clearInterval(cleanup); void pool.end().finally(() => process.exit(0)); });

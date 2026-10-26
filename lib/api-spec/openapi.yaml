@@ -1,36 +1,247 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AvatarRouter preliminary standalone Playground. Mock sessions are explicit; live verification is pending.
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: Health
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /ready:
+    get:
+      operationId: getReadiness
+      responses:
+        "200":
+          description: Readiness for mock Playground
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+  /v1/providers:
+    get:
+      operationId: listProviders
+      responses:
+        "200":
+          description: Documented providers, not availability claims
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Provider" } }
+  /v1/avatars:
+    get:
+      operationId: listAvatars
+      responses:
+        "200":
+          description: Local mock and configured avatar references only
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Avatar" } }
+  /v1/sessions:
+    get:
+      operationId: listSessions
+      responses:
+        "200":
+          description: Browser-owned sessions
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Session" } }
+    post:
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionInput" }
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Live validation is unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiFailure" }
+  /v1/sessions/{id}:
+    get:
+      operationId: getSession
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Owned session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/end:
+    post:
+      operationId: endSession
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Idempotently ended
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/interrupt:
+    post:
+      operationId: interruptSession
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Mock interruption recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/events:
+    get:
+      operationId: listSessionEvents
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Lifecycle timeline
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SessionEvent" } }
+  /v1/usage:
+    get:
+      operationId: getUsage
+      responses:
+        "200":
+          description: Actual local session observations, no invented costs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usage" }
+  /v1/setup:
+    get:
+      operationId: getSetup
+      responses:
+        "200":
+          description: Environment presence only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Setup" }
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    Readiness:
+      type: object
+      required: [status, database, liveEnabled, message]
+      properties:
+        status: { type: string }
+        database: { type: boolean }
+        liveEnabled: { type: boolean }
+        message: { type: string }
+    Provider:
+      type: object
+      required: [id, name, description, status, runtime, modes, externalAudio, sourceUrl, validation, missing, implemented]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [available, degraded, unavailable, unconfigured] }
+        runtime: { type: string }
+        modes: { type: array, items: { type: string } }
+        externalAudio: { type: boolean }
+        sourceUrl: { type: string }
+        validation: { type: string }
+        missing: { type: array, items: { type: string } }
+        implemented: { type: boolean }
+    Avatar:
+      type: object
+      required: [id, providerId, name, description, kind, configured, languages]
+      properties:
+        id: { type: string }
+        providerId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        kind: { type: string, enum: [mock, configured] }
+        configured: { type: boolean }
+        languages: { type: array, items: { type: string } }
+    SessionInput:
+      type: object
+      additionalProperties: false
+      required: [providerId, avatarId, mode]
+      properties:
+        providerId: { type: string, enum: [mock, anam, tavus] }
+        avatarId: { type: string, minLength: 1, maxLength: 160 }
+        mode: { type: string, enum: [mock, live] }
+    Session:
+      type: object
+      required: [id, providerId, avatarId, mode, status, startedAt, expiresAt, durationSeconds, interruptions]
+      properties:
+        id: { type: string }
+        providerId: { type: string }
+        avatarId: { type: string }
+        mode: { type: string, enum: [mock, live] }
+        status: { type: string, enum: [active, ended, expired, failed] }
+        startedAt: { type: string }
+        endedAt: { type: [string, "null"] }
+        expiresAt: { type: string }
+        durationSeconds: { type: number }
+        interruptions: { type: integer }
+        error: { type: [string, "null"] }
+    SessionEvent:
+      type: object
+      required: [id, type, message, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        message: { type: string }
+        createdAt: { type: string }
+    Usage:
+      type: object
+      required: [totalSessions, activeSessions, durationSeconds, errors, mockSessions, estimatedCost, confirmedCost, billableSeconds]
+      properties:
+        totalSessions: { type: integer }
+        activeSessions: { type: integer }
+        durationSeconds: { type: number }
+        errors: { type: integer }
+        mockSessions: { type: integer }
+        estimatedCost: { type: [number, "null"] }
+        confirmedCost: { type: [number, "null"] }
+        billableSeconds: { type: [number, "null"] }
+    Setup:
+      type: object
+      required: [checks, stage, roleplayxStatus, bridgeStatus]
+      properties:
+        checks: { type: array, items: { $ref: "#/components/schemas/SetupCheck" } }
+        stage: { type: string }
+        roleplayxStatus: { type: string }
+        bridgeStatus: { type: string }
+    SetupCheck:
+      type: object
+      required: [key, configured, description]
+      properties:
+        key: { type: string }
+        configured: { type: boolean }
+        description: { type: string }
+    ApiFailure:
+      type: object
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { type: string }

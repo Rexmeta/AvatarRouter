@@ -5,10 +5,19 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "avatar:worker": "tsx ./src/avatar/worker.ts",
+    "test:pcm": "tsx --test ./src/avatar/pcm.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.9.4",
+    "@livekit/agents-plugin-anam": "^1.9.4",
+    "@livekit/agents-plugin-tavus": "^1.9.4",
+    "@livekit/rtc-node": "^1.2.1",
+    "livekit-server-sdk": "^2.19.2"
   }
 }

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "AvatarRouter"
+description = "Independent live avatar integration studio with provider discovery, a session Playground, and transparent LiveKit integration diagnostics. Preserves RoleplayX dialogue and assessment ownership."
+version = "1.0.0"
+id = "artifacts/avatar-router"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23879
+
+[services.development]
+run = "pnpm --filter @workspace/avatar-router run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/avatar-router", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/avatar-router/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23879"
+BASE_PATH = "/"
