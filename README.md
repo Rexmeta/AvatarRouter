@@ -11,7 +11,9 @@ Independent real-time avatar routing workbench, built incrementally on official 
 - Environment-presence diagnostics without returning secret values.
 - Live-provider controls fail explicitly instead of pretending to stream real avatars.
 
-**Pending:** real Anam/Tavus calls, live browser video, Gemini Live bridge proof, SDK/React/RoleplayX packages, managed authentication and tenants, LemonSlice/Simli adapters, production hardening and portable Docker packaging. Do not advertise the full MVP as complete.
+**Verified separately:** the official Tavus plugin passed a native RTC transport probe with video frames, non-silent PCM playback and explicit provider/room cleanup. See [measured results](docs/tavus-transport-probe.md). The public Studio remains mock-only.
+
+**Pending:** Anam authentication and real session validation, live browser video, speech lipsync, Gemini Live bridge proof, SDK/React/RoleplayX packages, managed authentication and tenants, LemonSlice/Simli adapters, production hardening and portable Docker packaging. Do not advertise the full MVP as complete.
 
 See [architecture compatibility report](docs/architecture-compatibility.md) and [operator setup](docs/phase-1-setup.md).
 

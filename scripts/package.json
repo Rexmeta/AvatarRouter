@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "avatar:worker": "tsx ./src/avatar/worker.ts",
+    "avatar:probe:tavus": "tsx ./src/avatar/tavus-probe.ts",
     "test:pcm": "tsx --test ./src/avatar/pcm.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

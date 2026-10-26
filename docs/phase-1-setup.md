@@ -32,7 +32,15 @@ Installed versions: `@livekit/agents`, `@livekit/agents-plugin-anam`, `@livekit/
 6. Observe output tracks and measure join/playback latency. The probe shuts down after 30 seconds of playback window; official avatar cleanup removes its participant. Confirm actual provider termination/billing in provider diagnostics.
 7. Test real interruption, provider rejection, disconnect, failure and cleanup before wiring this worker into the public API.
 
-No cloud worker was registered and no paid-provider session was executed in this delivery. The public Playground intentionally returns `LIVE_VALIDATION_PENDING` for live session requests. Supplying keys does not silently enable paid access.
+No cloud worker is deployed. A subsequent isolated Tavus native RTC probe has now run successfully; see [measured results](tavus-transport-probe.md). The public Playground intentionally returns `LIVE_VALIDATION_PENDING` for live session requests. Supplying keys does not silently enable paid browser access.
+
+For the isolated, operator-only Tavus probe:
+
+```sh
+pnpm --filter @workspace/scripts run avatar:probe:tavus --confirm-paid
+```
+
+This uses the official plugin outside a JobContext and explicitly ends the Tavus conversation, disconnects RTC and deletes/verifies the test room. It is not a web endpoint and requires explicit permission for provider usage on every invocation. It sends a test tone, not speech. The watchdog requests disconnect after 65 seconds; in-flight API calls must settle before cleanup so a late conversation ID is not lost. An ambiguous upstream creation timeout still requires checking provider diagnostics for orphaned sessions; this probe is not a production lifecycle reconciler.
 
 ## Security boundary
 
@@ -45,7 +53,9 @@ Before real sessions are enabled: add managed authentication, tenant/application
 - Offline PCM tests: framing, signed little-endian samples, partial chunks, flush, interruption, duplicate/stale turns and sequence gaps.
 - Plugin declarations and import check: verified locally against installed versions.
 - Mock session API and PostgreSQL persistence: independent of LiveKit.
-- Provider video/audio, real speech lipsync, Gemini compatibility, interruption timing and provider cleanup: **pending**.
+- Tavus native video/PCM transport, playback completion, explicit provider end and room deletion: **passed in an isolated probe**.
+- Anam: avatar-list API authentication still returns 401; no Anam session started.
+- Browser video/audio, real speech lipsync, Gemini compatibility and interruption timing: **pending**.
 - Existing RoleplayX conversations, transcripts and evaluation: **untouched; integration not installed**.
 
 ## Next milestone

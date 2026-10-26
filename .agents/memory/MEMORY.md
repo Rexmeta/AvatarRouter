@@ -1,0 +1,1 @@
+- [Avatar probe cleanup](avatar-probe-cleanup.md) — outside a LiveKit JobContext, explicitly end provider conversations and verify room deletion.

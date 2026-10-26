@@ -2,6 +2,8 @@
 
 Status: **foundation delivered; real-provider acceptance criteria pending**.
 
+This is the initial foundation report. Subsequent Tavus native transport validation is recorded in [Tavus probe results](tavus-transport-probe.md); the historical checks below describe the earlier foundation delivery.
+
 ## Changed areas
 
 - `artifacts/avatar-router/`: independent Studio, Explore, Playground, provider diagnostics, saved sessions/events, observed usage and documentation. Responsive layout and EN/KR controls.
