@@ -14,7 +14,7 @@ router.get("/ready", async (req, res): Promise<void> => {
     await db.execute(sql`select 1`);
     res.json({
       status: "ready", database: true, liveEnabled: false,
-      message: "Mock Playground ready. Live-provider validation and managed authentication are pending.",
+      message: "Mock ready. Private assets require sign-in. Image-derived live validation and public live dispatch are pending.",
     });
   } catch {
     req.log.warn("Database readiness check failed");

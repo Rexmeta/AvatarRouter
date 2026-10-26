@@ -12,7 +12,7 @@ const matrix = [
 ];
 
 const milestones = [
-  'Independent Studio, mock lifecycle, Anam/Tavus worker scaffold and PCM source; live validation pending keys.',
+  'Independent Studio, mock lifecycle, private image assets and Anam/Tavus creation adapters. Stock Tavus RTC passed; image-derived live validation remains pending.',
   'Authenticated tenant-aware core, persistent metering, SDK/React packages.',
   'LemonSlice and Python Simli adapters with independent validation.',
   'Additive RoleplayX plugin after production runtime is confirmed and audio POC passes.',

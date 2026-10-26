@@ -7,6 +7,8 @@ import {
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
 import { ErrorState, MicCheck, Orb, PageHead, Panel, Pill, Skel, errMsg, fmtSec } from '@/components/bits';
+import { SelectedAssetPanel, useValidatedSelectedAsset } from '@/components/selected-asset';
+import type { AvatarAsset } from '@workspace/api-client-react';
 import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -61,8 +63,32 @@ export default function Playground() {
       },
     );
 
+  const asset = useValidatedSelectedAsset();
+  const [assetLiveError, setAssetLiveError] = useState<string | null>(null);
+
+  const liveWithAsset = (r: AvatarAsset) => {
+    setAssetLiveError(null);
+    if (r.status !== 'ready' || !r.providerAvatarId || (r.providerId !== 'anam' && r.providerId !== 'tavus')) {
+      setAssetLiveError('Selected asset is not a ready Anam/Tavus asset.');
+      return;
+    }
+    create.mutate(
+      { data: { providerId: r.providerId, avatarId: r.providerAvatarId, avatarAssetId: r.id, mode: 'live' } },
+      {
+        onSuccess: (ns) => { setSid(ns.id); invalidate(ns.id); },
+        onError: (e) => { const m = errMsg(e); setAssetLiveError(m); setLiveError(m); qc.invalidateQueries({ queryKey: getGetUsageQueryKey() }); },
+      },
+    );
+  };
+
   const requestLive = (pid: 'anam' | 'tavus') => {
     setLiveError(null);
+    const r = asset.record;
+    if (asset.sel && asset.sel.providerId === pid) {
+      if (asset.ready && r && r.providerId === pid) { liveWithAsset(r); return; }
+      setLiveError('Selected avatar asset is not ready (or could not be validated). Clear the selection to use the catalog avatar.');
+      return;
+    }
     const av = avatars.data?.find((a) => a.providerId === pid);
     create.mutate(
       { data: { providerId: pid, avatarId: av?.id ?? `${pid}-unconfigured`, mode: 'live' } },
@@ -90,6 +116,7 @@ export default function Playground() {
   return (
     <div>
       <PageHead index="02 / playground" title={t('pg.title')} lede={t('pg.lede')} />
+      <SelectedAssetPanel onRequestLive={liveWithAsset} pending={create.isPending} liveError={assetLiveError} />
 
       <div className="rise mb-6 flex flex-wrap gap-2" role="tablist">
         {(['mock', 'anam', 'tavus'] as Target[]).map((id) => {

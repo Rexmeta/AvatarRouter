@@ -6,6 +6,96 @@ info:
 servers:
   - url: /api
 paths:
+  /v1/provisioning/providers:
+    get:
+      operationId: listProvisioningProviders
+      responses:
+        "200":
+          description: Official capabilities and adapter availability, not account entitlement
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ProvisioningProvider" } }
+  /v1/assets/images:
+    get:
+      operationId: listImageAssets
+      responses:
+        "200":
+          description: Tenant-owned source images
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ImageAsset" } }
+    post:
+      operationId: ingestImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImageInput" }
+      responses:
+        "201":
+          description: Validated private image, or an existing identical version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageAsset" }
+  /v1/assets/images/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      operationId: deleteImageAsset
+      responses:
+        "204": { description: Image bytes and source record deleted; rejects referenced images }
+  /v1/assets/images/{id}/content:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getImageContent
+      responses:
+        "200":
+          description: Authenticated private image, never a public bucket URL
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+  /v1/avatar-assets:
+    get:
+      operationId: listAvatarAssets
+      responses:
+        "200":
+          description: Tenant-owned avatar assets
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AvatarAsset" } }
+    post:
+      operationId: provisionAvatar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarAssetInput" }
+      responses:
+        "202":
+          description: Durable asynchronous provisioning request, idempotent per image and provider configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+  /v1/avatar-assets/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getAvatarAsset
+      responses:
+        "200":
+          description: Provisioning progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+    delete:
+      operationId: deleteAvatarAsset
+      responses:
+        "202":
+          description: Provider deletion queued; retained tombstone until confirmed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
   /healthz:
     get:
       operationId: healthCheck
@@ -142,6 +232,98 @@ paths:
               schema: { $ref: "#/components/schemas/Setup" }
 components:
   schemas:
+    ImageInput:
+      type: object
+      additionalProperties: false
+      required: [name, rightsConfirmed, likeness]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        imageBase64: { type: string, maxLength: 6000000, description: "Plain base64, not a data URL. Transport only; never stored in the database." }
+        sourceUrl: { type: string, maxLength: 2048, description: "HTTPS URL on an operator allowlisted hostname. Exactly one source required." }
+        previousVersionId: { type: string, format: uuid }
+        rightsConfirmed: { type: boolean }
+        likeness: { type: string, enum: [synthetic, real_person] }
+        consentReference: { type: string, maxLength: 200, description: "Application consent evidence reference, not a claim of independently verified identity." }
+    ImageAsset:
+      type: object
+      required: [id, name, contentHash, width, height, byteLength, version, previousVersionId, likeness, consentStatus, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        contentHash: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        byteLength: { type: integer }
+        version: { type: integer }
+        previousVersionId: { type: [string, "null"] }
+        likeness: { type: string, enum: [synthetic, real_person] }
+        consentStatus: { type: string, enum: [not_required, pending_review, verified] }
+        createdAt: { type: string, format: date-time }
+    AvatarAssetInput:
+      type: object
+      additionalProperties: false
+      required: [imageAssetId, providerId, costConfirmed]
+      properties:
+        imageAssetId: { type: string, format: uuid }
+        providerId: { type: string, enum: [anam, tavus, lemonslice, simli] }
+        voiceName: { type: string, pattern: "^[a-zA-Z0-9_-]{1,50}$", default: anna }
+        costConfirmed: { type: boolean, description: Explicit confirmation of potential provider training charges }
+    AvatarAsset:
+      type: object
+      required: [id, imageAssetId, name, sourceContentHash, providerId, providerAvatarId, status, creationMode, capabilities, errorCode, createdAt, updatedAt, expiresAt, deletionStatus]
+      properties:
+        id: { type: string }
+        imageAssetId: { type: string }
+        name: { type: string }
+        sourceContentHash: { type: string }
+        providerId: { type: string }
+        providerAvatarId: { type: [string, "null"] }
+        status: { type: string, enum: [queued, submitting, processing, ready, failed, reconciliation_required, deleting, deleted] }
+        creationMode: { type: string, enum: [image_training, one_shot] }
+        capabilities: { $ref: "#/components/schemas/AvatarCapabilities" }
+        errorCode: { type: [string, "null"] }
+        deletionStatus: { type: string, enum: [not_requested, pending, confirmed, manual_review] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: [string, "null"], format: date-time }
+    AvatarCapabilities:
+      type: object
+      required: [reusable, liveRendering, emotionControl, behaviorControl, validation]
+      properties:
+        reusable: { type: boolean }
+        liveRendering: { type: boolean }
+        emotionControl: { type: string, enum: [unsupported, unverified, supported] }
+        behaviorControl: { type: string, enum: [unsupported, unverified, supported] }
+        validation: { type: string, enum: [documentation_only, provisioned, live_verified] }
+    ProvisioningProvider:
+      type: object
+      required: [id, name, existingSelection, imageCreation, customTraining, realtimeRendering, reusableId, adapterEnabled, configured, requirements, documentationUrl, emotionControl]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        existingSelection: { type: boolean }
+        imageCreation: { type: boolean }
+        customTraining: { type: boolean }
+        realtimeRendering: { type: boolean }
+        reusableId: { type: boolean }
+        adapterEnabled: { type: boolean }
+        configured: { type: boolean }
+        requirements: { type: string }
+        documentationUrl: { type: string }
+        emotionControl: { type: string }
+    AvatarBehaviorEvent:
+      type: object
+      additionalProperties: false
+      required: [version, eventId, sessionId, turnId, sequence, type, value]
+      properties:
+        version: { type: string, enum: ["1"] }
+        eventId: { type: string, format: uuid }
+        sessionId: { type: string }
+        turnId: { type: integer, minimum: 0 }
+        sequence: { type: integer, minimum: 0 }
+        type: { type: string, enum: [emotion, state] }
+        value: { type: string, enum: [neutral, happy, sad, angry, surprised, curious, anxious, tired, disappointed, confused, determined, concerned, excited, idle, listening, listening_nod, thinking, speaking, speaking_pause] }
+        intensity: { type: number, minimum: 0, maximum: 1 }
     HealthStatus:
       type: object
       required: [status]
@@ -188,6 +370,7 @@ components:
       properties:
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
+        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation." }
         mode: { type: string, enum: [mock, live] }
     Session:
       type: object

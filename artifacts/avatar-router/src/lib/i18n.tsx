@@ -8,6 +8,7 @@ const dict = {
   'nav.providers': ['Providers', '프로바이더'],
   'nav.sessions': ['Sessions', '세션'],
   'nav.usage': ['Usage', '사용량'],
+  'nav.assets': ['Avatar assets', '아바타 에셋'],
   'nav.docs': ['Docs', '문서'],
   'brand.tag': ['Integration workbench', '통합 워크벤치'],
   'phase': ['Phase 1 foundation', '1단계 기반'],

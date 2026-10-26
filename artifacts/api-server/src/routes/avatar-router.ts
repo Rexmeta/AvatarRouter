@@ -6,6 +6,8 @@ import {
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundOwner, playgroundLimit } from "../middlewares/playground-owner";
+import { assetTenant } from "../middlewares/asset-tenant";
+import { resolveSessionAsset } from "../lib/asset-service";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -25,11 +27,22 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
-  const { providerId, avatarId, mode } = parsed.data;
+  const { providerId, avatarId, avatarAssetId, mode } = parsed.data;
+  if (avatarAssetId) {
+    // A browser capability never authorizes access to an owned provider avatar.
+    assetTenant(req, res, () => {});
+    if (mode !== "live") {
+      res.status(400).json({ code: "ASSET_REQUIRES_LIVE_MODE", error: "A real avatar asset cannot be silently simulated as Mock." }); return;
+    }
+    const asset = await resolveSessionAsset(res.locals.tenantId, avatarAssetId);
+    if (providerId !== asset.providerId || avatarId !== asset.avatarId) {
+      res.status(400).json({ code: "AVATAR_ASSET_MISMATCH", error: "Use the asset's registered provider and provider avatar ID." }); return;
+    }
+  }
   if (mode === "live") {
     res.status(409).json({
       code: "LIVE_VALIDATION_PENDING",
-      error: "Live sessions are not enabled in this preliminary Playground. Configure LiveKit and provider Secrets, run the official-plugin worker smoke test, and add managed authentication before enabling paid sessions. Use Mock / Orbit to test lifecycle safely.",
+      error: "Public live dispatch is not enabled. Private avatar assets require sign-in; an authorized image-derived avatar and browser LiveKit session still need real validation. Use Mock / Orbit to test lifecycle safely.",
     }); return;
   }
   if (providerId !== "mock" || avatarId !== "mock-orbit") {

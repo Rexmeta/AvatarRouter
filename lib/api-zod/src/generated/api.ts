@@ -8,6 +8,204 @@
 import * as zod from 'zod';
 
 
+export const ListProvisioningProvidersResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "existingSelection": zod.boolean(),
+  "imageCreation": zod.boolean(),
+  "customTraining": zod.boolean(),
+  "realtimeRendering": zod.boolean(),
+  "reusableId": zod.boolean(),
+  "adapterEnabled": zod.boolean(),
+  "configured": zod.boolean(),
+  "requirements": zod.string(),
+  "documentationUrl": zod.string(),
+  "emotionControl": zod.string()
+})
+export const ListProvisioningProvidersResponse = zod.array(ListProvisioningProvidersResponseItem)
+
+
+export const ListImageAssetsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "contentHash": zod.string(),
+  "width": zod.number().int(),
+  "height": zod.number().int(),
+  "byteLength": zod.number().int(),
+  "version": zod.number().int(),
+  "previousVersionId": zod.string().nullable(),
+  "likeness": zod.enum(['synthetic', 'real_person']),
+  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
+  "createdAt": zod.coerce.date()
+})
+export const ListImageAssetsResponse = zod.array(ListImageAssetsResponseItem)
+
+
+export const ingestImageBodyNameMax = 80;
+
+export const ingestImageBodyImageBase64Max = 6000000;
+
+export const ingestImageBodySourceUrlMax = 2048;
+
+export const ingestImageBodyConsentReferenceMax = 200;
+
+
+
+export const IngestImageBody = zod.object({
+  "name": zod.string().min(1).max(ingestImageBodyNameMax),
+  "imageBase64": zod.string().max(ingestImageBodyImageBase64Max).optional().describe('Plain base64, not a data URL. Transport only; never stored in the database.'),
+  "sourceUrl": zod.string().max(ingestImageBodySourceUrlMax).optional().describe('HTTPS URL on an operator allowlisted hostname. Exactly one source required.'),
+  "previousVersionId": zod.string().uuid().optional(),
+  "rightsConfirmed": zod.boolean(),
+  "likeness": zod.enum(['synthetic', 'real_person']),
+  "consentReference": zod.string().max(ingestImageBodyConsentReferenceMax).optional().describe('Application consent evidence reference, not a claim of independently verified identity.')
+})
+
+export const IngestImageResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "contentHash": zod.string(),
+  "width": zod.number().int(),
+  "height": zod.number().int(),
+  "byteLength": zod.number().int(),
+  "version": zod.number().int(),
+  "previousVersionId": zod.string().nullable(),
+  "likeness": zod.enum(['synthetic', 'real_person']),
+  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteImageAssetParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const DeleteImageAssetResponse = zod.void()
+
+
+export const GetImageContentParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const GetImageContentResponse = zod.unknown()
+
+
+export const ListAvatarAssetsResponseItem = zod.object({
+  "id": zod.string(),
+  "imageAssetId": zod.string(),
+  "name": zod.string(),
+  "sourceContentHash": zod.string(),
+  "providerId": zod.string(),
+  "providerAvatarId": zod.string().nullable(),
+  "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "creationMode": zod.enum(['image_training', 'one_shot']),
+  "capabilities": zod.object({
+  "reusable": zod.boolean(),
+  "liveRendering": zod.boolean(),
+  "emotionControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
+}),
+  "errorCode": zod.string().nullable(),
+  "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable()
+})
+export const ListAvatarAssetsResponse = zod.array(ListAvatarAssetsResponseItem)
+
+
+export const provisionAvatarBodyVoiceNameDefault = `anna`;
+export const provisionAvatarBodyVoiceNameRegExp = new RegExp('^[a-zA-Z0-9_-]{1,50}$');
+
+
+export const ProvisionAvatarBody = zod.object({
+  "imageAssetId": zod.string().uuid(),
+  "providerId": zod.enum(['anam', 'tavus', 'lemonslice', 'simli']),
+  "voiceName": zod.string().regex(provisionAvatarBodyVoiceNameRegExp).default(provisionAvatarBodyVoiceNameDefault),
+  "costConfirmed": zod.boolean().describe('Explicit confirmation of potential provider training charges')
+})
+
+export const ProvisionAvatarResponse = zod.object({
+  "id": zod.string(),
+  "imageAssetId": zod.string(),
+  "name": zod.string(),
+  "sourceContentHash": zod.string(),
+  "providerId": zod.string(),
+  "providerAvatarId": zod.string().nullable(),
+  "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "creationMode": zod.enum(['image_training', 'one_shot']),
+  "capabilities": zod.object({
+  "reusable": zod.boolean(),
+  "liveRendering": zod.boolean(),
+  "emotionControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
+}),
+  "errorCode": zod.string().nullable(),
+  "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable()
+})
+
+
+export const GetAvatarAssetParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const GetAvatarAssetResponse = zod.object({
+  "id": zod.string(),
+  "imageAssetId": zod.string(),
+  "name": zod.string(),
+  "sourceContentHash": zod.string(),
+  "providerId": zod.string(),
+  "providerAvatarId": zod.string().nullable(),
+  "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "creationMode": zod.enum(['image_training', 'one_shot']),
+  "capabilities": zod.object({
+  "reusable": zod.boolean(),
+  "liveRendering": zod.boolean(),
+  "emotionControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
+}),
+  "errorCode": zod.string().nullable(),
+  "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable()
+})
+
+
+export const DeleteAvatarAssetParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const DeleteAvatarAssetResponse = zod.object({
+  "id": zod.string(),
+  "imageAssetId": zod.string(),
+  "name": zod.string(),
+  "sourceContentHash": zod.string(),
+  "providerId": zod.string(),
+  "providerAvatarId": zod.string().nullable(),
+  "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "creationMode": zod.enum(['image_training', 'one_shot']),
+  "capabilities": zod.object({
+  "reusable": zod.boolean(),
+  "liveRendering": zod.boolean(),
+  "emotionControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
+}),
+  "errorCode": zod.string().nullable(),
+  "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable()
+})
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
@@ -77,6 +275,7 @@ export const createSessionBodyAvatarIdMax = 160;
 export const CreateSessionBody = zod.object({
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
+  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation.'),
   "mode": zod.enum(['mock', 'live'])
 })
 

@@ -5,6 +5,250 @@
  * AvatarRouter preliminary standalone Playground. Mock sessions are explicit; live verification is pending.
  * OpenAPI spec version: 0.1.0
  */
+export type ImageInputLikeness = typeof ImageInputLikeness[keyof typeof ImageInputLikeness];
+
+
+export const ImageInputLikeness = {
+  synthetic: 'synthetic',
+  real_person: 'real_person',
+} as const;
+
+export interface ImageInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /**
+     * Plain base64, not a data URL. Transport only; never stored in the database.
+     * @maxLength 6000000
+     */
+  imageBase64?: string;
+  /**
+     * HTTPS URL on an operator allowlisted hostname. Exactly one source required.
+     * @maxLength 2048
+     */
+  sourceUrl?: string;
+  previousVersionId?: string;
+  rightsConfirmed: boolean;
+  likeness: ImageInputLikeness;
+  /**
+     * Application consent evidence reference, not a claim of independently verified identity.
+     * @maxLength 200
+     */
+  consentReference?: string;
+}
+
+export type ImageAssetLikeness = typeof ImageAssetLikeness[keyof typeof ImageAssetLikeness];
+
+
+export const ImageAssetLikeness = {
+  synthetic: 'synthetic',
+  real_person: 'real_person',
+} as const;
+
+export type ImageAssetConsentStatus = typeof ImageAssetConsentStatus[keyof typeof ImageAssetConsentStatus];
+
+
+export const ImageAssetConsentStatus = {
+  not_required: 'not_required',
+  pending_review: 'pending_review',
+  verified: 'verified',
+} as const;
+
+export interface ImageAsset {
+  id: string;
+  name: string;
+  contentHash: string;
+  width: number;
+  height: number;
+  byteLength: number;
+  version: number;
+  /** @nullable */
+  previousVersionId: string | null;
+  likeness: ImageAssetLikeness;
+  consentStatus: ImageAssetConsentStatus;
+  createdAt: string;
+}
+
+export type AvatarAssetInputProviderId = typeof AvatarAssetInputProviderId[keyof typeof AvatarAssetInputProviderId];
+
+
+export const AvatarAssetInputProviderId = {
+  anam: 'anam',
+  tavus: 'tavus',
+  lemonslice: 'lemonslice',
+  simli: 'simli',
+} as const;
+
+export interface AvatarAssetInput {
+  imageAssetId: string;
+  providerId: AvatarAssetInputProviderId;
+  /** @pattern ^[a-zA-Z0-9_-]{1,50}$ */
+  voiceName?: string;
+  /** Explicit confirmation of potential provider training charges */
+  costConfirmed: boolean;
+}
+
+export type AvatarAssetStatus = typeof AvatarAssetStatus[keyof typeof AvatarAssetStatus];
+
+
+export const AvatarAssetStatus = {
+  queued: 'queued',
+  submitting: 'submitting',
+  processing: 'processing',
+  ready: 'ready',
+  failed: 'failed',
+  reconciliation_required: 'reconciliation_required',
+  deleting: 'deleting',
+  deleted: 'deleted',
+} as const;
+
+export type AvatarAssetCreationMode = typeof AvatarAssetCreationMode[keyof typeof AvatarAssetCreationMode];
+
+
+export const AvatarAssetCreationMode = {
+  image_training: 'image_training',
+  one_shot: 'one_shot',
+} as const;
+
+export type AvatarAssetDeletionStatus = typeof AvatarAssetDeletionStatus[keyof typeof AvatarAssetDeletionStatus];
+
+
+export const AvatarAssetDeletionStatus = {
+  not_requested: 'not_requested',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  manual_review: 'manual_review',
+} as const;
+
+export type AvatarCapabilitiesEmotionControl = typeof AvatarCapabilitiesEmotionControl[keyof typeof AvatarCapabilitiesEmotionControl];
+
+
+export const AvatarCapabilitiesEmotionControl = {
+  unsupported: 'unsupported',
+  unverified: 'unverified',
+  supported: 'supported',
+} as const;
+
+export type AvatarCapabilitiesBehaviorControl = typeof AvatarCapabilitiesBehaviorControl[keyof typeof AvatarCapabilitiesBehaviorControl];
+
+
+export const AvatarCapabilitiesBehaviorControl = {
+  unsupported: 'unsupported',
+  unverified: 'unverified',
+  supported: 'supported',
+} as const;
+
+export type AvatarCapabilitiesValidation = typeof AvatarCapabilitiesValidation[keyof typeof AvatarCapabilitiesValidation];
+
+
+export const AvatarCapabilitiesValidation = {
+  documentation_only: 'documentation_only',
+  provisioned: 'provisioned',
+  live_verified: 'live_verified',
+} as const;
+
+export interface AvatarCapabilities {
+  reusable: boolean;
+  liveRendering: boolean;
+  emotionControl: AvatarCapabilitiesEmotionControl;
+  behaviorControl: AvatarCapabilitiesBehaviorControl;
+  validation: AvatarCapabilitiesValidation;
+}
+
+export interface AvatarAsset {
+  id: string;
+  imageAssetId: string;
+  name: string;
+  sourceContentHash: string;
+  providerId: string;
+  /** @nullable */
+  providerAvatarId: string | null;
+  status: AvatarAssetStatus;
+  creationMode: AvatarAssetCreationMode;
+  capabilities: AvatarCapabilities;
+  /** @nullable */
+  errorCode: string | null;
+  deletionStatus: AvatarAssetDeletionStatus;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  expiresAt: string | null;
+}
+
+export interface ProvisioningProvider {
+  id: string;
+  name: string;
+  existingSelection: boolean;
+  imageCreation: boolean;
+  customTraining: boolean;
+  realtimeRendering: boolean;
+  reusableId: boolean;
+  adapterEnabled: boolean;
+  configured: boolean;
+  requirements: string;
+  documentationUrl: string;
+  emotionControl: string;
+}
+
+export type AvatarBehaviorEventVersion = typeof AvatarBehaviorEventVersion[keyof typeof AvatarBehaviorEventVersion];
+
+
+export const AvatarBehaviorEventVersion = {
+  NUMBER_1: '1',
+} as const;
+
+export type AvatarBehaviorEventType = typeof AvatarBehaviorEventType[keyof typeof AvatarBehaviorEventType];
+
+
+export const AvatarBehaviorEventType = {
+  emotion: 'emotion',
+  state: 'state',
+} as const;
+
+export type AvatarBehaviorEventValue = typeof AvatarBehaviorEventValue[keyof typeof AvatarBehaviorEventValue];
+
+
+export const AvatarBehaviorEventValue = {
+  neutral: 'neutral',
+  happy: 'happy',
+  sad: 'sad',
+  angry: 'angry',
+  surprised: 'surprised',
+  curious: 'curious',
+  anxious: 'anxious',
+  tired: 'tired',
+  disappointed: 'disappointed',
+  confused: 'confused',
+  determined: 'determined',
+  concerned: 'concerned',
+  excited: 'excited',
+  idle: 'idle',
+  listening: 'listening',
+  listening_nod: 'listening_nod',
+  thinking: 'thinking',
+  speaking: 'speaking',
+  speaking_pause: 'speaking_pause',
+} as const;
+
+export interface AvatarBehaviorEvent {
+  version: AvatarBehaviorEventVersion;
+  eventId: string;
+  sessionId: string;
+  /** @minimum 0 */
+  turnId: number;
+  /** @minimum 0 */
+  sequence: number;
+  type: AvatarBehaviorEventType;
+  value: AvatarBehaviorEventValue;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  intensity?: number;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -82,6 +326,8 @@ export interface SessionInput {
      * @maxLength 160
      */
   avatarId: string;
+  /** Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation. */
+  avatarAssetId?: string;
   mode: SessionInputMode;
 }
 

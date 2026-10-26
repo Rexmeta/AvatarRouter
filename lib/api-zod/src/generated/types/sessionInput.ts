@@ -15,5 +15,7 @@ export interface SessionInput {
      * @maxLength 160
      */
   avatarId: string;
+  /** Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation. */
+  avatarAssetId?: string;
   mode: SessionInputMode;
 }

@@ -40,6 +40,11 @@ Independent live-avatar integration service using official LiveKit plugins; Role
 
 Phase 1 foundation: provider discovery, mock lifecycle Playground, persisted sessions/events, honest usage and setup diagnostics. Full MVP and real-provider E2E remain pending.
 
+Image-to-live extension: private image ingestion and provider-asset registry are application-agnostic. Managed Clerk verifies asset access; initial tenants are per-user, not organizations. Provider creation adapters are distinct from LiveKit rendering plugins. Public live dispatch remains gated; never call image-to-live complete without an actual authorized image-derived provider avatar and a successful live session.
+
+- Provider matrix: `docs/image-to-live-capabilities.md`.
+- Image/provisioning API, rights/deletion, operator commands and current integration boundaries: `docs/image-assets-integration.md`.
+
 ## User preferences
 
 - AvatarRouter must run independently; RoleplayX integration must be additive and preserve existing scenarios, personas, dialogue, transcript persistence and assessment.

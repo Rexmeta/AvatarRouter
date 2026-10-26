@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "avatar:worker": "tsx ./src/avatar/worker.ts",
     "avatar:probe:tavus": "tsx ./src/avatar/tavus-probe.ts",
+    "avatar:review-consent": "tsx ./src/avatar/review-consent.ts",
     "test:pcm": "tsx --test ./src/avatar/pcm.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -19,6 +20,7 @@
     "@livekit/agents-plugin-anam": "^1.9.4",
     "@livekit/agents-plugin-tavus": "^1.9.4",
     "@livekit/rtc-node": "^1.2.1",
+    "@workspace/db": "workspace:*",
     "livekit-server-sdk": "^2.19.2"
   }
 }

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, BookOpen, Boxes, Compass, FlaskConical, ListTree } from 'lucide-react';
+import { Activity, BookOpen, Boxes, Compass, FlaskConical, ImageUp, ListTree } from 'lucide-react';
+import { AuthControl } from '@/components/auth-control';
 import { useGetHealth, useGetReadiness, useHealthCheck } from '@workspace/api-client-react';
 import { useI18n, type TKey } from '@/lib/i18n';
 import { Pill } from '@/components/bits';
@@ -9,6 +10,7 @@ import { cn } from '@/lib/utils';
 const nav: { href: string; key: TKey; icon: typeof Compass }[] = [
   { href: '/', key: 'nav.explore', icon: Compass },
   { href: '/playground', key: 'nav.playground', icon: FlaskConical },
+  { href: '/avatar-assets', key: 'nav.assets', icon: ImageUp },
   { href: '/providers', key: 'nav.providers', icon: Boxes },
   { href: '/sessions', key: 'nav.sessions', icon: ListTree },
   { href: '/usage', key: 'nav.usage', icon: Activity },
@@ -76,7 +78,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="mono text-[10px] uppercase tracking-widest opacity-50">Studio</div>
             </div>
           </Link>
-          <div className="md:mt-4"><LangToggle /></div>
+          <div className="flex items-center gap-2 md:mt-4"><LangToggle /><AuthControl /></div>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible">
           {nav.map(({ href, key, icon: Icon }) => {

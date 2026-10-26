@@ -27,8 +27,13 @@ import type {
 import type {
   ApiFailure,
   Avatar,
+  AvatarAsset,
+  AvatarAssetInput,
   HealthStatus,
+  ImageAsset,
+  ImageInput,
   Provider,
+  ProvisioningProvider,
   Readiness,
   Session,
   SessionEvent,
@@ -63,6 +68,781 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListProvisioningProvidersUrl = () => {
+
+
+
+
+  return `/api/v1/provisioning/providers`
+}
+
+export const listProvisioningProviders = async ( options?: Parameters<typeof customFetch>[1]): Promise<ProvisioningProvider[]> => {
+
+  return customFetch<ProvisioningProvider[]>(getListProvisioningProvidersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProvisioningProvidersQueryKey = () => {
+    return [
+    `/api/v1/provisioning/providers`
+    ] as const;
+    }
+
+
+export const getListProvisioningProvidersQueryOptions = <TData = Awaited<ReturnType<typeof listProvisioningProviders>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProvisioningProvidersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProvisioningProviders>>> = ({ signal }) => listProvisioningProviders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListProvisioningProvidersQueryResult = NonNullable<Awaited<ReturnType<typeof listProvisioningProviders>>>
+export type ListProvisioningProvidersQueryError = ErrorType<unknown>
+
+
+export function useListProvisioningProviders<TData = Awaited<ReturnType<typeof listProvisioningProviders>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProvisioningProviders>>,
+          TError,
+          Awaited<ReturnType<typeof listProvisioningProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProvisioningProviders<TData = Awaited<ReturnType<typeof listProvisioningProviders>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProvisioningProviders>>,
+          TError,
+          Awaited<ReturnType<typeof listProvisioningProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProvisioningProviders<TData = Awaited<ReturnType<typeof listProvisioningProviders>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListProvisioningProviders<TData = Awaited<ReturnType<typeof listProvisioningProviders>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProvisioningProviders>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListProvisioningProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListImageAssetsUrl = () => {
+
+
+
+
+  return `/api/v1/assets/images`
+}
+
+export const listImageAssets = async ( options?: Parameters<typeof customFetch>[1]): Promise<ImageAsset[]> => {
+
+  return customFetch<ImageAsset[]>(getListImageAssetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListImageAssetsQueryKey = () => {
+    return [
+    `/api/v1/assets/images`
+    ] as const;
+    }
+
+
+export const getListImageAssetsQueryOptions = <TData = Awaited<ReturnType<typeof listImageAssets>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListImageAssetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listImageAssets>>> = ({ signal }) => listImageAssets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListImageAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof listImageAssets>>>
+export type ListImageAssetsQueryError = ErrorType<unknown>
+
+
+export function useListImageAssets<TData = Awaited<ReturnType<typeof listImageAssets>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listImageAssets>>,
+          TError,
+          Awaited<ReturnType<typeof listImageAssets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListImageAssets<TData = Awaited<ReturnType<typeof listImageAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listImageAssets>>,
+          TError,
+          Awaited<ReturnType<typeof listImageAssets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListImageAssets<TData = Awaited<ReturnType<typeof listImageAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListImageAssets<TData = Awaited<ReturnType<typeof listImageAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listImageAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListImageAssetsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getIngestImageUrl = () => {
+
+
+
+
+  return `/api/v1/assets/images`
+}
+
+export const ingestImage = async (imageInput: ImageInput, options?: Parameters<typeof customFetch>[1]): Promise<ImageAsset> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ImageAsset>(getIngestImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(imageInput)
+  }
+);}
+
+
+
+
+
+export const getIngestImageMutationKey = () => ['ingestImage'] as const;
+
+export const getIngestImageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestImage>>, TError,IngestImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestImage>>, TError,IngestImageMutationVariables, TContext> => {
+
+const mutationKey = getIngestImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestImage>>, IngestImageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  ingestImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IngestImageMutationResult = NonNullable<Awaited<ReturnType<typeof ingestImage>>>
+    export type IngestImageMutationBody = BodyType<ImageInput>
+    export type IngestImageMutationError = ErrorType<unknown>
+    export type IngestImageMutationVariables = {data: BodyType<ImageInput>}
+
+    export const useIngestImage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestImage>>, TError,IngestImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof ingestImage>>,
+        TError,
+        IngestImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getIngestImageMutationOptions(options), queryClient);
+    }
+
+export const getDeleteImageAssetUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/assets/images/${id}`
+}
+
+export const deleteImageAsset = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteImageAssetUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteImageAssetMutationKey = () => ['deleteImageAsset'] as const;
+
+export const getDeleteImageAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteImageAsset>>, TError,DeleteImageAssetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteImageAsset>>, TError,DeleteImageAssetMutationVariables, TContext> => {
+
+const mutationKey = getDeleteImageAssetMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteImageAsset>>, DeleteImageAssetMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteImageAsset(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteImageAssetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteImageAsset>>>
+
+    export type DeleteImageAssetMutationError = ErrorType<unknown>
+    export type DeleteImageAssetMutationVariables = {id: string}
+
+    export const useDeleteImageAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteImageAsset>>, TError,DeleteImageAssetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteImageAsset>>,
+        TError,
+        DeleteImageAssetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteImageAssetMutationOptions(options), queryClient);
+    }
+
+export const getGetImageContentUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/assets/images/${id}/content`
+}
+
+export const getImageContent = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetImageContentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetImageContentQueryKey = (id: string,) => {
+    return [
+    `/api/v1/assets/images/${id}/content`
+    ] as const;
+    }
+
+
+export const getGetImageContentQueryOptions = <TData = Awaited<ReturnType<typeof getImageContent>>, TError = ErrorType<unknown>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetImageContentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getImageContent>>> = ({ signal }) => getImageContent(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetImageContentQueryResult = NonNullable<Awaited<ReturnType<typeof getImageContent>>>
+export type GetImageContentQueryError = ErrorType<unknown>
+
+
+export function useGetImageContent<TData = Awaited<ReturnType<typeof getImageContent>>, TError = ErrorType<unknown>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImageContent>>,
+          TError,
+          Awaited<ReturnType<typeof getImageContent>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImageContent<TData = Awaited<ReturnType<typeof getImageContent>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImageContent>>,
+          TError,
+          Awaited<ReturnType<typeof getImageContent>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetImageContent<TData = Awaited<ReturnType<typeof getImageContent>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetImageContent<TData = Awaited<ReturnType<typeof getImageContent>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getImageContent>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetImageContentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAvatarAssetsUrl = () => {
+
+
+
+
+  return `/api/v1/avatar-assets`
+}
+
+export const listAvatarAssets = async ( options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset[]> => {
+
+  return customFetch<AvatarAsset[]>(getListAvatarAssetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAvatarAssetsQueryKey = () => {
+    return [
+    `/api/v1/avatar-assets`
+    ] as const;
+    }
+
+
+export const getListAvatarAssetsQueryOptions = <TData = Awaited<ReturnType<typeof listAvatarAssets>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAvatarAssetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAvatarAssets>>> = ({ signal }) => listAvatarAssets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAvatarAssetsQueryResult = NonNullable<Awaited<ReturnType<typeof listAvatarAssets>>>
+export type ListAvatarAssetsQueryError = ErrorType<unknown>
+
+
+export function useListAvatarAssets<TData = Awaited<ReturnType<typeof listAvatarAssets>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAvatarAssets>>,
+          TError,
+          Awaited<ReturnType<typeof listAvatarAssets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAvatarAssets<TData = Awaited<ReturnType<typeof listAvatarAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAvatarAssets>>,
+          TError,
+          Awaited<ReturnType<typeof listAvatarAssets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAvatarAssets<TData = Awaited<ReturnType<typeof listAvatarAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListAvatarAssets<TData = Awaited<ReturnType<typeof listAvatarAssets>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvatarAssets>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAvatarAssetsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getProvisionAvatarUrl = () => {
+
+
+
+
+  return `/api/v1/avatar-assets`
+}
+
+export const provisionAvatar = async (avatarAssetInput: AvatarAssetInput, options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AvatarAsset>(getProvisionAvatarUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(avatarAssetInput)
+  }
+);}
+
+
+
+
+
+export const getProvisionAvatarMutationKey = () => ['provisionAvatar'] as const;
+
+export const getProvisionAvatarMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof provisionAvatar>>, TError,ProvisionAvatarMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof provisionAvatar>>, TError,ProvisionAvatarMutationVariables, TContext> => {
+
+const mutationKey = getProvisionAvatarMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof provisionAvatar>>, ProvisionAvatarMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  provisionAvatar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProvisionAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof provisionAvatar>>>
+    export type ProvisionAvatarMutationBody = BodyType<AvatarAssetInput>
+    export type ProvisionAvatarMutationError = ErrorType<unknown>
+    export type ProvisionAvatarMutationVariables = {data: BodyType<AvatarAssetInput>}
+
+    export const useProvisionAvatar = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof provisionAvatar>>, TError,ProvisionAvatarMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof provisionAvatar>>,
+        TError,
+        ProvisionAvatarMutationVariables,
+        TContext
+      > => {
+      return useMutation(getProvisionAvatarMutationOptions(options), queryClient);
+    }
+
+export const getGetAvatarAssetUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/avatar-assets/${id}`
+}
+
+export const getAvatarAsset = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset> => {
+
+  return customFetch<AvatarAsset>(getGetAvatarAssetUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAvatarAssetQueryKey = (id: string,) => {
+    return [
+    `/api/v1/avatar-assets/${id}`
+    ] as const;
+    }
+
+
+export const getGetAvatarAssetQueryOptions = <TData = Awaited<ReturnType<typeof getAvatarAsset>>, TError = ErrorType<unknown>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAvatarAssetQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAvatarAsset>>> = ({ signal }) => getAvatarAsset(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAvatarAssetQueryResult = NonNullable<Awaited<ReturnType<typeof getAvatarAsset>>>
+export type GetAvatarAssetQueryError = ErrorType<unknown>
+
+
+export function useGetAvatarAsset<TData = Awaited<ReturnType<typeof getAvatarAsset>>, TError = ErrorType<unknown>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAvatarAsset>>,
+          TError,
+          Awaited<ReturnType<typeof getAvatarAsset>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAvatarAsset<TData = Awaited<ReturnType<typeof getAvatarAsset>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAvatarAsset>>,
+          TError,
+          Awaited<ReturnType<typeof getAvatarAsset>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAvatarAsset<TData = Awaited<ReturnType<typeof getAvatarAsset>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetAvatarAsset<TData = Awaited<ReturnType<typeof getAvatarAsset>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAvatarAsset>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAvatarAssetQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteAvatarAssetUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/avatar-assets/${id}`
+}
+
+export const deleteAvatarAsset = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset> => {
+
+  return customFetch<AvatarAsset>(getDeleteAvatarAssetUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAvatarAssetMutationKey = () => ['deleteAvatarAsset'] as const;
+
+export const getDeleteAvatarAssetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvatarAsset>>, TError,DeleteAvatarAssetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAvatarAsset>>, TError,DeleteAvatarAssetMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAvatarAssetMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAvatarAsset>>, DeleteAvatarAssetMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAvatarAsset(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAvatarAssetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAvatarAsset>>>
+
+    export type DeleteAvatarAssetMutationError = ErrorType<unknown>
+    export type DeleteAvatarAssetMutationVariables = {id: string}
+
+    export const useDeleteAvatarAsset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvatarAsset>>, TError,DeleteAvatarAssetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAvatarAsset>>,
+        TError,
+        DeleteAvatarAssetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAvatarAssetMutationOptions(options), queryClient);
+    }
 
 export const getHealthCheckUrl = () => {
 

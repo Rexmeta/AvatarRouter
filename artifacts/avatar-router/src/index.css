@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@layer theme, base, clerk, components, utilities;
 @import 'tailwindcss';
+@import '@clerk/themes/shadcn.css';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
@@ -291,3 +293,7 @@
     inset: -1px;
   }
 }
+
+.cl-formFieldInput::placeholder { color: hsl(196 12% 50%); opacity: 1; }
+.cl-formButtonPrimary:hover { background: hsl(12 86% 48%) !important; }
+.cl-socialButtonsBlockButton:hover { background: hsl(40 22% 90%) !important; }

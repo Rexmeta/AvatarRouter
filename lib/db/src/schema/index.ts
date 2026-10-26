@@ -18,3 +18,5 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./avatar-sessions";
+export * from "./image-assets";
+export * from "./avatar-assets";

@@ -1,1 +1,2 @@
 - [Avatar probe cleanup](avatar-probe-cleanup.md) — outside a LiveKit JobContext, explicitly end provider conversations and verify room deletion.
+- [Avatar provisioning safety](avatar-provisioning-safety.md) — reconcile ambiguous paid creation; consent attestations must not self-approve real-person likenesses.

@@ -10,6 +10,7 @@ import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { PcmBridge, mockPcmSource } from "./pcm";
+import { db, pool, avatarAssets, eq } from "@workspace/db";
 
 if (!process.argv.includes("--confirm-paid")) {
   throw new Error("This creates a real Tavus session. Pass --confirm-paid to explicitly permit provider usage.");
@@ -19,19 +20,32 @@ for (const key of ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "TAVU
 }
 // No raw provider bodies, room tokens or SDK debug logging in console output.
 initializeLogger({ pretty: false, level: "fatal" });
+const assetFlag = process.argv.indexOf("--asset-id");
+const assetId = assetFlag >= 0 ? process.argv[assetFlag + 1] : undefined;
+let provisionedFaceId: string | undefined;
+if (assetFlag >= 0) {
+  if (!assetId) throw new Error("--asset-id requires a registered avatar asset ID");
+  const [asset] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, assetId));
+  if (!asset || asset.providerId !== "tavus" || asset.status !== "ready" || !asset.providerAvatarId) {
+    await pool.end();
+    throw new Error("The registered Tavus avatar asset must be ready.");
+  }
+  provisionedFaceId = asset.providerAvatarId;
+}
 const started = Date.now();
 const roomName = `avatar-router-probe-${randomUUID()}`;
 const room = new Room();
 const client = new RoomServiceClient(process.env.LIVEKIT_URL!, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
 const session = new voice.AgentSession();
 const avatar = new AvatarSession({
-  faceId: process.env.TAVUS_FACE_ID,
+  faceId: provisionedFaceId ?? process.env.TAVUS_FACE_ID,
   palId: process.env.TAVUS_PAL_ID,
   connOptions: { timeoutMs: 15_000, maxRetry: 0, retryIntervalMs: 1000 },
 });
 const readers: Array<{ cancel(): Promise<void> }> = [];
 const report = {
   provider: "tavus",
+  registeredAvatarAssetUsed: !!provisionedFaceId,
   source: "synthetic_220hz_tone_not_speech",
   roomCreated: false,
   roomConnectedMs: null as number | null,
@@ -184,6 +198,7 @@ try {
   report.error = safeError(error);
 } finally {
   await cleanup();
+  await pool.end();
   console.log(JSON.stringify({ ...report, elapsedMs: Date.now() - started,
     scope: "Native RTC track/PCM probe only. Browser rendering, speech lipsync and Gemini bridge are not certified." }));
   process.exitCode = report.error || !report.videoFrames || !report.nonSilentAudioFramesAfterSend
