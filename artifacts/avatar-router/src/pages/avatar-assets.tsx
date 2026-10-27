@@ -51,12 +51,26 @@ export default function AvatarAssets() {
     return (
       <div>
         {head}
+        <StockEntry />
         <SignedOutGate />
         <div className="mt-8"><CapabilityPanel /></div>
       </div>
     );
   }
   return <SignedIn head={head} />;
+}
+
+function StockEntry() {
+  const L = useL();
+  return (
+    <Link href="/playground#stock" data-testid="link-stock-playground" className="rise mb-6 flex items-center justify-between gap-4 rounded-md border border-primary/40 bg-primary/5 px-4 py-3 transition hover:bg-primary/10">
+      <span>
+        <span className="block text-sm font-semibold">{L('Test a stock Tavus avatar live first', '먼저 기본 Tavus 아바타로 라이브 테스트')}</span>
+        <span className="block text-xs text-muted-foreground">{L('Lucy - Home. No upload or training needed. Opens the stock panel in Playground.', 'Lucy - Home. 업로드나 학습이 필요 없습니다. 플레이그라운드의 기본 아바타 패널로 이동합니다.')}</span>
+      </span>
+      <ArrowUpRight className="h-4 w-4 shrink-0 text-primary" />
+    </Link>
+  );
 }
 
 function SignedOutGate() {
@@ -113,6 +127,7 @@ function SignedIn({ head }: { head: ReactNode }) {
   return (
     <div>
       {head}
+      <StockEntry />
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <IngestPanel images={images.data ?? []} />
         <Panel title={L('Private image library', '비공개 이미지 라이브러리')} aside={<span className="mono text-[10.5px] text-muted-foreground">{images.data?.length ?? 0}</span>}>

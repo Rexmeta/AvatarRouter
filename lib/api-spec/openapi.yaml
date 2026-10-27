@@ -179,6 +179,33 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/connection:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getLiveConnection
+      responses:
+        "200":
+          description: Authenticated owned stock-session subscribe token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveConnection" }
+  /v1/sessions/{id}/audio:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: sendLiveAudio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveAudioInput" }
+      responses:
+        "200":
+          description: PCM accepted by the real avatar renderer, not an AI dialogue response
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveAudioResult" }
   /v1/sessions/{id}/end:
     post:
       operationId: endSession
@@ -370,7 +397,8 @@ components:
       properties:
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
-        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation." }
+        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated." }
+        costConfirmed: { type: boolean, default: false, description: "Required for bounded stock live sessions. Provider/LiveKit usage may consume credits." }
         mode: { type: string, enum: [mock, live] }
     Session:
       type: object
@@ -387,6 +415,24 @@ components:
         durationSeconds: { type: number }
         interruptions: { type: integer }
         error: { type: [string, "null"] }
+    LiveConnection:
+      type: object
+      required: [url, token, expiresAt]
+      properties:
+        url: { type: string }
+        token: { type: string, description: "Short-lived subscribe-only token scoped to exactly this room; never persist." }
+        expiresAt: { type: string }
+    LiveAudioInput:
+      type: object
+      additionalProperties: false
+      properties:
+        sample: { type: boolean, description: "Send a 1-second synthetic tone, not AI speech." }
+        pcmBase64: { type: string, maxLength: 320000, description: "24 kHz mono signed little-endian PCM16; at most 5 seconds. Exactly one of sample or PCM." }
+    LiveAudioResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
     SessionEvent:
       type: object
       required: [id, type, message, createdAt]

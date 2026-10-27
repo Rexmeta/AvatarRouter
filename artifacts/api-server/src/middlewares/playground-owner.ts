@@ -12,7 +12,8 @@ export const playgroundLimit = rateLimit({
 
 /**
  * Anonymous local-demo ownership only; not user authentication or multi-tenancy.
- * Live provider access is deliberately not exposed by this middleware.
+ * It grants no paid creation, media token or audio access. The sole live
+ * exception is stop-only cleanup for an already-owned session after auth loss.
  */
 export const playgroundOwner: RequestHandler = (req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") {

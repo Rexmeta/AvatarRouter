@@ -1,13 +1,16 @@
-import { Router, type IRouter } from "express";
+import { Router, json, type IRouter } from "express";
 import {
   CreateSessionBody, GetSessionParams, GetSessionResponse,
   ListProvidersResponse, ListAvatarsResponse, ListSessionsResponse,
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
+  SendLiveAudioBody, GetLiveConnectionResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundOwner, playgroundLimit } from "../middlewares/playground-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
+import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession } from "../lib/live-sessions";
+import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-runtime";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -27,7 +30,13 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
-  const { providerId, avatarId, avatarAssetId, mode } = parsed.data;
+  const { providerId, avatarId, avatarAssetId, mode, costConfirmed } = parsed.data;
+  if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
+    assetTenant(req, res, () => {});
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed);
+    res.status(201).json(GetSessionResponse.parse(presentSession(row)));
+    return;
+  }
   if (avatarAssetId) {
     // A browser capability never authorizes access to an owned provider avatar.
     assetTenant(req, res, () => {});
@@ -56,13 +65,34 @@ router.get("/v1/sessions/:id", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.json(GetSessionResponse.parse(presentSession(await getOwnedSession(res.locals.ownerHash, id))));
 });
+router.get("/v1/sessions/:id/connection", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
+  res.json(GetLiveConnectionResponse.parse(await liveConnection(res.locals.ownerHash, res.locals.tenantId, id)));
+});
+router.post("/v1/sessions/:id/audio", assetTenant, json({ limit: "330kb" }), async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  const input = SendLiveAudioBody.parse(req.body);
+  await sendStockAudio(res.locals.ownerHash, res.locals.tenantId, id, validateLiveAudio(input));
+  res.json({ accepted: true });
+});
 router.post("/v1/sessions/:id/end", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
-  res.json(GetSessionResponse.parse(presentSession(await mutateOwnedSession(res.locals.ownerHash, id, "end"))));
+  const row = await getOwnedSession(res.locals.ownerHash, id);
+  if (row.mode === "live") {
+    // A stop-only capability survives Clerk expiry/sign-out. This same-browser
+    // HttpOnly owner cookie cannot start paid sessions, fetch tokens or send audio.
+    // playgroundOwner already rejects cross-site mutations and checks ownership.
+    res.json(GetSessionResponse.parse(presentSession(await closeStockSession(res.locals.ownerHash, id))));
+  } else res.json(GetSessionResponse.parse(presentSession(await mutateOwnedSession(res.locals.ownerHash, id, "end"))));
 });
 router.post("/v1/sessions/:id/interrupt", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
-  res.json(GetSessionResponse.parse(presentSession(await mutateOwnedSession(res.locals.ownerHash, id, "interrupt"))));
+  const row = await getOwnedSession(res.locals.ownerHash, id);
+  if (row.mode === "live") {
+    assetTenant(req, res, () => {});
+    res.json(GetSessionResponse.parse(presentSession(await interruptStockSession(res.locals.ownerHash, res.locals.tenantId, id))));
+  } else res.json(GetSessionResponse.parse(presentSession(await mutateOwnedSession(res.locals.ownerHash, id, "interrupt"))));
 });
 router.get("/v1/sessions/:id/events", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);

@@ -41,6 +41,7 @@ app.use(clerkMiddleware((req) => ({
 // The route attaches its own parser so anonymous clients cannot decode 6MB JSON.
 app.use((req, res, next) => {
   if (req.path === "/api/v1/assets/images" && req.method === "POST") return next();
+  if (/^\/api\/v1\/sessions\/[^/]+\/audio$/.test(req.path) && req.method === "POST") return next();
   return express.json({ limit: "16kb" })(req, res, next);
 });
 app.use(cookieParser());

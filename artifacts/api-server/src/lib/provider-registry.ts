@@ -31,10 +31,12 @@ export function getProviders(environment: NodeJS.ProcessEnv = process.env) {
     const missing = [...transportKeys, ...p.keys].filter((key) => !environment[key]);
     return {
       id: p.id, name: p.name, description: p.description,
-      status: missing.length ? "unconfigured" as const : "unavailable" as const,
+      status: missing.length ? "unconfigured" as const : p.id === "tavus" ? "available" as const : "unavailable" as const,
       runtime: p.runtime, modes: ["renderer"], externalAudio: true,
       sourceUrl: `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
-      validation: p.implemented
+      validation: p.id === "tavus"
+        ? "Stock Lucy - Home LiveKit echo test enabled; sign-in and credit confirmation required. Custom image avatars and Gemini bridge remain unverified."
+        : p.implemented
         ? "Official plugin installed; live provider and Gemini bridge validation pending."
         : "Official plugin documented; AvatarRouter adapter not implemented.",
       missing, implemented: p.implemented,
@@ -48,6 +50,11 @@ export function getAvatars() {
     description: "Local synthetic lifecycle test. No provider video, generated speech, or paid API.",
     kind: "mock" as "mock" | "configured", configured: true, languages: [] as string[],
   }];
+  avatars.push({
+    id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy - Home (Tavus stock)",
+    description: "Official plugin stock face r4067604db72. No upload or training; bounded LiveKit echo session.",
+    kind: "configured", configured: Boolean(process.env.TAVUS_API_KEY && transportKeys.every(key => process.env[key])), languages: [],
+  });
   // These are user-configured references, not a fabricated provider gallery.
   if (process.env.ANAM_AVATAR_ID) avatars.push({
     id: "anam-configured", providerId: "anam", name: "Configured Anam avatar",

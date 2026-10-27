@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n';
 import { ErrorState, MicCheck, Orb, PageHead, Panel, Pill, Skel, errMsg, fmtSec } from '@/components/bits';
 import { SelectedAssetPanel, useValidatedSelectedAsset } from '@/components/selected-asset';
 import type { AvatarAsset } from '@workspace/api-client-react';
+import { StockLivePanel } from '@/components/stock-live';
 import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -116,6 +117,7 @@ export default function Playground() {
   return (
     <div>
       <PageHead index="02 / playground" title={t('pg.title')} lede={t('pg.lede')} />
+      <StockLivePanel />
       <SelectedAssetPanel onRequestLive={liveWithAsset} pending={create.isPending} liveError={assetLiveError} />
 
       <div className="rise mb-6 flex flex-wrap gap-2" role="tablist">
@@ -201,6 +203,7 @@ export default function Playground() {
                     ) : <p className="text-sm text-muted-foreground">{t('pg.nothingMissing')}</p>}
                   </div>
                   <div className="border-t pt-4">
+                    {target === 'tavus' && <p className="mb-3 text-sm text-muted-foreground" data-testid="note-tavus-stock"><a href="#stock" className="font-semibold text-primary underline-offset-2 hover:underline">Stock Lucy - Home</a> live test is at the top of this page.</p>}
                     <button data-testid="button-request-live" disabled={create.isPending} onClick={() => requestLive(target as 'anam' | 'tavus')}
                       className="inline-flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                       <Play className="h-4 w-4" /> {create.isPending ? '…' : t('pg.tryLive')}

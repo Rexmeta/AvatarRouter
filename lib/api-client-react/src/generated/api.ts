@@ -32,6 +32,9 @@ import type {
   HealthStatus,
   ImageAsset,
   ImageInput,
+  LiveAudioInput,
+  LiveAudioResult,
+  LiveConnection,
   Provider,
   ProvisioningProvider,
   Readiness,
@@ -1590,6 +1593,184 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getGetLiveConnectionUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/connection`
+}
+
+export const getLiveConnection = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<LiveConnection> => {
+
+  return customFetch<LiveConnection>(getGetLiveConnectionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveConnectionQueryKey = (id: string,) => {
+    return [
+    `/api/v1/sessions/${id}/connection`
+    ] as const;
+    }
+
+
+export const getGetLiveConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getLiveConnection>>, TError = ErrorType<unknown>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveConnectionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveConnection>>> = ({ signal }) => getLiveConnection(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLiveConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveConnection>>>
+export type GetLiveConnectionQueryError = ErrorType<unknown>
+
+
+export function useGetLiveConnection<TData = Awaited<ReturnType<typeof getLiveConnection>>, TError = ErrorType<unknown>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLiveConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getLiveConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLiveConnection<TData = Awaited<ReturnType<typeof getLiveConnection>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLiveConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getLiveConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLiveConnection<TData = Awaited<ReturnType<typeof getLiveConnection>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetLiveConnection<TData = Awaited<ReturnType<typeof getLiveConnection>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLiveConnectionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendLiveAudioUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/audio`
+}
+
+export const sendLiveAudio = async (id: string,
+    liveAudioInput: LiveAudioInput, options?: Parameters<typeof customFetch>[1]): Promise<LiveAudioResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LiveAudioResult>(getSendLiveAudioUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(liveAudioInput)
+  }
+);}
+
+
+
+
+
+export const getSendLiveAudioMutationKey = () => ['sendLiveAudio'] as const;
+
+export const getSendLiveAudioMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendLiveAudio>>, TError,SendLiveAudioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendLiveAudio>>, TError,SendLiveAudioMutationVariables, TContext> => {
+
+const mutationKey = getSendLiveAudioMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendLiveAudio>>, SendLiveAudioMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendLiveAudio(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendLiveAudioMutationResult = NonNullable<Awaited<ReturnType<typeof sendLiveAudio>>>
+    export type SendLiveAudioMutationBody = BodyType<LiveAudioInput>
+    export type SendLiveAudioMutationError = ErrorType<unknown>
+    export type SendLiveAudioMutationVariables = {id: string;data: BodyType<LiveAudioInput>}
+
+    export const useSendLiveAudio = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendLiveAudio>>, TError,SendLiveAudioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendLiveAudio>>,
+        TError,
+        SendLiveAudioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendLiveAudioMutationOptions(options), queryClient);
+    }
 
 export const getEndSessionUrl = (id: string,) => {
 

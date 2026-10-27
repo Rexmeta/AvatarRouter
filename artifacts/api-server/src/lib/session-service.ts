@@ -19,7 +19,7 @@ export async function expireSessions() {
   await db.transaction(async (tx) => {
     const expired = await tx.update(avatarSessions).set({
       status: "expired", endedAt: avatarSessions.expiresAt,
-    }).where(and(eq(avatarSessions.status, "active"), lte(avatarSessions.expiresAt, new Date()))).returning();
+    }).where(and(eq(avatarSessions.mode, "mock"), eq(avatarSessions.status, "active"), lte(avatarSessions.expiresAt, new Date()))).returning();
     if (expired.length) await tx.insert(avatarSessionEvents).values(expired.map((row) => ({
       id: randomUUID(), sessionId: row.id, type: "expired",
       message: "Mock session expired after 10 minutes; no external resources were allocated.",

@@ -5,6 +5,9 @@ import { createInsertSchema } from "drizzle-zod";
 export const avatarSessions = pgTable("avatar_sessions", {
   id: text("id").primaryKey(),
   ownerHash: text("owner_hash").notNull(),
+  tenantId: text("tenant_id"),
+  roomName: text("room_name"),
+  providerConversationId: text("provider_conversation_id"),
   providerId: text("provider_id").notNull(),
   avatarId: text("avatar_id").notNull(),
   mode: text("mode", { enum: ["mock", "live"] }).notNull(),

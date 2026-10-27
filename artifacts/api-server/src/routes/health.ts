@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { stockConfigured } from "../lib/stock-runtime";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { db, sql } from "@workspace/db";
 
@@ -13,8 +14,8 @@ router.get("/ready", async (req, res): Promise<void> => {
   try {
     await db.execute(sql`select 1`);
     res.json({
-      status: "ready", database: true, liveEnabled: false,
-      message: "Mock ready. Private assets require sign-in. Image-derived live validation and public live dispatch are pending.",
+      status: "ready", database: true, liveEnabled: stockConfigured(),
+      message: "Stock Tavus live echo is available with sign-in and usage confirmation (120s cap). Custom image live and AI dialogue remain unverified.",
     });
   } catch {
     req.log.warn("Database readiness check failed");

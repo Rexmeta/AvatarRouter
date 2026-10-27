@@ -26,3 +26,12 @@ test("only initial Anam and Tavus worker adapters are marked implemented", () =>
   assert.deepEqual(providers.filter(p => p.implemented).map(p => p.id), ["anam", "tavus"]);
   assert.equal(providers.find(p => p.id === "simli")!.runtime, "Python");
 });
+test("Tavus stock echo availability is separate from custom-avatar validation", () => {
+  const tavus = getProviders({
+    LIVEKIT_URL: "wss://test.invalid", LIVEKIT_API_KEY: "test-only",
+    LIVEKIT_API_SECRET: "test-only", TAVUS_API_KEY: "test-only",
+  }).find(p => p.id === "tavus")!;
+  assert.equal(tavus.status, "available");
+  assert.match(tavus.validation, /Stock Lucy/);
+  assert.match(tavus.validation, /Custom.*unverified/);
+});

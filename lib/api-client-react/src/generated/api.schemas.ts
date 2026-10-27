@@ -326,8 +326,10 @@ export interface SessionInput {
      * @maxLength 160
      */
   avatarId: string;
-  /** Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation. */
+  /** Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated. */
   avatarAssetId?: string;
+  /** Required for bounded stock live sessions. Provider/LiveKit usage may consume credits. */
+  costConfirmed?: boolean;
   mode: SessionInputMode;
 }
 
@@ -363,6 +365,27 @@ export interface Session {
   interruptions: number;
   /** @nullable */
   error?: string | null;
+}
+
+export interface LiveConnection {
+  url: string;
+  /** Short-lived subscribe-only token scoped to exactly this room; never persist. */
+  token: string;
+  expiresAt: string;
+}
+
+export interface LiveAudioInput {
+  /** Send a 1-second synthetic tone, not AI speech. */
+  sample?: boolean;
+  /**
+     * 24 kHz mono signed little-endian PCM16; at most 5 seconds. Exactly one of sample or PCM.
+     * @maxLength 320000
+     */
+  pcmBase64?: string;
+}
+
+export interface LiveAudioResult {
+  accepted: boolean;
 }
 
 export interface SessionEvent {

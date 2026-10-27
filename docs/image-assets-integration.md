@@ -68,7 +68,7 @@ Send to `POST /api/v1/avatar-assets`. Response202 contains registry ID and state
 
 Session requests accept `avatarAssetId` with the corresponding `providerId` and provider-native `avatarId`. The server verifies tenant ownership, ready status and an exact match. Mock mode with a real asset is rejected.
 
-**Public live dispatch is still gated with409 `LIVE_VALIDATION_PENDING`.** Selecting an asset in Playground is real registry selection, not functional live video. The source still is explicitly labelled as an image.
+**Custom image-derived live dispatch is still gated with409 `LIVE_VALIDATION_PENDING`.** Selecting a custom asset is registry selection, not functional live video. Separately, `/playground#stock` now supports the official Tavus stock Lucy face without image upload or training; see [stock live testing](stock-live.md).
 
 The trusted native Tavus smoke test can resolve and reuse a registered ready face without creating it again:
 

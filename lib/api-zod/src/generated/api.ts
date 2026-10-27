@@ -270,12 +270,13 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
 
 export const createSessionBodyAvatarIdMax = 160;
 
-
+export const createSessionBodyCostConfirmedDefault = false;
 
 export const CreateSessionBody = zod.object({
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
-  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Live session dispatch remains gated pending validation.'),
+  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated.'),
+  "costConfirmed": zod.boolean().default(createSessionBodyCostConfirmedDefault).describe('Required for bounded stock live sessions. Provider/LiveKit usage may consume credits.'),
   "mode": zod.enum(['mock', 'live'])
 })
 
@@ -310,6 +311,35 @@ export const GetSessionResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
   "error": zod.string().nullish()
+})
+
+
+export const GetLiveConnectionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetLiveConnectionResponse = zod.object({
+  "url": zod.string(),
+  "token": zod.string().describe('Short-lived subscribe-only token scoped to exactly this room; never persist.'),
+  "expiresAt": zod.string()
+})
+
+
+export const SendLiveAudioParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const sendLiveAudioBodyPcmBase64Max = 320000;
+
+
+
+export const SendLiveAudioBody = zod.object({
+  "sample": zod.boolean().optional().describe('Send a 1-second synthetic tone, not AI speech.'),
+  "pcmBase64": zod.string().max(sendLiveAudioBodyPcmBase64Max).optional().describe('24 kHz mono signed little-endian PCM16; at most 5 seconds. Exactly one of sample or PCM.')
+})
+
+export const SendLiveAudioResponse = zod.object({
+  "accepted": zod.boolean()
 })
 
 
