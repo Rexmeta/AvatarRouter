@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
-import test from "node:test";
+import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { once } from "node:events";
+import test, { after } from "node:test";
 import {
   mapRoleplayxIdentity,
   verifyRoleplayxAccessToken,
@@ -51,7 +52,7 @@ test("valid RoleplayX JWT binds immutable subject, tenant, client, and delegated
   assert.deepEqual(identity.scopes, ["sessions:create", "sessions:read", "live-limits:read"]);
 });
 
-test("replayed or forged signatures and mismatched claims are rejected", () => {
+test("forged signatures and mismatched claims are rejected", () => {
   const { privateKey: wrongPrivateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   assert.throws(() => verifyRoleplayxAccessToken(signedToken({}, wrongPrivateKey), config, [publicJwk], now), { code: "INVALID_ROLEPLAYX_TOKEN" });
   assert.throws(() => verifyRoleplayxAccessToken(signedToken({ iss: "https://attacker.example" }), config, [publicJwk], now), { code: "INVALID_ROLEPLAYX_TOKEN" });
@@ -79,4 +80,86 @@ test("roleplayx tenant and user ownership hashes cannot cross subjects or tenant
   assert.notEqual(a.ownerHash, b.ownerHash);
   assert.notEqual(a.tenantId, c.tenantId);
   assert.notEqual(a.ownerHash, c.ownerHash);
+});
+
+test("HTTP bridge preserves login fallback, isolates tenants/users, and enforces route scopes without cookies", { timeout: 30_000 }, async () => {
+  const variables = {
+    ROLEPLAYX_ISSUER: config.issuer,
+    ROLEPLAYX_AUDIENCE: config.audience,
+    ROLEPLAYX_CLIENT_ID: config.clientId,
+    ROLEPLAYX_JWKS_URL: config.jwksUrl,
+  };
+  const previous = Object.fromEntries(Object.keys(variables).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, variables);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    if (String(input) === config.jwksUrl) {
+      return new Response(JSON.stringify({ keys: [publicJwk] }), { headers: { "Content-Type": "application/json" } });
+    }
+    return originalFetch(input, init);
+  };
+  const fixtureTenant = `bridge-test-${randomUUID()}`;
+  const fixtureSubject = `bridge-user-${randomUUID()}`;
+  const current = Math.floor(Date.now() / 1000);
+  const issue = (scope: string, overrides: Record<string, unknown> = {}) => signedToken({
+    sub: fixtureSubject, tenant_id: fixtureTenant, iat: current, exp: current + 45, jti: randomUUID(), scope, ...overrides,
+  });
+  const fixtureOwner = mapRoleplayxIdentity(verifyRoleplayxAccessToken(issue("sessions:read"), config, [publicJwk])).ownerHash;
+  const { default: app } = await import("../app");
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const request = (path: string, token?: string, options: RequestInit = {}) => originalFetch(`${origin}/api/v1${path}`, {
+    ...options,
+    headers: { ...(options.headers as Record<string, string> ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+  });
+
+  try {
+    const discovery = await request("/providers");
+    assert.equal(discovery.status, 200);
+    assert.match(discovery.headers.get("set-cookie") ?? "", /avatar_playground=/);
+
+    const forgedHeaders = await request("/live-limits", undefined, { headers: { "X-Tenant-ID": fixtureTenant, "X-User-ID": fixtureSubject } });
+    assert.equal(forgedHeaders.status, 401);
+    const created = await request("/sessions", issue("sessions:create"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "mock", avatarId: "mock-orbit", mode: "mock" }),
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.headers.get("set-cookie"), null, "Delegated requests must not need a browser-owner cookie.");
+    const session = await created.json() as { id: string };
+    const path = `/sessions/${session.id}`;
+    assert.equal((await request(path, issue("sessions:read"))).status, 200);
+    assert.equal((await request(path, issue("sessions:read", { sub: "a-different-user" }))).status, 404);
+    assert.equal((await request(path, issue("sessions:read", { tenant_id: "a-different-tenant" }))).status, 404);
+    assert.equal((await request(`${path}/`, issue("sessions:audio"))).status, 403);
+    assert.equal((await request(path.replace("/sessions/", "/SESSIONS/"), issue("sessions:audio"))).status, 403);
+    assert.equal((await request(`${path}/end/`, issue("sessions:read"), { method: "POST" })).status, 403);
+    assert.equal((await request(`${path}/connection`, issue("sessions:read"))).status, 403);
+    const forged = issue("sessions:read");
+    const parts = forged.split(".");
+    parts[2] = Buffer.from("not-a-signature").toString("base64url");
+    assert.equal((await request(path, parts.join("."))).status, 401);
+    assert.equal((await request(`${path}/end`, issue("sessions:end"), { method: "POST" })).status, 200);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    const { db, avatarSessions, avatarSessionEvents, eq } = await import("@workspace/db");
+    const fixtures = await db.select({ id: avatarSessions.id }).from(avatarSessions).where(eq(avatarSessions.ownerHash, fixtureOwner));
+    for (const row of fixtures) {
+      await db.delete(avatarSessionEvents).where(eq(avatarSessionEvents.sessionId, row.id));
+      await db.delete(avatarSessions).where(eq(avatarSessions.id, row.id));
+    }
+  }
+});
+
+after(async () => {
+  const { pool } = await import("@workspace/db");
+  await pool.end();
 });

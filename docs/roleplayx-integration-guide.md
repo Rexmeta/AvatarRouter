@@ -45,6 +45,7 @@ Required claims:
 - Scopes are least-privilege and must be in this allowlist: `live-limits:read`, `sessions:create`, `sessions:read`, `sessions:connect`, `sessions:audio`, `sessions:interrupt`, `sessions:end`, `assets:read`, `assets:write`. AvatarRouter checks the matching scope at each protected route.
 - Do not put emails, display names, provider keys, Clerk session tokens or provider credentials in these claims. Never return or log a delegated token. Use HTTPS.
 - RoleplayX must verify its own logged-in user and tenant membership **server-side** before signing. Browser-provided user or tenant claims are not authoritative.
+- These are short-lived bearer access tokens, not one-time codes. `jti` is a unique correlation identifier; this version does not maintain a distributed token replay registry. Never automatically retry an ambiguous paid operation or replay an audio command.
 
 ## Bridge configuration
 
@@ -63,17 +64,15 @@ In RoleplayX, sign with a dedicated asymmetric private key kept in its server se
 
 ## Route and scope map
 
-| API operation | Required delegated scope |
-| --- | --- |
-| `GET /api/v1/live-limits` | `live-limits:read` |
-| Create a session | `sessions:create` |
-| Read sessions, events and usage | `sessions:read` |
-| `GET /api/v1/sessions/{id}/connection` | `sessions:connect` |
-| `POST /api/v1/sessions/{id}/audio` | `sessions:audio` |
-| `POST /api/v1/sessions/{id}/interrupt` | `sessions:interrupt` |
-| `POST /api/v1/sessions/{id}/end` | `sessions:end` |
-| Image/avatar-asset reads | `assets:read` |
-| Image/avatar-asset create, provision or delete | `assets:write` |
+- `GET /api/v1/live-limits`: `live-limits:read`.
+- Create a session: `sessions:create`.
+- Read sessions, events and usage: `sessions:read`.
+- `GET /api/v1/sessions/{id}/connection`: `sessions:connect`.
+- `POST /api/v1/sessions/{id}/audio`: `sessions:audio`.
+- `POST /api/v1/sessions/{id}/interrupt`: `sessions:interrupt`.
+- `POST /api/v1/sessions/{id}/end`: `sessions:end`.
+- Image/avatar-asset reads: `assets:read`.
+- Image/avatar-asset create, provision or delete: `assets:write`.
 
 Provider discovery (`/api/v1/providers`, `/api/v1/avatars`, `/api/v1/setup`) stays publicly readable and reveals no tenant records. The RoleplayX BFF does not need or use the AvatarRouter browser-owner cookie.
 
@@ -94,7 +93,7 @@ Provider discovery (`/api/v1/providers`, `/api/v1/avatars`, `/api/v1/setup`) sta
 ## Limits, credits and failure handling
 
 - Exactly one concurrent global stock live session; renderer capacity and daily reservations are database-coordinated.
-- Default reserved live-time budgets: **600 seconds/user/day** and **3600 seconds/global/day**, resetting at **00:00 UTC**. Operator settings `LIVE_USER_DAILY_SECONDS` and `LIVE_GLOBAL_DAILY_SECONDS` are nonnegative integer seconds; zero disables live admission.
+- Default reserved live-time budgets: **600 seconds/mapped tenant/day** and **3600 seconds/global/day**, resetting at **00:00 UTC**. The legacy `user*` limit fields refer to a personal tenant for Clerk and a shared organization tenant for RoleplayX, not a separate per-RoleplayX-user budget. Operator settings `LIVE_USER_DAILY_SECONDS` and `LIVE_GLOBAL_DAILY_SECONDS` are nonnegative integer seconds; zero disables live admission.
 - Each attempt reserves the full **120 seconds**. Failed attempts are not automatically refunded. These are service time limits, not dollar budgets or a quote of provider credits. Provider credits are reported `unknown`; Tavus/LiveKit can still charge according to their own account/usage terms.
 - Check `workerReady` before admission. The Renderer Worker also has a separately configured health route at `/api/renderer-health`; it is operational health, not a browser API.
 - Never automatically retry a timed-out audio/interrupt command. Inspect the session status and events.

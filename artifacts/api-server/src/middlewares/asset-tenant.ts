@@ -9,22 +9,20 @@ import { assertSameOriginForBridgeRequest, requiredRoleplayxScope } from "./sess
 export const assetTenant: RequestHandler = (req, res, next) => {
   const roleplayxIdentity = res.locals.roleplayxIdentity as RoleplayxIdentity | undefined;
   if (roleplayxIdentity) {
-    try {
-      assertSameOriginForBridgeRequest(req);
-      if (req.get("sec-fetch-site") === "cross-site") {
-        throw new SessionProblem(403, "ORIGIN_REJECTED", "Cross-site requests are not allowed.");
-      }
-      const requiredScope = requiredRoleplayxScope(req.method, req.originalUrl.split("?")[0] ?? "");
-      if (!requiredScope || !roleplayxIdentity.scopes.includes(requiredScope)) {
-        throw new SessionProblem(403, "INSUFFICIENT_ROLEPLAYX_SCOPE", "The delegated identity does not have permission for this operation.");
-      }
-      const context = mapRoleplayxIdentity(roleplayxIdentity);
-      res.locals.tenantId = context.tenantId;
-      res.locals.ownerHash = context.ownerHash;
-      res.locals.authProvider = "roleplayx";
-      res.set("Cache-Control", "private, no-store");
-      next();
-    } catch (error) { next(error); }
+    assertSameOriginForBridgeRequest(req);
+    if (req.get("sec-fetch-site") === "cross-site") {
+      throw new SessionProblem(403, "ORIGIN_REJECTED", "Cross-site requests are not allowed.");
+    }
+    const requiredScope = requiredRoleplayxScope(req.method, req.originalUrl.split("?")[0] ?? "");
+    if (!requiredScope || !roleplayxIdentity.scopes.includes(requiredScope)) {
+      throw new SessionProblem(403, "INSUFFICIENT_ROLEPLAYX_SCOPE", "The delegated identity does not have permission for this operation.");
+    }
+    const context = mapRoleplayxIdentity(roleplayxIdentity);
+    res.locals.tenantId = context.tenantId;
+    res.locals.ownerHash = context.ownerHash;
+    res.locals.authProvider = "roleplayx";
+    res.set("Cache-Control", "private, no-store");
+    next();
     return;
   }
 

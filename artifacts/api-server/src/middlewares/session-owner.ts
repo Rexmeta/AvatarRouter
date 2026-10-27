@@ -4,6 +4,9 @@ import { mapRoleplayxIdentity, type RoleplayxIdentity } from "../lib/roleplayx-a
 import { playgroundOwner } from "./playground-owner";
 
 export function requiredRoleplayxScope(method: string, path: string): string | undefined {
+  // Express accepts case-insensitive routes and trailing slashes. Authorization must do the same.
+  method = method === "HEAD" ? "GET" : method;
+  path = path.toLowerCase().replace(/\/+$/, "");
   if (path === "/api/v1/live-limits" && method === "GET") return "live-limits:read";
   if (path === "/api/v1/sessions" && method === "GET") return "sessions:read";
   if (path === "/api/v1/sessions" && method === "POST") return "sessions:create";
@@ -15,7 +18,9 @@ export function requiredRoleplayxScope(method: string, path: string): string | u
   if (/^\/api\/v1\/sessions\/[^/]+\/interrupt$/.test(path) && method === "POST") return "sessions:interrupt";
   if (/^\/api\/v1\/sessions\/[^/]+\/end$/.test(path) && method === "POST") return "sessions:end";
   if (/^\/api\/v1\/(assets|avatar-assets)(\/|$)/.test(path)) return ["GET", "HEAD"].includes(method) ? "assets:read" : "assets:write";
-  return undefined;
+  if (method === "GET" && ["/api/v1/providers", "/api/v1/avatars", "/api/v1/setup", "/api/v1/provisioning/providers"].includes(path)) return undefined;
+  // A newly added route must explicitly opt in instead of inheriting delegated access.
+  return "unrecognized:route";
 }
 
 export function assertSameOriginForBridgeRequest(req: Parameters<RequestHandler>[0]) {

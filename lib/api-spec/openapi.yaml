@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AvatarRouter Live Avatar API
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready.
@@ -390,11 +390,11 @@ components:
   schemas:
     RoleplayXDelegationClaims:
       type: object
-      additionalProperties: false
+      additionalProperties: true
       required: [iss, aud, client_id, sub, tenant_id, scope, iat, exp, jti]
       properties:
         iss: { type: string, format: uri, description: Exact issuer configured in AvatarRouter. }
-        aud: { type: string, const: avatarrouter-api, description: Audience registered for this API. }
+        aud: { type: string, example: avatarrouter-api, description: Audience registered for this API. }
         client_id: { type: string, description: Registered RoleplayX server client ID. }
         sub: { type: string, minLength: 1, maxLength: 256, description: Opaque immutable RoleplayX user ID; do not use email. }
         tenant_id: { type: string, minLength: 1, maxLength: 256, description: Tenant selected and membership-verified server-side by RoleplayX. }

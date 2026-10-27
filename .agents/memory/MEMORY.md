@@ -1,3 +1,4 @@
 - [Avatar probe cleanup](avatar-probe-cleanup.md) — outside a LiveKit JobContext, explicitly end provider conversations and verify room deletion.
 - [Avatar provisioning safety](avatar-provisioning-safety.md) — reconcile ambiguous paid creation; consent attestations must not self-approve real-person likenesses.
 - [Clerk test callbacks](clerk-test-callbacks.md) — use a plain return path; encoded fragments can send the tester to a 404 instead of the intended screen.
+- [RoleplayX authentication](roleplayx-auth-boundary.md) — preserve existing login; no shared user session tokens, common accounts, or JWT signing secrets.

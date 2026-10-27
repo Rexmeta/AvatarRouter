@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, verify, type webcrypto } from "node:crypto";
 import { SessionProblem } from "./session-service";
 
 export const ROLEPLAYX_SCOPES = [
@@ -34,7 +34,7 @@ export type RoleplayxIdentity = {
   scopes: readonly string[];
 };
 
-type PublicJwk = JsonWebKey & {
+type PublicJwk = webcrypto.JsonWebKey & {
   kid?: string;
   alg?: string;
   use?: string;
@@ -44,6 +44,7 @@ type PublicJwk = JsonWebKey & {
 type JwksCacheEntry = {
   expiresAt: number;
   refreshedAt: number;
+  failureUntil?: number;
   keys: PublicJwk[];
   pending?: Promise<PublicJwk[]>;
 };
@@ -110,7 +111,7 @@ function validPublicKey(jwk: PublicJwk): boolean {
   return jwk.kty === "RSA" &&
     typeof jwk.kid === "string" && jwk.kid.length > 0 && jwk.kid.length <= 128 &&
     jwk.alg === "RS256" && jwk.use === "sig" &&
-    (!jwk.key_ops || (jwk.key_ops.includes("verify") && !jwk.key_ops.includes("sign"))) &&
+    (!jwk.key_ops || (Array.isArray(jwk.key_ops) && jwk.key_ops.every((operation) => typeof operation === "string") && jwk.key_ops.includes("verify") && !jwk.key_ops.includes("sign"))) &&
     typeof jwk.n === "string" && /^[A-Za-z0-9_-]+$/.test(jwk.n) && modulusLength >= 256 &&
     typeof jwk.e === "string" && /^[A-Za-z0-9_-]{1,16}$/.test(jwk.e) &&
     !hasPrivateMaterial;
@@ -133,7 +134,7 @@ export function verifyRoleplayxAccessToken(
 
   let signatureMatches = false;
   try {
-    const publicKey = createPublicKey({ key: key as never, format: "jwk" });
+    const publicKey = createPublicKey({ key, format: "jwk" });
     signatureMatches = verify("RSA-SHA256", Buffer.from(signingInput), publicKey, signature);
   } catch { /* Uniform rejection: don't expose key/parser details to callers. */ }
   if (!signatureMatches) {
@@ -214,15 +215,28 @@ async function fetchPublicJwks(url: string): Promise<PublicJwk[]> {
     throw new SessionProblem(503, "ROLEPLAYX_JWKS_UNAVAILABLE", "The trusted RoleplayX signing keys could not be checked.");
   }
 
-  let bytes: ArrayBuffer;
-  try { bytes = await response.arrayBuffer(); }
-  catch { throw new SessionProblem(503, "ROLEPLAYX_JWKS_UNAVAILABLE", "The trusted RoleplayX signing keys could not be checked."); }
-  if (bytes.byteLength > maxJwksBytes) {
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    if (!response.body) throw new Error("Missing JWKS body.");
+    const reader = response.body.getReader();
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      totalBytes += chunk.value.byteLength;
+      if (totalBytes > maxJwksBytes) {
+        await reader.cancel();
+        throw new Error("JWKS body too large.");
+      }
+      chunks.push(chunk.value);
+    }
+  } catch {
     throw new SessionProblem(503, "ROLEPLAYX_JWKS_UNAVAILABLE", "The trusted RoleplayX signing keys could not be checked.");
   }
+  const bytes = Buffer.concat(chunks, totalBytes);
 
   try {
-    const document: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    const document: unknown = JSON.parse(bytes.toString("utf8"));
     if (!document || typeof document !== "object" || !Array.isArray((document as { keys?: unknown }).keys)) throw new Error("Invalid JWKS.");
     const keys = (document as { keys: unknown[] }).keys;
     if (!keys.length || keys.length > 32) throw new Error("Invalid key count.");
@@ -239,6 +253,9 @@ async function fetchPublicJwks(url: string): Promise<PublicJwk[]> {
 async function cachedPublicJwks(url: string, refresh = false): Promise<PublicJwk[]> {
   const current = jwksCache.get(url);
   const now = Date.now();
+  if (current?.failureUntil && current.failureUntil > now) {
+    throw new SessionProblem(503, "ROLEPLAYX_JWKS_UNAVAILABLE", "The trusted RoleplayX signing keys could not be checked.");
+  }
   if (!refresh && current && current.expiresAt > now) return current.keys;
   if (current?.pending) return current.pending;
   if (refresh && current && now - current.refreshedAt < 5_000) return current.keys;
@@ -248,11 +265,14 @@ async function cachedPublicJwks(url: string, refresh = false): Promise<PublicJwk
     entry.keys = keys;
     entry.refreshedAt = Date.now();
     entry.expiresAt = entry.refreshedAt + jwksTtlMs;
+    entry.failureUntil = undefined;
     entry.pending = undefined;
     jwksCache.set(url, entry);
     return keys;
   }, (error: unknown) => {
     entry.pending = undefined;
+    // Fail closed without letting every rejected request amplify an upstream outage.
+    entry.failureUntil = Date.now() + 5_000;
     jwksCache.set(url, entry);
     throw error;
   });

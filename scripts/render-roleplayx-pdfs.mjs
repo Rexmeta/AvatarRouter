@@ -10,6 +10,7 @@ const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = resolve(workspaceRoot, "generated-artifacts/roleplayx");
 const spec = await readFile(resolve(workspaceRoot, "lib/api-spec/openapi.yaml"), "utf8");
 const guide = await readFile(resolve(workspaceRoot, "docs/roleplayx-integration-guide.md"), "utf8");
+const identityContract = await readFile(resolve(workspaceRoot, "docs/roleplayx-identity-contract.md"), "utf8");
 const tempDir = await mkdtemp(resolve(tmpdir(), "roleplayx-docs-"));
 
 function escapeHtml(text) {
@@ -107,7 +108,14 @@ a{color:#087a99}strong{color:#132844}
 
 const guideHtml = await resolve(tempDir, "integration-guide.html");
 const specHtml = await resolve(tempDir, "api-reference.html");
+const identityHtml = resolve(tempDir, "identity-contract.html");
 await Promise.all([
+  printPage({
+    title: "RoleplayX identity connection contract",
+    subtitle: "Asymmetric user and tenant delegation · no login migration or shared signing secret",
+    body: renderMarkdown(identityContract),
+    output: identityHtml,
+  }),
   printPage({
     title: "RoleplayX × AvatarRouter",
     subtitle: "Integration guide · stock Tavus avatar · current API and identity requirements",
@@ -125,6 +133,7 @@ await Promise.all([
 await mkdir(outputDir, { recursive: true });
 const browser = process.env.CHROMIUM_BIN ?? "chromium";
 const outputs = [
+  ["roleplayx-identity-contract.pdf", identityHtml],
   ["roleplayx-integration-guide.pdf", guideHtml],
   ["avatarrouter-openapi-reference.pdf", specHtml],
 ];

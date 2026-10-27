@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { RequestHandler } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 export const playgroundLimit = rateLimit({
   windowMs: 60_000, limit: 120,
@@ -8,6 +8,9 @@ export const playgroundLimit = rateLimit({
   message: { error: "Too many requests. Please wait a minute.", code: "RATE_LIMITED" },
   // Socket IP is intentionally used instead of trusting arbitrary forwarded IPs.
   validate: { xForwardedForHeader: false },
+  keyGenerator: (req, res) => res.locals.authProvider === "roleplayx"
+    ? `roleplayx:${res.locals.ownerHash as string}`
+    : ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown"),
 });
 
 /**

@@ -16,7 +16,7 @@ const milestones = [
   'Independent Studio, mock lifecycle, private image assets, and stock Tavus RTC. Image-derived live validation remains pending.',
   'Authenticated tenant-aware core, persistent metering, SDK/React packages.',
   'LemonSlice and Python Simli adapters with independent validation.',
-  'Additive RoleplayX bridge after the identity boundary and real-time audio path are implemented and verified.',
+  'Enroll the RoleplayX public issuer/JWKS and verify the additive real-time audio bridge.',
   'Complete Studio and secure managed administration.',
   'Operational hardening, load/browser/security validation and release approval.',
 ];
@@ -46,9 +46,10 @@ export default function Docs() {
             <div className="mb-4 flex flex-wrap gap-3">
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              <b className="text-foreground">Important:</b> there is no RoleplayX service credential or cross-application identity bridge yet. Live-session ownership currently needs the same verified Replit-managed Clerk user and that user’s retained AvatarRouter owner cookie. The guide lists the BFF work required before another identity system can connect.
+              <b className="text-foreground">Identity bridge:</b> RoleplayX keeps its existing login. Its backend issues a user-and-tenant-bound RS256 delegation JWT valid for at most 60 seconds. AvatarRouter verifies a registered public JWKS, issuer, audience, client ID and route scope. No existing user session token, shared account, browser owner cookie or private signing key is shared. Public issuer/JWKS enrollment is still required before live use.
             </p>
           </section>
 
@@ -90,7 +91,8 @@ export default function Docs() {
 
           <section className="rise space-y-4">
             <h2 className="text-xl font-bold">API requests</h2>
-            <p className="text-sm text-muted-foreground">Routes are served under <span className="mono">/api/v1/*</span>. Live requests use the documented stock avatar, a same-tenant Clerk user JWT, and the creating browser’s owner cookie. Creation returns <span className="mono">rendererState: queued</span>; poll until it is <span className="mono">running</span>. A successful HTTP response is not proof of video or provider cleanup.</p>
+            <p className="text-sm text-muted-foreground">Routes are served under <span className="mono">/api/v1/*</span>. Studio users keep the existing Clerk-and-cookie path. RoleplayX uses backend-only delegated JWTs; ownership comes from the verified issuer, tenant and subject. Creation returns <span className="mono">rendererState: queued</span>; poll until it is <span className="mono">running</span>. HTTP success is not proof of video or provider cleanup.</p>
+            <CopyBlock label="RoleplayX BFF — delegated limits:read request" code={`# Mint a fresh token in the RoleplayX backend after session + tenant checks.\n# Required scope: live-limits:read. Do not send this token to the browser.\ncurl -sS -H "Authorization: Bearer $ROLEPLAYX_DELEGATION_JWT" \\\\\n  ${origin}/api/v1/live-limits`} />
             <CopyBlock label="list providers" code={`curl -s ${origin}/api/v1/providers`} />
             <CopyBlock label="create mock session" code={`curl -s -X POST ${origin}/api/v1/sessions \\\n  -H 'Content-Type: application/json' \\\n  -d '{"providerId":"mock","avatarId":"mock-orbit","mode":"mock"}'`} />
             <CopyBlock label="live stock request (may incur provider charges)" code={`# Use one authorized test user. The service retains the HttpOnly owner cookie.\ncurl -sS -c avatarrouter-cookie.txt -b avatarrouter-cookie.txt \\\\\n  -H "Authorization: Bearer $USER_CLERK_JWT" \\\\\n  -H 'Content-Type: application/json' \\\\\n  -d '{"providerId":"tavus","avatarId":"tavus-stock-lucy","mode":"live","costConfirmed":true}' \\\\\n  ${origin}/api/v1/sessions\n\n# HTTP 201 means queued; poll this session until rendererState is \"running\".`} />
@@ -100,7 +102,7 @@ export default function Docs() {
           <section className="rise">
             <h2 className="mb-3 text-xl font-bold">Current limitations</h2>
             <ul className="grid gap-2 text-sm md:grid-cols-2">
-              {['No RoleplayX identity bridge or app credential', 'Provider credits are unknown', 'No Gemini-to-avatar streaming proof', 'Image-derived live avatar validation pending', 'No production load or latency sign-off', 'No production launch approval'].map((l) => (
+              {['RoleplayX issuer/JWKS enrollment pending', 'Provider credits are unknown', 'No Gemini-to-avatar streaming proof', 'Image-derived live avatar validation pending', 'No production load or latency sign-off', 'No production launch approval'].map((l) => (
                 <li key={l} className="flex items-center gap-2 rounded border bg-card px-3 py-2"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warn))]" />{l}</li>
               ))}
             </ul>
