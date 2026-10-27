@@ -1,8 +1,20 @@
 # RoleplayX → AvatarRouter identity connection contract
 
-**Contract version:** 1  
-**API version:** 0.3  
-**Status:** Implemented and locally tested. Production trust enrollment is pending.
+**Contract version:** 2  
+**API version:** 0.4  
+**Status:** Project API-key connection is the default. Advanced JWT trust enrollment remains optional.
+
+## 0. Recommended: project API key
+
+Sign in to AvatarRouter Studio and create a project key at `/api-keys`. RoleplayX stores only `AVATAR_ROUTER_BASE_URL` and `AVATAR_ROUTER_API_KEY` on its server and calls `GET /api/v1/auth/check` with `Authorization: Bearer <key>`. No issuer, JWKS, login migration, common account or shared JWT signing secret is needed.
+
+Keys are random 256-bit secrets stored only as SHA-256 digests. The full secret is returned once, can be rotated while preserving the project, and can be revoked or expire. Permissions are limited by the selected scopes. Only the signed-in Studio owner can manage keys. A key cannot mint other keys.
+
+The project fixes tenant scope. Optional `X-Avatar-User-ID` partitions session ownership inside that project; it is a trusted service assertion, not independent user authentication. RoleplayX remains responsible for checking its existing login and permissions. Use different project keys for separate external tenants. A key holder can assert any user within its own project, so keys must never reach a public browser.
+
+Revocation blocks new requests but does not prove an existing paid provider session has terminated. Stop active sessions and confirm cleanup before revoking the last key. The complete default procedure is in the API-key quickstart.
+
+**Sections 1–8 below are the optional advanced JWT delegation contract, not requirements for API-key integration.**
 
 ## 1. Non-negotiable boundary
 

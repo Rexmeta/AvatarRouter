@@ -8,6 +8,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./middlewares/clerkProxyMiddleware";
 import { roleplayxAssertion } from "./middlewares/roleplayx-assertion";
+import { serviceApiKey } from "./middlewares/service-api-key";
 
 const app: Express = express();
 
@@ -32,7 +33,8 @@ app.use(
 );
 app.disable("x-powered-by");
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(roleplayxAssertion);
+app.use(serviceApiKey);
+app.use((req, res, next) => res.locals.serviceApiIdentity ? next() : roleplayxAssertion(req, res, next));
 const clerkAuth = clerkMiddleware((req) => ({
   publishableKey: publishableKeyFromHost(
     getClerkProxyHost(req) ?? "",
@@ -40,7 +42,7 @@ const clerkAuth = clerkMiddleware((req) => ({
   ),
 }));
 app.use((req, res, next) => {
-  if (res.locals.roleplayxIdentity) return next();
+  if (res.locals.roleplayxIdentity || res.locals.serviceApiIdentity) return next();
   return clerkAuth(req, res, next);
 });
 // Larger body only after authentication, and only for bounded image ingestion.

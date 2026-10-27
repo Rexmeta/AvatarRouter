@@ -10,6 +10,8 @@ const dict = {
   'nav.usage': ['Usage', '사용량'],
   'nav.assets': ['Avatar assets', '아바타 에셋'],
   'nav.docs': ['Docs', '문서'],
+  'nav.apiKeys': ['API keys', 'API 키'],
+  'keys.title': ['API keys', 'API 키'],
   'brand.tag': ['Integration workbench', '통합 워크벤치'],
   'phase': ['Phase 1 foundation', '1단계 기반'],
   'footer.api': ['API', 'API'],

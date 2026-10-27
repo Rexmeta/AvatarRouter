@@ -1,6 +1,8 @@
 import { useGetSetup } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
+import { Link } from 'wouter';
 import { CopyBlock, PageHead, Panel, Pill } from '@/components/bits';
+import { ConnectionSetup, KeyFacts } from '@/components/api-key-setup';
 
 const origin = typeof window !== 'undefined' ? window.location.origin : '';
 const integrationDocsBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/roleplayx`;
@@ -16,7 +18,7 @@ const milestones = [
   'Independent Studio, mock lifecycle, private image assets, and stock Tavus RTC. Image-derived live validation remains pending.',
   'Authenticated tenant-aware core, persistent metering, SDK/React packages.',
   'LemonSlice and Python Simli adapters with independent validation.',
-  'Enroll the RoleplayX public issuer/JWKS and verify the additive real-time audio bridge.',
+  'Project API-key integration by default; optional JWT delegation and real-time audio verification.',
   'Complete Studio and secure managed administration.',
   'Operational hardening, load/browser/security validation and release approval.',
 ];
@@ -26,20 +28,29 @@ export default function Docs() {
   const setup = useGetSetup();
   return (
     <div>
-      <PageHead index="06 / docs" title={t('docs.title')} lede="RoleplayX integration downloads, the live API contract, and the current integration boundary." />
+      <PageHead index="06 / docs" title={t('docs.title')} lede="Start with a project API key. Advanced JWT delegation, the live API contract and current limitations follow." />
 
       {setup.data && (
         <div className="rise mb-8 flex flex-wrap gap-4 rounded-md border bg-card p-4 text-sm">
-          <span className="flex items-center gap-2"><span className="eyebrow">{t('stage')}</span><Pill value={setup.data.stage} /></span>
-          <span className="flex items-center gap-2"><span className="eyebrow">RoleplayX</span><Pill value={setup.data.roleplayxStatus} /></span>
-          <span className="flex items-center gap-2"><span className="eyebrow">{t('bridge')}</span><Pill value={setup.data.bridgeStatus} /></span>
+          <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&>span:last-child]:max-w-full [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words"><span className="eyebrow">{t('stage')}</span><Pill value={setup.data.stage} /></span>
+          <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&>span:last-child]:max-w-full [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words"><span className="eyebrow">RoleplayX</span><Pill value={setup.data.roleplayxStatus} /></span>
+          <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&>span:last-child]:max-w-full [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words"><span className="eyebrow">{t('bridge')}</span><Pill value={setup.data.bridgeStatus} /></span>
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-        <article className="space-y-10">
+      <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <article className="min-w-0 space-y-10">
+          <section className="rise rounded-md border-2 border-primary/60 bg-card p-5" data-testid="section-api-key-setup">
+            <div className="eyebrow mb-1 text-primary">Recommended</div>
+            <h2 className="mb-2 text-xl font-bold">Quick start: project API key</h2>
+            <p className="mb-4 max-w-3xl text-sm leading-relaxed text-muted-foreground">Create a key in <Link href="/api-keys" className="font-semibold text-foreground underline underline-offset-2" data-testid="link-docs-api-keys">API keys</Link>, store it on your server, and send it as <span className="mono">Authorization: Bearer</span>. No issuer, JWKS or login migration is required. The auth check below is free and starts no session.</p>
+            <ConnectionSetup />
+            <div className="mt-4 rounded border bg-muted/40"><KeyFacts /></div>
+          </section>
+
           <section className="rise rounded-md border bg-card p-5">
-            <h2 className="mb-2 text-xl font-bold">RoleplayX integration kit</h2>
+            <div className="eyebrow mb-1">Advanced · optional</div>
+            <h2 className="mb-2 text-xl font-bold">RoleplayX integration kit and JWT delegation</h2>
             <p className="mb-4 max-w-3xl text-sm leading-relaxed text-muted-foreground">
               The provided Tavus stock avatar has been verified in a real LiveKit browser session. The machine-readable OpenAPI specification and upload-ready integration guide describe the current endpoints and state the identity and audio-bridge requirements.
             </p>
@@ -49,7 +60,7 @@ export default function Docs() {
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              <b className="text-foreground">Identity bridge:</b> RoleplayX keeps its existing login. Its backend issues a user-and-tenant-bound RS256 delegation JWT valid for at most 60 seconds. AvatarRouter verifies a registered public JWKS, issuer, audience, client ID and route scope. No existing user session token, shared account, browser owner cookie or private signing key is shared. Public issuer/JWKS enrollment is still required before live use.
+              <b className="text-foreground">Identity bridge:</b> RoleplayX keeps its existing login. Its backend issues a user-and-tenant-bound RS256 delegation JWT valid for at most 60 seconds. AvatarRouter verifies a registered public JWKS, issuer, audience, client ID and route scope. No existing user session token, shared account, browser owner cookie or private signing key is shared. This path is optional; API keys need no issuer or JWKS enrollment.
             </p>
           </section>
 
@@ -91,8 +102,9 @@ export default function Docs() {
 
           <section className="rise space-y-4">
             <h2 className="text-xl font-bold">API requests</h2>
-            <p className="text-sm text-muted-foreground">Routes are served under <span className="mono">/api/v1/*</span>. Studio users keep the existing Clerk-and-cookie path. RoleplayX uses backend-only delegated JWTs; ownership comes from the verified issuer, tenant and subject. Creation returns <span className="mono">rendererState: queued</span>; poll until it is <span className="mono">running</span>. HTTP success is not proof of video or provider cleanup.</p>
-            <CopyBlock label="RoleplayX BFF — delegated limits:read request" code={`# Mint a fresh token in the RoleplayX backend after session + tenant checks.\n# Required scope: live-limits:read. Do not send this token to the browser.\ncurl -sS -H "Authorization: Bearer $ROLEPLAYX_DELEGATION_JWT" \\\\\n  ${origin}/api/v1/live-limits`} />
+            <p className="text-sm text-muted-foreground">Routes are served under <span className="mono">/api/v1/*</span>. External servers use a project API key. Studio users keep the existing Clerk-and-cookie path; optional delegated JWTs remain supported. Creation returns <span className="mono">rendererState: queued</span>; poll until it is <span className="mono">running</span>. HTTP success is not proof of video or provider cleanup.</p>
+            <CopyBlock label="API key — limits:read" code={`curl -sS -H "Authorization: Bearer $AVATAR_ROUTER_API_KEY" \\\\\n  $AVATAR_ROUTER_BASE_URL/live-limits`} />
+            <CopyBlock label="advanced: RoleplayX BFF — delegated limits:read request" code={`# Mint a fresh token in the RoleplayX backend after session + tenant checks.\n# Required scope: live-limits:read. Do not send this token to the browser.\ncurl -sS -H "Authorization: Bearer $ROLEPLAYX_DELEGATION_JWT" \\\\\n  ${origin}/api/v1/live-limits`} />
             <CopyBlock label="list providers" code={`curl -s ${origin}/api/v1/providers`} />
             <CopyBlock label="create mock session" code={`curl -s -X POST ${origin}/api/v1/sessions \\\n  -H 'Content-Type: application/json' \\\n  -d '{"providerId":"mock","avatarId":"mock-orbit","mode":"mock"}'`} />
             <CopyBlock label="live stock request (may incur provider charges)" code={`# Use one authorized test user. The service retains the HttpOnly owner cookie.\ncurl -sS -c avatarrouter-cookie.txt -b avatarrouter-cookie.txt \\\\\n  -H "Authorization: Bearer $USER_CLERK_JWT" \\\\\n  -H 'Content-Type: application/json' \\\\\n  -d '{"providerId":"tavus","avatarId":"tavus-stock-lucy","mode":"live","costConfirmed":true}' \\\\\n  ${origin}/api/v1/sessions\n\n# HTTP 201 means queued; poll this session until rendererState is \"running\".`} />
@@ -102,7 +114,7 @@ export default function Docs() {
           <section className="rise">
             <h2 className="mb-3 text-xl font-bold">Current limitations</h2>
             <ul className="grid gap-2 text-sm md:grid-cols-2">
-              {['RoleplayX issuer/JWKS enrollment pending', 'Provider credits are unknown', 'No Gemini-to-avatar streaming proof', 'Image-derived live avatar validation pending', 'No production load or latency sign-off', 'No production launch approval'].map((l) => (
+              {['Not OpenAI chat/completions compatible', 'Optional JWKS delegation not enrolled', 'Provider credits are unknown', 'No Gemini-to-avatar streaming proof', 'Image-derived live avatar validation pending', 'No production load or latency sign-off', 'No production launch approval'].map((l) => (
                 <li key={l} className="flex items-center gap-2 rounded border bg-card px-3 py-2"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warn))]" />{l}</li>
               ))}
             </ul>

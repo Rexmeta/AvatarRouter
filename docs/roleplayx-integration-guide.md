@@ -1,5 +1,7 @@
 # RoleplayX × AvatarRouter integration guide
 
+> **Advanced/optional JWT delegation appendix.** The recommended integration is now project API key + base URL. See `docs/api-key-quickstart.md` and Studio `/api-keys`. You do not need an issuer or JWKS for API-key mode. The instructions below apply only if you deliberately choose independent signed user delegation.
+
 **API contract:** [OpenAPI 3.1 YAML](./../lib/api-spec/openapi.yaml)  
 **Scope:** Add a provided Tavus stock avatar to a RoleplayX test session without replacing RoleplayX's dialogue runtime.
 

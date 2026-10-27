@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = resolve(workspaceRoot, "generated-artifacts/roleplayx");
 const spec = await readFile(resolve(workspaceRoot, "lib/api-spec/openapi.yaml"), "utf8");
-const guide = await readFile(resolve(workspaceRoot, "docs/roleplayx-integration-guide.md"), "utf8");
+const guide = await readFile(resolve(workspaceRoot, "docs/api-key-quickstart.md"), "utf8");
 const identityContract = await readFile(resolve(workspaceRoot, "docs/roleplayx-identity-contract.md"), "utf8");
 const tempDir = await mkdtemp(resolve(tmpdir(), "roleplayx-docs-"));
 

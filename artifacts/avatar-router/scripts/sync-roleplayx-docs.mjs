@@ -8,7 +8,7 @@ const publicDir = resolve(scriptDir, "../public/roleplayx");
 
 const files = [
   ["lib/api-spec/openapi.yaml", "openapi.yaml"],
-  ["docs/roleplayx-integration-guide.md", "integration-guide.md"],
+  ["docs/api-key-quickstart.md", "integration-guide.md"],
   ["docs/roleplayx-identity-contract.md", "identity-contract.md"],
 ];
 

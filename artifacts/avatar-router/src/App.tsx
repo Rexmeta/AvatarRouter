@@ -14,6 +14,7 @@ import Sessions from '@/pages/sessions';
 import Usage from '@/pages/usage';
 import Docs from '@/pages/docs';
 import AvatarAssets from '@/pages/avatar-assets';
+import ApiKeys from '@/pages/api-keys';
 import { setSelectedAsset } from '@/lib/selected-asset';
 import { Shell } from '@/components/shell';
 import { I18nProvider, useI18n } from '@/lib/i18n';
@@ -189,6 +190,7 @@ function ShellRoutes() {
           <Route path="/providers" component={Providers} />
           <Route path="/sessions" component={Sessions} />
           <Route path="/usage" component={Usage} />
+          <Route path="/api-keys" component={ApiKeys} />
           <Route path="/docs" component={Docs} />
           <Route component={NotFound} />
         </Switch>

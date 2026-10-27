@@ -89,7 +89,7 @@ export function CopyBlock({ code, label }: { code: string; label?: string }) {
           {done ? t('copied') : t('copy')}
         </button>
       </div>
-      <pre className="mono overflow-x-auto p-3 text-[12px] leading-relaxed">{code}</pre>
+      <pre className="mono min-w-0 max-w-full overflow-x-auto p-3 text-[12px] leading-relaxed">{code}</pre>
     </div>
   );
 }

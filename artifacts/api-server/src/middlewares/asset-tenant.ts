@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { getAuth } from "@clerk/express";
 import type { RequestHandler } from "express";
 import { SessionProblem } from "../lib/session-service";
-import { mapRoleplayxIdentity, type RoleplayxIdentity } from "../lib/roleplayx-auth";
+import { integrationIdentity } from "../lib/integration-identity";
 import { assertSameOriginForBridgeRequest, requiredRoleplayxScope } from "./session-owner";
 
 // Personal, isolated tenants for now. No client-supplied tenant identifiers.
 export const assetTenant: RequestHandler = (req, res, next) => {
-  const roleplayxIdentity = res.locals.roleplayxIdentity as RoleplayxIdentity | undefined;
+  const roleplayxIdentity = integrationIdentity(res);
   if (roleplayxIdentity) {
     assertSameOriginForBridgeRequest(req);
     if (req.get("sec-fetch-site") === "cross-site") {
@@ -15,12 +15,12 @@ export const assetTenant: RequestHandler = (req, res, next) => {
     }
     const requiredScope = requiredRoleplayxScope(req.method, req.originalUrl.split("?")[0] ?? "");
     if (!requiredScope || !roleplayxIdentity.scopes.includes(requiredScope)) {
-      throw new SessionProblem(403, "INSUFFICIENT_ROLEPLAYX_SCOPE", "The delegated identity does not have permission for this operation.");
+      throw new SessionProblem(403, roleplayxIdentity.provider === "api-key" ? "INSUFFICIENT_API_KEY_SCOPE" : "INSUFFICIENT_ROLEPLAYX_SCOPE", "The authenticated integration does not have permission for this operation.");
     }
-    const context = mapRoleplayxIdentity(roleplayxIdentity);
+    const context = roleplayxIdentity;
     res.locals.tenantId = context.tenantId;
     res.locals.ownerHash = context.ownerHash;
-    res.locals.authProvider = "roleplayx";
+    res.locals.authProvider = roleplayxIdentity.provider;
     res.set("Cache-Control", "private, no-store");
     next();
     return;

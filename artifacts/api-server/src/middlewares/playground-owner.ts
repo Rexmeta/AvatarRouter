@@ -8,7 +8,7 @@ export const playgroundLimit = rateLimit({
   message: { error: "Too many requests. Please wait a minute.", code: "RATE_LIMITED" },
   // Socket IP is intentionally used instead of trusting arbitrary forwarded IPs.
   validate: { xForwardedForHeader: false },
-  keyGenerator: (req, res) => res.locals.authProvider === "roleplayx"
+  keyGenerator: (req, res) => ["roleplayx", "api-key"].includes(res.locals.authProvider as string)
     ? `roleplayx:${res.locals.ownerHash as string}`
     : ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown"),
 });
