@@ -7,6 +7,7 @@ import { SessionProblem } from "./lib/session-service";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./middlewares/clerkProxyMiddleware";
+import { roleplayxAssertion } from "./middlewares/roleplayx-assertion";
 
 const app: Express = express();
 
@@ -31,12 +32,17 @@ app.use(
 );
 app.disable("x-powered-by");
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(clerkMiddleware((req) => ({
+app.use(roleplayxAssertion);
+const clerkAuth = clerkMiddleware((req) => ({
   publishableKey: publishableKeyFromHost(
     getClerkProxyHost(req) ?? "",
     process.env.CLERK_PUBLISHABLE_KEY,
   ),
-})));
+}));
+app.use((req, res, next) => {
+  if (res.locals.roleplayxIdentity) return next();
+  return clerkAuth(req, res, next);
+});
 // Larger body only after authentication, and only for bounded image ingestion.
 // The route attaches its own parser so anonymous clients cannot decode 6MB JSON.
 app.use((req, res, next) => {

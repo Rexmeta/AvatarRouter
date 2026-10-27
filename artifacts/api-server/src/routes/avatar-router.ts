@@ -6,7 +6,8 @@ import {
   SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
-import { playgroundOwner, playgroundLimit } from "../middlewares/playground-owner";
+import { playgroundLimit } from "../middlewares/playground-owner";
+import { sessionOwner } from "../middlewares/session-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
 import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
@@ -17,7 +18,7 @@ import {
 } from "../lib/session-service";
 
 const router: IRouter = Router();
-router.use("/v1", playgroundLimit, playgroundOwner);
+router.use("/v1", sessionOwner, playgroundLimit);
 router.get("/v1/providers", (_req, res) => { res.json(ListProvidersResponse.parse(getProviders())); });
 router.get("/v1/avatars", (_req, res) => { res.json(ListAvatarsResponse.parse(getAvatars())); });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });

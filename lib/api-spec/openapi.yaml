@@ -5,13 +5,13 @@ info:
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready.
-    Custom image-derived dispatch and RoleplayX identity federation remain separate integrations.
+    RoleplayX server-to-server identity delegation uses asymmetric JWT verification against a pinned public JWKS.
 servers:
   - url: /api
 tags:
   - name: RoleplayX LiveKit
     description: >-
-      Stock Lucy renderer endpoints intended for additive external-agent adapters.
+      Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
 paths:
   /v1/provisioning/providers:
@@ -26,6 +26,10 @@ paths:
   /v1/assets/images:
     get:
       operationId: listImageAssets
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:read; results are tenant-scoped.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Tenant-owned source images
@@ -34,6 +38,10 @@ paths:
               schema: { type: array, items: { $ref: "#/components/schemas/ImageAsset" } }
     post:
       operationId: ingestImage
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:write; rights attestation remains required.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       requestBody:
         required: true
         content:
@@ -50,6 +58,10 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     delete:
       operationId: deleteImageAsset
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:write.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "204": { description: Image bytes and source record deleted; rejects referenced images }
   /v1/assets/images/{id}/content:
@@ -57,6 +69,10 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: getImageContent
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:read; never emits a public object URL.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Authenticated private image, never a public bucket URL
@@ -66,6 +82,10 @@ paths:
   /v1/avatar-assets:
     get:
       operationId: listAvatarAssets
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:read; results are tenant-scoped.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Tenant-owned avatar assets
@@ -74,6 +94,10 @@ paths:
               schema: { type: array, items: { $ref: "#/components/schemas/AvatarAsset" } }
     post:
       operationId: provisionAvatar
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:write. Custom live dispatch remains provider-gated.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       requestBody:
         required: true
         content:
@@ -90,6 +114,10 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: getAvatarAsset
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:read.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Provisioning progress
@@ -98,6 +126,10 @@ paths:
               schema: { $ref: "#/components/schemas/AvatarAsset" }
     delete:
       operationId: deleteAvatarAsset
+      description: Requires a Clerk JWT or RoleplayX delegation JWT with assets:write.
+      security:
+        - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "202":
           description: Provider deletion queued; retained tombstone until confirmed
@@ -155,6 +187,7 @@ paths:
       tags: [RoleplayX LiveKit]
       security:
         - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Authenticated user's UTC daily time reservations and cleanup warnings. Not provider credit balances.
@@ -167,6 +200,7 @@ paths:
       tags: [RoleplayX LiveKit]
       security:
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Browser-owned sessions
@@ -178,12 +212,15 @@ paths:
       tags: [RoleplayX LiveKit]
       description: >-
         For mode=live the only validated catalog selection is providerId=tavus and avatarId=tavus-stock-lucy.
-        Requires a verified Clerk user JWT and costConfirmed=true. The global avatar_playground HttpOnly owner
-        cookie is issued/returned and must be retained for session reads and owner controls. HTTP 201 only
+        Requires costConfirmed=true and either a verified Clerk user JWT or a RoleplayX delegation JWT with sessions:create.
+        Clerk browser sessions use the avatar_playground HttpOnly owner cookie. RoleplayX identities are mapped
+        from signed issuer/tenant/sub claims and do not need that browser cookie. HTTP 201 only
         means the durable renderer request was queued; poll GET /v1/sessions/{id} until rendererState=running.
-        This API does not issue an organization/application credential or federate unrelated RoleplayX identities.
+        The signed RoleplayX JWT is short-lived, per-user and tenant-bound; no existing RoleplayX session token
+        or private signing key is sent to AvatarRouter.
       security:
         - ClerkSessionJWT: []
+        - RoleplayXDelegationJWT: []
         - {}
       requestBody:
         required: true
@@ -205,9 +242,10 @@ paths:
     get:
       operationId: getSession
       tags: [RoleplayX LiveKit]
-      description: Requires the same per-browser AvatarRouter owner cookie issued when the session is created.
+      description: Requires the original AvatarRouter owner cookie or a RoleplayX delegation JWT with sessions:read.
       security:
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -223,12 +261,13 @@ paths:
       operationId: getLiveConnection
       tags: [RoleplayX LiveKit]
       description: >-
-        Requires the original owner cookie and a valid Clerk user JWT for the same tenant. Available only
-        after the dedicated Renderer Worker reports a running state. The returned token is short-lived,
+        Requires the original Clerk browser-owner cookie and user JWT, or a RoleplayX delegation JWT with sessions:connect.
+        Available only after the dedicated Renderer Worker reports a running state. The returned token is short-lived,
         room-scoped and subscribe-only. Treat it as a credential; never log or persist it.
       security:
         - ClerkSessionJWT: []
           AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Authenticated owned stock-session subscribe token
@@ -241,10 +280,11 @@ paths:
     post:
       operationId: sendLiveAudio
       tags: [RoleplayX LiveKit]
-      description: Requires the original owner cookie and same-tenant Clerk JWT. At-most-once queued command; never replay a timeout.
+      description: Requires the original Clerk owner cookie and user JWT, or a RoleplayX delegation JWT with sessions:audio. At-most-once queued command; never replay a timeout.
       security:
         - ClerkSessionJWT: []
           AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       requestBody:
         required: true
         content:
@@ -260,9 +300,10 @@ paths:
     post:
       operationId: endSession
       tags: [RoleplayX LiveKit]
-      description: Requires the original browser-owner cookie. Persists a stop request; poll for confirmed cleanup.
+      description: Requires the original browser-owner cookie or a RoleplayX delegation JWT with sessions:end. Persists a stop request; poll for confirmed cleanup.
       security:
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -275,11 +316,12 @@ paths:
     post:
       operationId: interruptSession
       tags: [RoleplayX LiveKit]
-      description: Requires the original owner cookie and same-tenant Clerk JWT. Clears current renderer audio; it does not cancel the RoleplayX dialogue engine.
+      description: Requires the original owner cookie or a RoleplayX delegation JWT with sessions:interrupt. Clears current renderer audio; it does not cancel the RoleplayX dialogue engine.
       security:
         - ClerkSessionJWT: []
           AvatarPlaygroundOwner: []
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -294,6 +336,7 @@ paths:
       tags: [RoleplayX LiveKit]
       security:
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -308,6 +351,7 @@ paths:
       tags: [RoleplayX LiveKit]
       security:
         - AvatarPlaygroundOwner: []
+        - RoleplayXDelegationJWT: []
       responses:
         "200":
           description: Actual local session observations, no invented costs
@@ -335,7 +379,35 @@ components:
       in: cookie
       name: avatar_playground
       description: HttpOnly per-browser owner capability issued by GET/POST /api/v1. Not an application credential or user identity.
+    RoleplayXDelegationJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        RFC 9068-style RS256 access token signed by the RoleplayX BFF with at+jwt typ, verified through the pinned
+        RoleplayX HTTPS JWKS URL. Lifetime is at most 60 seconds. It binds iss, aud, client_id, opaque sub,
+        tenant_id, jti, iat, exp and a least-privilege scope claim. No RoleplayX session JWT or signing secret is shared.
   schemas:
+    RoleplayXDelegationClaims:
+      type: object
+      additionalProperties: false
+      required: [iss, aud, client_id, sub, tenant_id, scope, iat, exp, jti]
+      properties:
+        iss: { type: string, format: uri, description: Exact issuer configured in AvatarRouter. }
+        aud: { type: string, const: avatarrouter-api, description: Audience registered for this API. }
+        client_id: { type: string, description: Registered RoleplayX server client ID. }
+        sub: { type: string, minLength: 1, maxLength: 256, description: Opaque immutable RoleplayX user ID; do not use email. }
+        tenant_id: { type: string, minLength: 1, maxLength: 256, description: Tenant selected and membership-verified server-side by RoleplayX. }
+        scope: { type: string, description: Space-delimited least-privilege scopes from the allowed scope list below. }
+        iat: { type: integer, description: Issued-at Unix time. }
+        exp: { type: integer, description: Expiration Unix time; exp minus iat must be no more than 60 seconds. }
+        jti: { type: string, minLength: 16, maxLength: 128, description: Unique random request-token identifier. }
+        nbf: { type: integer, description: Optional not-before Unix time. }
+      x-token-header:
+        typ: at+jwt
+        alg: RS256
+        kid: Published in the configured RoleplayX JWKS.
+      x-allowed-scopes: [live-limits:read, sessions:create, sessions:read, sessions:connect, sessions:audio, sessions:interrupt, sessions:end, assets:read, assets:write]
     ImageInput:
       type: object
       additionalProperties: false
