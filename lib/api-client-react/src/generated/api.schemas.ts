@@ -365,6 +365,29 @@ export interface Session {
   interruptions: number;
   /** @nullable */
   error?: string | null;
+  /** @nullable */
+  rendererState?: string | null;
+  stopRequested?: boolean;
+  cleanupPending?: boolean;
+}
+
+export type LiveLimitsProviderCredits = typeof LiveLimitsProviderCredits[keyof typeof LiveLimitsProviderCredits];
+
+
+export const LiveLimitsProviderCredits = {
+  unknown: 'unknown',
+} as const;
+
+export interface LiveLimits {
+  userDailySeconds: number;
+  globalDailySeconds: number;
+  userRemainingSeconds: number;
+  globalRemainingSeconds: number;
+  sessionSeconds: number;
+  cleanupPending: number;
+  workerReady: boolean;
+  providerCredits: LiveLimitsProviderCredits;
+  resetsAt: string;
 }
 
 export interface LiveConnection {

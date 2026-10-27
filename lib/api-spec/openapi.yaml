@@ -141,6 +141,15 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: "#/components/schemas/Avatar" } }
+  /v1/live-limits:
+    get:
+      operationId: getLiveLimits
+      responses:
+        "200":
+          description: Authenticated user's UTC daily time reservations and cleanup warnings. Not provider credit balances.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveLimits" }
   /v1/sessions:
     get:
       operationId: listSessions
@@ -415,6 +424,22 @@ components:
         durationSeconds: { type: number }
         interruptions: { type: integer }
         error: { type: [string, "null"] }
+        rendererState: { type: [string, "null"] }
+        stopRequested: { type: boolean }
+        cleanupPending: { type: boolean }
+    LiveLimits:
+      type: object
+      required: [userDailySeconds, globalDailySeconds, userRemainingSeconds, globalRemainingSeconds, sessionSeconds, cleanupPending, workerReady, providerCredits, resetsAt]
+      properties:
+        userDailySeconds: { type: integer }
+        globalDailySeconds: { type: integer }
+        userRemainingSeconds: { type: integer }
+        globalRemainingSeconds: { type: integer }
+        sessionSeconds: { type: integer }
+        cleanupPending: { type: integer }
+        workerReady: { type: boolean }
+        providerCredits: { type: string, enum: [unknown] }
+        resetsAt: { type: string }
     LiveConnection:
       type: object
       required: [url, token, expiresAt]

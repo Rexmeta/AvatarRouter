@@ -12,6 +12,11 @@ export function presentSession(row: AvatarSessionRecord) {
     endedAt: row.endedAt?.toISOString() ?? null, expiresAt: row.expiresAt.toISOString(),
     durationSeconds: Math.max(0, Math.floor(((row.endedAt?.getTime() ?? Date.now()) - row.startedAt.getTime()) / 1000)),
     interruptions: row.interruptions, error: row.error,
+    rendererState: row.mode === "live" ? row.rendererState : null,
+    stopRequested: !!row.stopRequestedAt,
+    cleanupPending: row.mode === "live" && (["cleanup_pending", "reconciliation_required", "stopping"].includes(row.rendererState) ||
+      ["LIVE_CLEANUP_PENDING", "LIVE_CREATE_RECONCILIATION_REQUIRED"].includes(row.error ?? "") ||
+      (row.status === "active" && (row.expiresAt.getTime() <= Date.now() || (!!row.workerId && !!row.leaseExpiresAt && row.leaseExpiresAt.getTime() <= Date.now())))),
   };
 }
 

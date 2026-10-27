@@ -32,6 +32,8 @@ export * from './imageInputLikeness';
 export * from './liveAudioInput';
 export * from './liveAudioResult';
 export * from './liveConnection';
+export * from './liveLimits';
+export * from './liveLimitsProviderCredits';
 export * from './provider';
 export * from './providerStatus';
 export * from './provisioningProvider';

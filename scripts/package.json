@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "avatar:worker": "tsx ./src/avatar/worker.ts",
+    "avatar:migrate-renderer": "tsx ./src/avatar/renderer-migrate.ts",
     "avatar:probe:tavus": "tsx ./src/avatar/tavus-probe.ts",
     "avatar:review-consent": "tsx ./src/avatar/review-consent.ts",
     "test:pcm": "tsx --test ./src/avatar/pcm.test.ts",

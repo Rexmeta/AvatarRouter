@@ -35,6 +35,7 @@ import type {
   LiveAudioInput,
   LiveAudioResult,
   LiveConnection,
+  LiveLimits,
   Provider,
   ProvisioningProvider,
   Readiness,
@@ -1310,6 +1311,101 @@ export function useListAvatars<TData = Awaited<ReturnType<typeof listAvatars>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListAvatarsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLiveLimitsUrl = () => {
+
+
+
+
+  return `/api/v1/live-limits`
+}
+
+export const getLiveLimits = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveLimits> => {
+
+  return customFetch<LiveLimits>(getGetLiveLimitsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveLimitsQueryKey = () => {
+    return [
+    `/api/v1/live-limits`
+    ] as const;
+    }
+
+
+export const getGetLiveLimitsQueryOptions = <TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveLimitsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveLimits>>> = ({ signal }) => getLiveLimits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLiveLimitsQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveLimits>>>
+export type GetLiveLimitsQueryError = ErrorType<unknown>
+
+
+export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLiveLimits>>,
+          TError,
+          Awaited<ReturnType<typeof getLiveLimits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLiveLimits>>,
+          TError,
+          Awaited<ReturnType<typeof getLiveLimits>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLiveLimitsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

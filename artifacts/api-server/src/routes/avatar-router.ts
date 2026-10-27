@@ -3,14 +3,14 @@ import {
   CreateSessionBody, GetSessionParams, GetSessionResponse,
   ListProvidersResponse, ListAvatarsResponse, ListSessionsResponse,
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
-  SendLiveAudioBody, GetLiveConnectionResponse,
+  SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundOwner, playgroundLimit } from "../middlewares/playground-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
-import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession } from "../lib/live-sessions";
-import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-runtime";
+import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
+import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -21,6 +21,9 @@ router.use("/v1", playgroundLimit, playgroundOwner);
 router.get("/v1/providers", (_req, res) => { res.json(ListProvidersResponse.parse(getProviders())); });
 router.get("/v1/avatars", (_req, res) => { res.json(ListAvatarsResponse.parse(getAvatars())); });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
+router.get("/v1/live-limits", assetTenant, async (_req, res): Promise<void> => {
+  res.json(GetLiveLimitsResponse.parse(await liveLimits(res.locals.tenantId)));
+});
 router.get("/v1/sessions", async (_req, res): Promise<void> => {
   const rows = await listOwnedSessions(res.locals.ownerHash);
   res.json(ListSessionsResponse.parse(rows.map(presentSession)));

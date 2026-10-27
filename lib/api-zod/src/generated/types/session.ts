@@ -22,4 +22,8 @@ export interface Session {
   interruptions: number;
   /** @nullable */
   error?: string | null;
+  /** @nullable */
+  rendererState?: string | null;
+  stopRequested?: boolean;
+  cleanupPending?: boolean;
 }

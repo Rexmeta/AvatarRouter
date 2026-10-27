@@ -10,9 +10,9 @@ const storage = new Storage({
     universe_domain: "googleapis.com",
   }, projectId: "",
 });
-function privateFile(objectPath: string) {
+function privateFile(objectPath: string, prefix = "avatar-images") {
   const root = process.env.PRIVATE_OBJECT_DIR?.replace(/\/$/, "");
-  if (!root || !objectPath.startsWith(`${root}/avatar-images/`)) {
+  if (!root || !objectPath.startsWith(`${root}/${prefix}/`)) {
     throw new SessionProblem(503, "STORAGE_NOT_CONFIGURED", "Private image storage is unavailable.");
   }
   const [bucket, ...name] = objectPath.replace(/^\//, "").split("/");
@@ -25,6 +25,14 @@ export async function savePrivateImage(tenant: string, id: string, bytes: Buffer
 }
 export async function readPrivateImage(path: string) { const [bytes] = await privateFile(path).download(); return bytes; }
 export async function removePrivateImage(path: string) { await privateFile(path).delete({ ignoreNotFound: true }); }
+// Short-lived renderer messages; never store PCM/base64 in PostgreSQL.
+export async function saveRendererAudio(id: string, bytes: Buffer) {
+  const path = `${process.env.PRIVATE_OBJECT_DIR?.replace(/\/$/, "")}/renderer-audio/${id}.pcm`;
+  await privateFile(path, "renderer-audio").save(bytes, { resumable: false, contentType: "application/octet-stream", metadata: { cacheControl: "private, no-store" } });
+  return path;
+}
+export async function readRendererAudio(path: string) { const [bytes] = await privateFile(path, "renderer-audio").download(); return bytes; }
+export async function removeRendererAudio(path: string) { await privateFile(path, "renderer-audio").delete({ ignoreNotFound: true }); }
 export async function providerImageUrl(path: string) {
   privateFile(path); // Root-constrained path from our DB, never from a client.
   const [bucket, ...name] = path.replace(/^\//, "").split("/");

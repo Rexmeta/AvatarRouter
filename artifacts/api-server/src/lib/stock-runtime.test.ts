@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL } from "./stock-runtime";
+import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime } from "./stock-runtime";
 import { createStockSession } from "./live-sessions";
 
 test("stock configuration is explicit and never invents a trained face", () => {
@@ -36,4 +36,18 @@ test("provider errors expose safe classifications, never upstream bodies", () =>
   assert.equal(safeLiveError({ status: 429 }).code, "PROVIDER_RATE_LIMITED");
   assert.equal(safeLiveError({ body: "insufficient credits" }).status, 402);
   assert.doesNotMatch(safeLiveError({ message: "secret-detail" }).message, /secret-detail/);
+});
+test("stalled native shutdown cannot block explicit provider and room cleanup", async () => {
+  let cleanupCalls = 0;
+  const runtime = new StockRuntime("fake-no-network", async () => {}, async () => {}, async () => {}, async () => {
+    cleanupCalls++;
+    return { providerEnded: true, roomDeleted: true };
+  });
+  runtime.agent.close = () => new Promise<void>(() => {});
+  runtime.avatar.aclose = () => new Promise<void>(() => {});
+  runtime.room.disconnect = () => new Promise<void>(() => {});
+  assert.deepEqual(await runtime.stop(), { providerEnded: true, roomDeleted: true });
+  assert.equal(cleanupCalls, 1);
+  await runtime.stop();
+  assert.equal(cleanupCalls, 1);
 });

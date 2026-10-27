@@ -26,6 +26,7 @@ Independent live-avatar integration service using official LiveKit plugins; Role
 - Contracts: `lib/api-spec/openapi.yaml`; regenerate after every change.
 - Schema: `lib/db/src/schema/avatar-sessions.ts`.
 - Operator worker and PCM spike: `scripts/src/avatar/`.
+- Dedicated stock renderer lifecycle, migration, budgets and reconciliation: `docs/live-renderer-operations.md`.
 - Scope, risks and repository findings: `docs/architecture-compatibility.md`.
 - Setup and validation boundary: `docs/phase-1-setup.md`.
 

@@ -252,6 +252,19 @@ export const ListAvatarsResponseItem = zod.object({
 export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
 
+export const GetLiveLimitsResponse = zod.object({
+  "userDailySeconds": zod.number().int(),
+  "globalDailySeconds": zod.number().int(),
+  "userRemainingSeconds": zod.number().int(),
+  "globalRemainingSeconds": zod.number().int(),
+  "sessionSeconds": zod.number().int(),
+  "cleanupPending": zod.number().int(),
+  "workerReady": zod.boolean(),
+  "providerCredits": zod.enum(['unknown']),
+  "resetsAt": zod.string()
+})
+
+
 export const ListSessionsResponseItem = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
@@ -263,7 +276,10 @@ export const ListSessionsResponseItem = zod.object({
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
 })
 export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
 
@@ -291,7 +307,10 @@ export const CreateSessionResponse = zod.object({
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
 })
 
 
@@ -310,7 +329,10 @@ export const GetSessionResponse = zod.object({
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
 })
 
 
@@ -358,7 +380,10 @@ export const EndSessionResponse = zod.object({
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
 })
 
 
@@ -377,7 +402,10 @@ export const InterruptSessionResponse = zod.object({
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
   "interruptions": zod.number().int(),
-  "error": zod.string().nullish()
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
 })
 
 

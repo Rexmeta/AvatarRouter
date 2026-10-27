@@ -8,6 +8,17 @@ export const avatarSessions = pgTable("avatar_sessions", {
   tenantId: text("tenant_id"),
   roomName: text("room_name"),
   providerConversationId: text("provider_conversation_id"),
+  rendererState: text("renderer_state").notNull().default("queued"),
+  workerId: text("worker_id"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+  providerCreateState: text("provider_create_state").notNull().default("not_started"),
+  stopRequestedAt: timestamp("stop_requested_at", { withTimezone: true }),
+  stopStatus: text("stop_status", { enum: ["ended", "expired", "failed"] }),
+  stopError: text("stop_error"),
+  cleanupAttempts: integer("cleanup_attempts").notNull().default(0),
+  cleanupRetryAt: timestamp("cleanup_retry_at", { withTimezone: true }),
+  reservedSeconds: integer("reserved_seconds").notNull().default(0),
   providerId: text("provider_id").notNull(),
   avatarId: text("avatar_id").notNull(),
   mode: text("mode", { enum: ["mock", "live"] }).notNull(),
@@ -20,6 +31,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
 }, (t) => [
   index("avatar_sessions_owner_idx").on(t.ownerHash, t.startedAt),
   index("avatar_sessions_expiry_idx").on(t.status, t.expiresAt),
+  index("avatar_sessions_worker_idx").on(t.mode, t.rendererState, t.leaseExpiresAt),
   uniqueIndex("avatar_sessions_one_active_owner").on(t.ownerHash).where(sql`${t.status} = 'active'`),
 ]);
 
@@ -35,3 +47,21 @@ export const avatarSessionEvents = pgTable("avatar_session_events", {
 }, (t) => [index("avatar_events_session_idx").on(t.sessionId, t.createdAt)]);
 
 export const insertAvatarSessionEventSchema = createInsertSchema(avatarSessionEvents);
+
+export const rendererCommands = pgTable("renderer_commands", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull().references(() => avatarSessions.id, { onDelete: "cascade" }),
+  type: text("type", { enum: ["audio", "interrupt"] }).notNull(),
+  objectPath: text("object_path"),
+  state: text("state").notNull().default("queued"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("renderer_commands_session_idx").on(t.sessionId, t.state, t.createdAt)]);
+export const insertRendererCommandSchema = createInsertSchema(rendererCommands);
+
+export const rendererWorkers = pgTable("renderer_workers", {
+  id: text("id").primaryKey(),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const insertRendererWorkerSchema = createInsertSchema(rendererWorkers);

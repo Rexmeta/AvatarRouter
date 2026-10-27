@@ -5,8 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Room, RoomEvent, Track, ConnectionState, type RemoteTrack } from 'livekit-client';
 import { AudioLines, LogIn, Mic, Play, Radio, Square, Volume2, Zap } from 'lucide-react';
 import {
-  useCreateSession, useGetSession, useEndSession, useInterruptSession, useGetLiveConnection, useSendLiveAudio,
-  getGetSessionQueryKey, getGetLiveConnectionQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey,
+  useCreateSession, useGetSession, useEndSession, useInterruptSession, useGetLiveConnection, useSendLiveAudio, useGetLiveLimits,
+  getGetSessionQueryKey, getGetLiveConnectionQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey, getGetLiveLimitsQueryKey,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg, fmtSec } from '@/components/bits';
@@ -47,6 +47,7 @@ export function StockLivePanel() {
   const { user, isLoaded } = useUser();
   const qc = useQueryClient();
   const uid = user?.id ?? null;
+  const limits = useGetLiveLimits({ query: { queryKey: [...getGetLiveLimitsQueryKey(), uid], enabled: !!uid, refetchInterval: 5000, staleTime: 0 } });
 
   const [sid, setSid] = useState<string>(() => sessionStorage.getItem(KEY) ?? '');
   const [ack, setAck] = useState(false);
@@ -74,17 +75,18 @@ export function StockLivePanel() {
     query: {
       queryKey: getGetSessionQueryKey(sid),
       enabled: !!sid && !!uid,
-      refetchInterval: (q) => (q.state.data?.status === 'active' ? 2000 : false),
+      refetchInterval: (q) => (q.state.data?.status === 'active' || q.state.data?.cleanupPending ? 2000 : false),
     },
   });
   const s = session.data;
   const active = s?.status === 'active';
+  const ready = active && s?.rendererState === 'running' && !s.stopRequested;
   activeRef.current = active;
 
   const conn = useGetLiveConnection(sid, {
     query: {
       queryKey: getGetLiveConnectionQueryKey(sid),
-      enabled: !!sid && !!uid && active,
+      enabled: !!sid && !!uid && ready,
       staleTime: Infinity,
       gcTime: 0,
       retry: false,
@@ -355,6 +357,18 @@ export function StockLivePanel() {
                 {s ? <Pill value={s.status} live={active} /> : <Pill value="ended" label={L('idle', '대기')} />}
               </div>
               {s && <div className="mono text-xs text-muted-foreground" data-testid="text-stock-duration">{fmtSec(s.durationSeconds)} · {active ? L(`${remaining}s until hard stop`, `강제 종료까지 ${remaining}초`) : s.status}{s.error ? ` · ${s.error}` : ''}</div>}
+              {s && active && !ready && <p className="text-xs text-muted-foreground" role="status">{s.stopRequested ? L('Stop requested. Waiting for confirmed remote cleanup.', '종료 요청을 저장했습니다. 원격 정리 확인을 기다리는 중입니다.') : L('Dedicated renderer is starting…', '전용 렌더러를 시작하는 중입니다…')}</p>}
+              {limits.data && <div className="rounded border p-3 text-xs text-muted-foreground" data-testid="text-live-budget">
+                <p>{L('Daily time budget remaining', '오늘 남은 사용 시간')}: {L('You', '사용자')} {limits.data.userRemainingSeconds}s / {limits.data.userDailySeconds}s · {L('Service', '전체')} {limits.data.globalRemainingSeconds}s / {limits.data.globalDailySeconds}s</p>
+                <p className="mt-1">{L('Each attempt reserves 120 s; resets at 00:00 UTC. Provider credit balance is unavailable here; check Tavus/LiveKit billing.', '시도당 120초를 예약하며 UTC 00:00에 초기화됩니다. 공급자 잔여 크레딧은 여기서 조회할 수 없습니다. Tavus/LiveKit 결제 화면을 확인하세요.')}</p>
+                {!limits.data.workerReady && <p className="mt-1 text-destructive">{L('Renderer worker unavailable. Paid starts are blocked.', '렌더러 워커가 응답하지 않아 유료 시작을 차단했습니다.')}</p>}
+              </div>}
+              {(s?.cleanupPending || (limits.data?.cleanupPending ?? 0) > 0) && <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert" data-testid="warning-live-cleanup">
+                {s?.error === 'LIVE_CREATE_RECONCILIATION_REQUIRED'
+                  ? L('Paid creation outcome is unknown. Do not create another session. An operator must reconcile it with the provider.', '유료 생성 결과가 불명확합니다. 새 세션을 만들지 마세요. 운영자가 공급자 기록을 확인해야 합니다.')
+                  : L('Remote session cleanup is not confirmed. Billing may continue. The worker retries known provider termination and room deletion; new paid sessions remain blocked.', '원격 세션 정리가 확인되지 않아 과금이 계속될 수 있습니다. 워커가 확인된 공급자 세션 종료와 방 삭제를 재시도하며 새 유료 세션은 차단합니다.')}
+              </div>}
+              {s?.error === 'LIVE_QUOTA_OR_PLAN_REQUIRED' && <p className="text-sm text-destructive" role="alert">{L('Provider rejected usage. Check remaining credits and plan entitlement in Tavus/LiveKit. No paid retry was made.', '공급자가 사용을 거절했습니다. Tavus/LiveKit 잔여 크레딧과 요금제 권한을 확인하세요. 유료 재시도는 하지 않았습니다.')}</p>}
 
               {!active && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
@@ -368,17 +382,17 @@ export function StockLivePanel() {
 
               <div className="flex flex-wrap gap-2">
                 {!active ? (
-                  <button data-testid="button-stock-start" disabled={!ack || create.isPending} onClick={start}
+                  <button data-testid="button-stock-start" disabled={!ack || create.isPending || !limits.data?.workerReady || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
                     <Play className="h-4 w-4" /> {create.isPending ? L('Starting…', '시작 중…') : L('Start Lucy live', 'Lucy 라이브 시작')}
                   </button>
                 ) : (
-                  <button data-testid="button-stock-end" disabled={end.isPending} onClick={doEnd}
+                  <button data-testid="button-stock-end" disabled={end.isPending || s?.stopRequested} onClick={doEnd}
                     className="inline-flex items-center gap-2 rounded border border-destructive/40 px-4 py-2 text-sm text-destructive transition hover:bg-destructive/5 active:scale-[.97] disabled:opacity-40">
                     <Square className="h-4 w-4" /> {L('End', '종료')}
                   </button>
                 )}
-                <button data-testid="button-stock-interrupt" disabled={!active || interrupt.isPending} onClick={doInterrupt}
+                <button data-testid="button-stock-interrupt" disabled={!ready || interrupt.isPending} onClick={doInterrupt}
                   className="inline-flex items-center gap-2 rounded border px-4 py-2 text-sm transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                   <Zap className="h-4 w-4" /> {L('Interrupt', '중단')}
                 </button>
@@ -387,7 +401,7 @@ export function StockLivePanel() {
               <div className="border-t pt-4">
                 <div className="eyebrow mb-2">{L('Send audio to echo', '따라 말할 오디오 보내기')}</div>
                 <div className="flex flex-wrap gap-2">
-                  <button data-testid="button-stock-tone" disabled={!active || send.isPending || rec !== 'idle'} onClick={tone}
+                  <button data-testid="button-stock-tone" disabled={!ready || send.isPending || rec !== 'idle'} onClick={tone}
                     className="inline-flex items-center gap-2 rounded border px-3 py-1.5 text-sm transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                     <AudioLines className="h-4 w-4" /> {L('1 s test tone', '1초 테스트 톤')}
                   </button>
@@ -397,13 +411,13 @@ export function StockLivePanel() {
                       <span className="relative h-2 w-2 rounded-full bg-current ping" /> {L(`Stop and send (${recLeft}s)`, `중지 후 전송 (${recLeft}초)`)}
                     </button>
                   ) : (
-                    <button data-testid="button-stock-rec" disabled={!active || rec !== 'idle' || send.isPending} onClick={record}
+                    <button data-testid="button-stock-rec" disabled={!ready || rec !== 'idle' || send.isPending} onClick={record}
                       className="inline-flex items-center gap-2 rounded border px-3 py-1.5 text-sm transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                       <Mic className="h-4 w-4" /> {rec === 'sending' ? L('Uploading…', '업로드 중…') : L('Record my voice (max 5 s)', '내 목소리 녹음 (최대 5초)')}
                     </button>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">{L('The tone is a synthetic beep, not speech. Your recording stays local until you upload it; the microphone is never published to the room.', '톤은 합성 비프음이며 음성이 아닙니다. 녹음은 업로드 전까지 로컬에만 있으며 마이크는 룸에 게시되지 않습니다.')}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">{L('The tone is a synthetic beep, not speech. Uploaded PCM is kept briefly in private storage for the worker and then deleted. The microphone is never published to the room.', '톤은 합성 비프음이며 음성이 아닙니다. 업로드된 PCM은 워커 전달을 위해 비공개 저장소에 잠시 보관한 뒤 삭제합니다. 마이크는 룸에 게시되지 않습니다.')}</p>
               </div>
 
               {(err || conn.isError) && (

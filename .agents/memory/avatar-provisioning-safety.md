@@ -5,7 +5,11 @@ description: Why paid avatar creation must not retry ambiguous upstream submissi
 
 An upstream avatar-creation POST with an unknown outcome must be reconciled, not automatically retried. A browser timeout or process restart does not prove that paid training failed to start.
 
+The same rule applies to billable live-conversation POSTs, not just persistent avatar training. A database lease fences local workers, but cannot cancel a request already accepted by a provider. Preserve a late provider ID even after the submitting worker loses ownership.
+
 **Why:** Provider generation can create a billable, persistent likeness before the caller receives its ID. Blind retries can duplicate costs and leave undeletable/untracked images.
+
+**Why:** A lease takeover cannot prove that a remote POST failed. Rejecting a late ID merely because ownership changed would discard the only safe cleanup reference.
 
 **How to apply:** Persist a pre-dispatch state, keep known provider IDs through cleanup, and require operator reconciliation after ambiguous creation. Safe polling is different from safe creation retry. Do not mark deletion confirmed when the provider result is unknown.
 
