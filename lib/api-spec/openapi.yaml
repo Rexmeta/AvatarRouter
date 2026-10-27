@@ -1,10 +1,18 @@
 openapi: 3.1.0
 info:
-  title: Api
-  version: 0.1.0
-  description: AvatarRouter preliminary standalone Playground. Mock sessions are explicit; live verification is pending.
+  title: AvatarRouter Live Avatar API
+  version: 0.2.0
+  description: >-
+    Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
+    and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready.
+    Custom image-derived dispatch and RoleplayX identity federation remain separate integrations.
 servers:
   - url: /api
+tags:
+  - name: RoleplayX LiveKit
+    description: >-
+      Stock Lucy renderer endpoints intended for additive external-agent adapters.
+      The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
 paths:
   /v1/provisioning/providers:
     get:
@@ -144,6 +152,9 @@ paths:
   /v1/live-limits:
     get:
       operationId: getLiveLimits
+      tags: [RoleplayX LiveKit]
+      security:
+        - ClerkSessionJWT: []
       responses:
         "200":
           description: Authenticated user's UTC daily time reservations and cleanup warnings. Not provider credit balances.
@@ -153,6 +164,9 @@ paths:
   /v1/sessions:
     get:
       operationId: listSessions
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
       responses:
         "200":
           description: Browser-owned sessions
@@ -161,6 +175,16 @@ paths:
               schema: { type: array, items: { $ref: "#/components/schemas/Session" } }
     post:
       operationId: createSession
+      tags: [RoleplayX LiveKit]
+      description: >-
+        For mode=live the only validated catalog selection is providerId=tavus and avatarId=tavus-stock-lucy.
+        Requires a verified Clerk user JWT and costConfirmed=true. The global avatar_playground HttpOnly owner
+        cookie is issued/returned and must be retained for session reads and owner controls. HTTP 201 only
+        means the durable renderer request was queued; poll GET /v1/sessions/{id} until rendererState=running.
+        This API does not issue an organization/application credential or federate unrelated RoleplayX identities.
+      security:
+        - ClerkSessionJWT: []
+        - {}
       requestBody:
         required: true
         content:
@@ -168,18 +192,22 @@ paths:
             schema: { $ref: "#/components/schemas/SessionInput" }
       responses:
         "201":
-          description: Session created
+          description: Session accepted/queued (not video ready)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
         "409":
-          description: Live validation is unavailable
+          description: Active session, unknown provider creation outcome, cleanup pending, or renderer unavailable
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiFailure" }
   /v1/sessions/{id}:
     get:
       operationId: getSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the same per-browser AvatarRouter owner cookie issued when the session is created.
+      security:
+        - AvatarPlaygroundOwner: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -193,6 +221,14 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string } }
     get:
       operationId: getLiveConnection
+      tags: [RoleplayX LiveKit]
+      description: >-
+        Requires the original owner cookie and a valid Clerk user JWT for the same tenant. Available only
+        after the dedicated Renderer Worker reports a running state. The returned token is short-lived,
+        room-scoped and subscribe-only. Treat it as a credential; never log or persist it.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
       responses:
         "200":
           description: Authenticated owned stock-session subscribe token
@@ -204,6 +240,11 @@ paths:
       - { name: id, in: path, required: true, schema: { type: string } }
     post:
       operationId: sendLiveAudio
+      tags: [RoleplayX LiveKit]
+      description: Requires the original owner cookie and same-tenant Clerk JWT. At-most-once queued command; never replay a timeout.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
       requestBody:
         required: true
         content:
@@ -218,17 +259,27 @@ paths:
   /v1/sessions/{id}/end:
     post:
       operationId: endSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the original browser-owner cookie. Persists a stop request; poll for confirmed cleanup.
+      security:
+        - AvatarPlaygroundOwner: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         "200":
-          description: Idempotently ended
+          description: Stop requested and durably recorded; poll the session to verify provider cleanup completed.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
   /v1/sessions/{id}/interrupt:
     post:
       operationId: interruptSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the original owner cookie and same-tenant Clerk JWT. Clears current renderer audio; it does not cancel the RoleplayX dialogue engine.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
+        - AvatarPlaygroundOwner: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -240,6 +291,9 @@ paths:
   /v1/sessions/{id}/events:
     get:
       operationId: listSessionEvents
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -251,6 +305,9 @@ paths:
   /v1/usage:
     get:
       operationId: getUsage
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
       responses:
         "200":
           description: Actual local session observations, no invented costs
@@ -267,6 +324,17 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Setup" }
 components:
+  securitySchemes:
+    ClerkSessionJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived session JWT from the same Replit-managed Clerk tenant; verified by the API, mapped to a personal tenant.
+    AvatarPlaygroundOwner:
+      type: apiKey
+      in: cookie
+      name: avatar_playground
+      description: HttpOnly per-browser owner capability issued by GET/POST /api/v1. Not an application credential or user identity.
   schemas:
     ImageInput:
       type: object

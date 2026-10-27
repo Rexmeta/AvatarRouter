@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "abHYyQPQ9H1aDM5aqvNKO"
+uri = "file://generated-artifacts/roleplayx/roleplayx-integration-guide.pdf"
+type = "pdf"
+title = "RoleplayX 통합 가이드 (PDF)"
+description = "현재 인증 경계, Tavus 제공 아바타 세션 호출 방법, LiveKit 연결·오디오 테스트, 제한 사항을 정리했습니다."
+logical_id = "ccb48ea9-4e8d-4a62-8783-775eb004893b"
+content_hash = "sha256:11f9ac62d71b331715fb23336693f2cd55954022182c4ab9e7e755f10150f5ac"
+size = 95352
+mtime_ms = 1793090471441
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/ccb48ea9-4e8d-4a62-8783-775eb004893b/1a15749b-2dfd-4b5f-b7e4-3d5587d7ef17"
+storage_version_token = "1793090553398865"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "NDnbNcEHhEWs5oO4zHcrw"
+uri = "file://generated-artifacts/roleplayx/avatarrouter-openapi-reference.pdf"
+type = "pdf"
+title = "AvatarRouter API 명세 (PDF)"
+description = "OpenAPI 3.1 YAML 전체 계약을 읽기 쉬운 PDF로 변환했습니다. 기계가 읽는 YAML은 AvatarRouter Studio Docs에서 내려받을 수 있습니다."
+logical_id = "5fe9b182-a0da-407b-b744-7b441361846b"
+content_hash = "sha256:94f2b3cd5653f8f8e5a74ce27fae53edc10ca6958a45ae8ebb86b3afb78d3640"
+size = 66193
+mtime_ms = 1793090472493
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/5fe9b182-a0da-407b-b744-7b441361846b/ec276be7-53f1-4185-a974-be87952fe875"
+storage_version_token = "1793090554695122"
+content_type = "application/pdf"

@@ -1,0 +1,569 @@
+openapi: 3.1.0
+info:
+  title: AvatarRouter Live Avatar API
+  version: 0.2.0
+  description: >-
+    Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
+    and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready.
+    Custom image-derived dispatch and RoleplayX identity federation remain separate integrations.
+servers:
+  - url: /api
+tags:
+  - name: RoleplayX LiveKit
+    description: >-
+      Stock Lucy renderer endpoints intended for additive external-agent adapters.
+      The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
+paths:
+  /v1/provisioning/providers:
+    get:
+      operationId: listProvisioningProviders
+      responses:
+        "200":
+          description: Official capabilities and adapter availability, not account entitlement
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ProvisioningProvider" } }
+  /v1/assets/images:
+    get:
+      operationId: listImageAssets
+      responses:
+        "200":
+          description: Tenant-owned source images
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ImageAsset" } }
+    post:
+      operationId: ingestImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImageInput" }
+      responses:
+        "201":
+          description: Validated private image, or an existing identical version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageAsset" }
+  /v1/assets/images/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      operationId: deleteImageAsset
+      responses:
+        "204": { description: Image bytes and source record deleted; rejects referenced images }
+  /v1/assets/images/{id}/content:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getImageContent
+      responses:
+        "200":
+          description: Authenticated private image, never a public bucket URL
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+  /v1/avatar-assets:
+    get:
+      operationId: listAvatarAssets
+      responses:
+        "200":
+          description: Tenant-owned avatar assets
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AvatarAsset" } }
+    post:
+      operationId: provisionAvatar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarAssetInput" }
+      responses:
+        "202":
+          description: Durable asynchronous provisioning request, idempotent per image and provider configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+  /v1/avatar-assets/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getAvatarAsset
+      responses:
+        "200":
+          description: Provisioning progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+    delete:
+      operationId: deleteAvatarAsset
+      responses:
+        "202":
+          description: Provider deletion queued; retained tombstone until confirmed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+  /healthz:
+    get:
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: Health
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /ready:
+    get:
+      operationId: getReadiness
+      responses:
+        "200":
+          description: Readiness for mock Playground
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+  /v1/providers:
+    get:
+      operationId: listProviders
+      responses:
+        "200":
+          description: Documented providers, not availability claims
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Provider" } }
+  /v1/avatars:
+    get:
+      operationId: listAvatars
+      responses:
+        "200":
+          description: Local mock and configured avatar references only
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Avatar" } }
+  /v1/live-limits:
+    get:
+      operationId: getLiveLimits
+      tags: [RoleplayX LiveKit]
+      security:
+        - ClerkSessionJWT: []
+      responses:
+        "200":
+          description: Authenticated user's UTC daily time reservations and cleanup warnings. Not provider credit balances.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveLimits" }
+  /v1/sessions:
+    get:
+      operationId: listSessions
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
+      responses:
+        "200":
+          description: Browser-owned sessions
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Session" } }
+    post:
+      operationId: createSession
+      tags: [RoleplayX LiveKit]
+      description: >-
+        For mode=live the only validated catalog selection is providerId=tavus and avatarId=tavus-stock-lucy.
+        Requires a verified Clerk user JWT and costConfirmed=true. The global avatar_playground HttpOnly owner
+        cookie is issued/returned and must be retained for session reads and owner controls. HTTP 201 only
+        means the durable renderer request was queued; poll GET /v1/sessions/{id} until rendererState=running.
+        This API does not issue an organization/application credential or federate unrelated RoleplayX identities.
+      security:
+        - ClerkSessionJWT: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionInput" }
+      responses:
+        "201":
+          description: Session accepted/queued (not video ready)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Active session, unknown provider creation outcome, cleanup pending, or renderer unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiFailure" }
+  /v1/sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the same per-browser AvatarRouter owner cookie issued when the session is created.
+      security:
+        - AvatarPlaygroundOwner: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Owned session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/connection:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getLiveConnection
+      tags: [RoleplayX LiveKit]
+      description: >-
+        Requires the original owner cookie and a valid Clerk user JWT for the same tenant. Available only
+        after the dedicated Renderer Worker reports a running state. The returned token is short-lived,
+        room-scoped and subscribe-only. Treat it as a credential; never log or persist it.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
+      responses:
+        "200":
+          description: Authenticated owned stock-session subscribe token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveConnection" }
+  /v1/sessions/{id}/audio:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: sendLiveAudio
+      tags: [RoleplayX LiveKit]
+      description: Requires the original owner cookie and same-tenant Clerk JWT. At-most-once queued command; never replay a timeout.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveAudioInput" }
+      responses:
+        "200":
+          description: PCM accepted by the real avatar renderer, not an AI dialogue response
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveAudioResult" }
+  /v1/sessions/{id}/end:
+    post:
+      operationId: endSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the original browser-owner cookie. Persists a stop request; poll for confirmed cleanup.
+      security:
+        - AvatarPlaygroundOwner: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Stop requested and durably recorded; poll the session to verify provider cleanup completed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/interrupt:
+    post:
+      operationId: interruptSession
+      tags: [RoleplayX LiveKit]
+      description: Requires the original owner cookie and same-tenant Clerk JWT. Clears current renderer audio; it does not cancel the RoleplayX dialogue engine.
+      security:
+        - ClerkSessionJWT: []
+          AvatarPlaygroundOwner: []
+        - AvatarPlaygroundOwner: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Mock interruption recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/events:
+    get:
+      operationId: listSessionEvents
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Lifecycle timeline
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SessionEvent" } }
+  /v1/usage:
+    get:
+      operationId: getUsage
+      tags: [RoleplayX LiveKit]
+      security:
+        - AvatarPlaygroundOwner: []
+      responses:
+        "200":
+          description: Actual local session observations, no invented costs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usage" }
+  /v1/setup:
+    get:
+      operationId: getSetup
+      responses:
+        "200":
+          description: Environment presence only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Setup" }
+components:
+  securitySchemes:
+    ClerkSessionJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived session JWT from the same Replit-managed Clerk tenant; verified by the API, mapped to a personal tenant.
+    AvatarPlaygroundOwner:
+      type: apiKey
+      in: cookie
+      name: avatar_playground
+      description: HttpOnly per-browser owner capability issued by GET/POST /api/v1. Not an application credential or user identity.
+  schemas:
+    ImageInput:
+      type: object
+      additionalProperties: false
+      required: [name, rightsConfirmed, likeness]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        imageBase64: { type: string, maxLength: 6000000, description: "Plain base64, not a data URL. Transport only; never stored in the database." }
+        sourceUrl: { type: string, maxLength: 2048, description: "HTTPS URL on an operator allowlisted hostname. Exactly one source required." }
+        previousVersionId: { type: string, format: uuid }
+        rightsConfirmed: { type: boolean }
+        likeness: { type: string, enum: [synthetic, real_person] }
+        consentReference: { type: string, maxLength: 200, description: "Application consent evidence reference, not a claim of independently verified identity." }
+    ImageAsset:
+      type: object
+      required: [id, name, contentHash, width, height, byteLength, version, previousVersionId, likeness, consentStatus, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        contentHash: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        byteLength: { type: integer }
+        version: { type: integer }
+        previousVersionId: { type: [string, "null"] }
+        likeness: { type: string, enum: [synthetic, real_person] }
+        consentStatus: { type: string, enum: [not_required, pending_review, verified] }
+        createdAt: { type: string, format: date-time }
+    AvatarAssetInput:
+      type: object
+      additionalProperties: false
+      required: [imageAssetId, providerId, costConfirmed]
+      properties:
+        imageAssetId: { type: string, format: uuid }
+        providerId: { type: string, enum: [anam, tavus, lemonslice, simli] }
+        voiceName: { type: string, pattern: "^[a-zA-Z0-9_-]{1,50}$", default: anna }
+        costConfirmed: { type: boolean, description: Explicit confirmation of potential provider training charges }
+    AvatarAsset:
+      type: object
+      required: [id, imageAssetId, name, sourceContentHash, providerId, providerAvatarId, status, creationMode, capabilities, errorCode, createdAt, updatedAt, expiresAt, deletionStatus]
+      properties:
+        id: { type: string }
+        imageAssetId: { type: string }
+        name: { type: string }
+        sourceContentHash: { type: string }
+        providerId: { type: string }
+        providerAvatarId: { type: [string, "null"] }
+        status: { type: string, enum: [queued, submitting, processing, ready, failed, reconciliation_required, deleting, deleted] }
+        creationMode: { type: string, enum: [image_training, one_shot] }
+        capabilities: { $ref: "#/components/schemas/AvatarCapabilities" }
+        errorCode: { type: [string, "null"] }
+        deletionStatus: { type: string, enum: [not_requested, pending, confirmed, manual_review] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: [string, "null"], format: date-time }
+    AvatarCapabilities:
+      type: object
+      required: [reusable, liveRendering, emotionControl, behaviorControl, validation]
+      properties:
+        reusable: { type: boolean }
+        liveRendering: { type: boolean }
+        emotionControl: { type: string, enum: [unsupported, unverified, supported] }
+        behaviorControl: { type: string, enum: [unsupported, unverified, supported] }
+        validation: { type: string, enum: [documentation_only, provisioned, live_verified] }
+    ProvisioningProvider:
+      type: object
+      required: [id, name, existingSelection, imageCreation, customTraining, realtimeRendering, reusableId, adapterEnabled, configured, requirements, documentationUrl, emotionControl]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        existingSelection: { type: boolean }
+        imageCreation: { type: boolean }
+        customTraining: { type: boolean }
+        realtimeRendering: { type: boolean }
+        reusableId: { type: boolean }
+        adapterEnabled: { type: boolean }
+        configured: { type: boolean }
+        requirements: { type: string }
+        documentationUrl: { type: string }
+        emotionControl: { type: string }
+    AvatarBehaviorEvent:
+      type: object
+      additionalProperties: false
+      required: [version, eventId, sessionId, turnId, sequence, type, value]
+      properties:
+        version: { type: string, enum: ["1"] }
+        eventId: { type: string, format: uuid }
+        sessionId: { type: string }
+        turnId: { type: integer, minimum: 0 }
+        sequence: { type: integer, minimum: 0 }
+        type: { type: string, enum: [emotion, state] }
+        value: { type: string, enum: [neutral, happy, sad, angry, surprised, curious, anxious, tired, disappointed, confused, determined, concerned, excited, idle, listening, listening_nod, thinking, speaking, speaking_pause] }
+        intensity: { type: number, minimum: 0, maximum: 1 }
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    Readiness:
+      type: object
+      required: [status, database, liveEnabled, message]
+      properties:
+        status: { type: string }
+        database: { type: boolean }
+        liveEnabled: { type: boolean }
+        message: { type: string }
+    Provider:
+      type: object
+      required: [id, name, description, status, runtime, modes, externalAudio, sourceUrl, validation, missing, implemented]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [available, degraded, unavailable, unconfigured] }
+        runtime: { type: string }
+        modes: { type: array, items: { type: string } }
+        externalAudio: { type: boolean }
+        sourceUrl: { type: string }
+        validation: { type: string }
+        missing: { type: array, items: { type: string } }
+        implemented: { type: boolean }
+    Avatar:
+      type: object
+      required: [id, providerId, name, description, kind, configured, languages]
+      properties:
+        id: { type: string }
+        providerId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        kind: { type: string, enum: [mock, configured] }
+        configured: { type: boolean }
+        languages: { type: array, items: { type: string } }
+    SessionInput:
+      type: object
+      additionalProperties: false
+      required: [providerId, avatarId, mode]
+      properties:
+        providerId: { type: string, enum: [mock, anam, tavus] }
+        avatarId: { type: string, minLength: 1, maxLength: 160 }
+        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated." }
+        costConfirmed: { type: boolean, default: false, description: "Required for bounded stock live sessions. Provider/LiveKit usage may consume credits." }
+        mode: { type: string, enum: [mock, live] }
+    Session:
+      type: object
+      required: [id, providerId, avatarId, mode, status, startedAt, expiresAt, durationSeconds, interruptions]
+      properties:
+        id: { type: string }
+        providerId: { type: string }
+        avatarId: { type: string }
+        mode: { type: string, enum: [mock, live] }
+        status: { type: string, enum: [active, ended, expired, failed] }
+        startedAt: { type: string }
+        endedAt: { type: [string, "null"] }
+        expiresAt: { type: string }
+        durationSeconds: { type: number }
+        interruptions: { type: integer }
+        error: { type: [string, "null"] }
+        rendererState: { type: [string, "null"] }
+        stopRequested: { type: boolean }
+        cleanupPending: { type: boolean }
+    LiveLimits:
+      type: object
+      required: [userDailySeconds, globalDailySeconds, userRemainingSeconds, globalRemainingSeconds, sessionSeconds, cleanupPending, workerReady, providerCredits, resetsAt]
+      properties:
+        userDailySeconds: { type: integer }
+        globalDailySeconds: { type: integer }
+        userRemainingSeconds: { type: integer }
+        globalRemainingSeconds: { type: integer }
+        sessionSeconds: { type: integer }
+        cleanupPending: { type: integer }
+        workerReady: { type: boolean }
+        providerCredits: { type: string, enum: [unknown] }
+        resetsAt: { type: string }
+    LiveConnection:
+      type: object
+      required: [url, token, expiresAt]
+      properties:
+        url: { type: string }
+        token: { type: string, description: "Short-lived subscribe-only token scoped to exactly this room; never persist." }
+        expiresAt: { type: string }
+    LiveAudioInput:
+      type: object
+      additionalProperties: false
+      properties:
+        sample: { type: boolean, description: "Send a 1-second synthetic tone, not AI speech." }
+        pcmBase64: { type: string, maxLength: 320000, description: "24 kHz mono signed little-endian PCM16; at most 5 seconds. Exactly one of sample or PCM." }
+    LiveAudioResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
+    SessionEvent:
+      type: object
+      required: [id, type, message, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        message: { type: string }
+        createdAt: { type: string }
+    Usage:
+      type: object
+      required: [totalSessions, activeSessions, durationSeconds, errors, mockSessions, estimatedCost, confirmedCost, billableSeconds]
+      properties:
+        totalSessions: { type: integer }
+        activeSessions: { type: integer }
+        durationSeconds: { type: number }
+        errors: { type: integer }
+        mockSessions: { type: integer }
+        estimatedCost: { type: [number, "null"] }
+        confirmedCost: { type: [number, "null"] }
+        billableSeconds: { type: [number, "null"] }
+    Setup:
+      type: object
+      required: [checks, stage, roleplayxStatus, bridgeStatus]
+      properties:
+        checks: { type: array, items: { $ref: "#/components/schemas/SetupCheck" } }
+        stage: { type: string }
+        roleplayxStatus: { type: string }
+        bridgeStatus: { type: string }
+    SetupCheck:
+      type: object
+      required: [key, configured, description]
+      properties:
+        key: { type: string }
+        configured: { type: boolean }
+        description: { type: string }
+    ApiFailure:
+      type: object
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { type: string }

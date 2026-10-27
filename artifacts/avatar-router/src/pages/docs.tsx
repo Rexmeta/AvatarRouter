@@ -3,6 +3,7 @@ import { useI18n } from '@/lib/i18n';
 import { CopyBlock, PageHead, Panel, Pill } from '@/components/bits';
 
 const origin = typeof window !== 'undefined' ? window.location.origin : '';
+const integrationDocsBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/roleplayx`;
 
 const matrix = [
   ['Anam', 'Yes', 'Yes', 'Node', 'DataStreamAudioOutput; requires persona avatar ID', 'No credentials; pending'],
@@ -12,10 +13,10 @@ const matrix = [
 ];
 
 const milestones = [
-  'Independent Studio, mock lifecycle, private image assets and Anam/Tavus creation adapters. Stock Tavus RTC passed; image-derived live validation remains pending.',
+  'Independent Studio, mock lifecycle, private image assets, and stock Tavus RTC. Image-derived live validation remains pending.',
   'Authenticated tenant-aware core, persistent metering, SDK/React packages.',
   'LemonSlice and Python Simli adapters with independent validation.',
-  'Additive RoleplayX plugin after production runtime is confirmed and audio POC passes.',
+  'Additive RoleplayX bridge after the identity boundary and real-time audio path are implemented and verified.',
   'Complete Studio and secure managed administration.',
   'Operational hardening, load/browser/security validation and release approval.',
 ];
@@ -25,7 +26,7 @@ export default function Docs() {
   const setup = useGetSetup();
   return (
     <div>
-      <PageHead index="06 / docs" title={t('docs.title')} lede="Summary of docs/architecture-compatibility.md. Evidence from read-only repository inspection and official LiveKit documentation; nothing here is end-to-end proven." />
+      <PageHead index="06 / docs" title={t('docs.title')} lede="RoleplayX integration downloads, the live API contract, and the current integration boundary." />
 
       {setup.data && (
         <div className="rise mb-8 flex flex-wrap gap-4 rounded-md border bg-card p-4 text-sm">
@@ -37,10 +38,24 @@ export default function Docs() {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
         <article className="space-y-10">
+          <section className="rise rounded-md border bg-card p-5">
+            <h2 className="mb-2 text-xl font-bold">RoleplayX integration kit</h2>
+            <p className="mb-4 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+              The provided Tavus stock avatar has been verified in a real LiveKit browser session. The machine-readable OpenAPI specification and upload-ready integration guide describe the current endpoints and state the identity and audio-bridge requirements.
+            </p>
+            <div className="mb-4 flex flex-wrap gap-3">
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
+            </div>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              <b className="text-foreground">Important:</b> there is no RoleplayX service credential or cross-application identity bridge yet. Live-session ownership currently needs the same verified Replit-managed Clerk user and that user’s retained AvatarRouter owner cookie. The guide lists the BFF work required before another identity system can connect.
+            </p>
+          </section>
+
           <section className="rise">
             <h2 className="mb-3 text-xl font-bold">Repository findings</h2>
             <ul className="space-y-2 text-[15px] leading-relaxed text-muted-foreground">
-              <li><b className="text-foreground">RoleplayBot</b> holds the real training runtime (avatar renderer, audio playback, Gemini handler, ledger, evaluation). Its avatar interface is state/image based, not a PCM media sink — a future plugin needs an additive live-video component plus an audio hook.</li>
+              <li><b className="text-foreground">RoleplayBot</b> remains the training runtime. AvatarRouter does not replace its dialogue, Gemini, transcript, scoring, ledger, or evaluation logic. The current AvatarRouter audio endpoint is a bounded PCM echo test, not an AI conversation bridge.</li>
               <li><b className="text-foreground">ContentX</b> holds authoring and agent-quality infrastructure with configurable RoleplayX URLs. The name alone is not a runtime identity.</li>
               <li>Production identity is unverified. CC BY-NC licensing means any reuse needs ownership confirmation; no proprietary logic is copied here.</li>
             </ul>
@@ -75,18 +90,17 @@ export default function Docs() {
 
           <section className="rise space-y-4">
             <h2 className="text-xl font-bold">API requests</h2>
-            <p className="text-sm text-muted-foreground">Public <span className="mono">/v1/*</span> endpoints are served at <span className="mono">/api/v1/*</span>. Sessions are scoped to the creating browser.</p>
+            <p className="text-sm text-muted-foreground">Routes are served under <span className="mono">/api/v1/*</span>. Live requests use the documented stock avatar, a same-tenant Clerk user JWT, and the creating browser’s owner cookie. Creation returns <span className="mono">rendererState: queued</span>; poll until it is <span className="mono">running</span>. A successful HTTP response is not proof of video or provider cleanup.</p>
             <CopyBlock label="list providers" code={`curl -s ${origin}/api/v1/providers`} />
             <CopyBlock label="create mock session" code={`curl -s -X POST ${origin}/api/v1/sessions \\\n  -H 'Content-Type: application/json' \\\n  -d '{"providerId":"mock","avatarId":"mock-orbit","mode":"mock"}'`} />
-            <CopyBlock label="live request (expect 409 until configured)" code={`curl -s -X POST ${origin}/api/v1/sessions \\\n  -H 'Content-Type: application/json' \\\n  -d '{"providerId":"anam","avatarId":"<configured-avatar>","mode":"live"}'`} />
-            <CopyBlock label="typescript" code={`import { useCreateSession } from '@workspace/api-client-react';\n\nconst create = useCreateSession();\ncreate.mutate({ data: { providerId: 'mock', avatarId: 'mock-orbit', mode: 'mock' } });`} />
+            <CopyBlock label="live stock request (may incur provider charges)" code={`# Use one authorized test user. The service retains the HttpOnly owner cookie.\ncurl -sS -c avatarrouter-cookie.txt -b avatarrouter-cookie.txt \\\\\n  -H "Authorization: Bearer $USER_CLERK_JWT" \\\\\n  -H 'Content-Type: application/json' \\\\\n  -d '{"providerId":"tavus","avatarId":"tavus-stock-lucy","mode":"live","costConfirmed":true}' \\\\\n  ${origin}/api/v1/sessions\n\n# HTTP 201 means queued; poll this session until rendererState is \"running\".`} />
             <CopyBlock label="readiness" code={`curl -s ${origin}/api/ready`} />
           </section>
 
           <section className="rise">
             <h2 className="mb-3 text-xl font-bold">Current limitations</h2>
             <ul className="grid gap-2 text-sm md:grid-cols-2">
-              {['No production identity confirmation', 'No paid provider keys', 'No measured live latency', 'No Gemini-to-avatar E2E proof', 'No production RBAC or tenant credentials', 'No production launch approval'].map((l) => (
+              {['No RoleplayX identity bridge or app credential', 'Provider credits are unknown', 'No Gemini-to-avatar streaming proof', 'Image-derived live avatar validation pending', 'No production load or latency sign-off', 'No production launch approval'].map((l) => (
                 <li key={l} className="flex items-center gap-2 rounded border bg-card px-3 py-2"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warn))]" />{l}</li>
               ))}
             </ul>
