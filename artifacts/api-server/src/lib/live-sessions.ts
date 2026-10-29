@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { AccessToken } from "livekit-server-sdk";
-import { db, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql } from "@workspace/db";
+import { db, avatarAssets, imageAssets, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql } from "@workspace/db";
+import { requireLiveAsset } from "./asset-live-policy";
 import { getOwnedSession, SessionProblem } from "./session-service";
 import { STOCK_AVATAR, stockConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
 import { saveRendererAudio } from "./private-images";
@@ -32,12 +33,22 @@ export async function liveLimits(tenant: string) {
   };
 }
 
-export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean) {
+export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation") {
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   if (!stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", "LiveKit and Tavus server credentials must be configured.");
   const row = await db.transaction(async tx => {
     // Admission, reservation and capacity are serialized across ALL API processes.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('avatar-router:stock-live'))`);
+    let avatarId = STOCK_AVATAR;
+    if (assetId) {
+      const [asset] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, assetId), eq(avatarAssets.tenantId, tenant))).for("update");
+      if (!asset) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");
+      avatarId = requireLiveAsset(asset, purpose);
+      const [image] = await tx.select().from(imageAssets).where(and(eq(imageAssets.id, asset.imageAssetId), eq(imageAssets.tenantId, tenant)));
+      if (!image || image.likeness === "real_person" && image.consentStatus !== "verified") {
+        throw new SessionProblem(409, "CONSENT_REVIEW_REQUIRED", "Source consent must remain verified before live transmission.");
+      }
+    }
     const limits = await liveLimits(tenant);
     if (!limits.workerReady) throw new SessionProblem(503, "LIVE_WORKER_UNAVAILABLE", "The renderer worker is unavailable. No paid session was requested.");
     if (limits.userRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "Your daily live time budget is exhausted. It resets at 00:00 UTC.");
@@ -55,7 +66,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
     if (owned) throw new SessionProblem(409, "ACTIVE_SESSION_EXISTS", "End your existing session first.");
     const id = randomUUID();
     const [created] = await tx.insert(avatarSessions).values({
-      id, ownerHash: owner, tenantId: tenant, providerId: "tavus", avatarId: STOCK_AVATAR,
+      id, ownerHash: owner, tenantId: tenant, providerId: "tavus", avatarId, avatarAssetId: assetId, purpose,
       mode: "live", status: "active", roomName: `ar-stock-${id}`,
       rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
       expiresAt: new Date(Date.now() + LIVE_SESSION_MS),

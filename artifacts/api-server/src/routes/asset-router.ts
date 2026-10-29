@@ -1,6 +1,8 @@
 import express, { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
-import { GetAvatarAssetParams, DeleteImageAssetParams, ListProvisioningProvidersResponse } from "@workspace/api-zod";
+import { GetAvatarAssetParams, DeleteImageAssetParams, ListProvisioningProvidersResponse, ReportAvatarLiveValidationBody } from "@workspace/api-zod";
+import { sessionOwner } from "../middlewares/session-owner";
+import { recordAssetPlayback } from "../lib/asset-service";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { provisioningProviders } from "../lib/provisioning-providers";
 import { readPrivateImage } from "../lib/private-images";
@@ -31,6 +33,11 @@ router.post("/v1/avatar-assets", async (req, res) => {
 router.get("/v1/avatar-assets/:id", async (req, res) => {
   const { id } = GetAvatarAssetParams.parse(req.params);
   res.json(presentAvatarAsset(await ownedAvatarAsset(res.locals.tenantId, id)));
+});
+router.post("/v1/avatar-assets/:id/live-validation", sessionOwner, async (req, res) => {
+  const { id } = GetAvatarAssetParams.parse(req.params);
+  const report = ReportAvatarLiveValidationBody.strict().parse(req.body);
+  res.json(presentAvatarAsset(await recordAssetPlayback(res.locals.tenantId, res.locals.ownerHash, id, report)));
 });
 router.delete("/v1/avatar-assets/:id", async (req, res) => {
   const { id } = GetAvatarAssetParams.parse(req.params);

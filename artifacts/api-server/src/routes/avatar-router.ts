@@ -12,6 +12,8 @@ import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
 import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
+import { integrationIdentity } from "../lib/integration-identity";
+import { SessionProblem } from "../lib/session-service";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -34,7 +36,7 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
-  const { providerId, avatarId, avatarAssetId, mode, costConfirmed } = parsed.data;
+  const { providerId, avatarId, avatarAssetId, mode, costConfirmed, purpose } = parsed.data;
   if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
     assetTenant(req, res, () => {});
     const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed);
@@ -51,6 +53,13 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     if (providerId !== asset.providerId || avatarId !== asset.avatarId) {
       res.status(400).json({ code: "AVATAR_ASSET_MISMATCH", error: "Use the asset's registered provider and provider avatar ID." }); return;
     }
+    const identity = integrationIdentity(res);
+    if (purpose === "validation" && identity && !identity.scopes.includes("assets:write")) {
+      throw new SessionProblem(403, "ASSET_VALIDATION_FORBIDDEN", "Validation sessions require assets:write in addition to sessions:create.");
+    }
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, avatarAssetId, purpose);
+    res.status(201).json(GetSessionResponse.parse(presentSession(row)));
+    return;
   }
   if (mode === "live") {
     res.status(409).json({

@@ -7,6 +7,8 @@ import { AudioLines, LogIn, Mic, Play, Radio, Square, Volume2, Zap } from 'lucid
 import {
   useCreateSession, useGetSession, useEndSession, useInterruptSession, useGetLiveConnection, useSendLiveAudio, useGetLiveLimits,
   getGetSessionQueryKey, getGetLiveConnectionQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey, getGetLiveLimitsQueryKey,
+  useReportAvatarLiveValidation, getGetAvatarAssetQueryKey, getListAvatarAssetsQueryKey,
+  type AvatarAsset,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg, fmtSec } from '@/components/bits';
@@ -42,7 +44,7 @@ function toPcm24kBase64(chunks: Float32Array[], rate: number): string {
   return btoa(bin);
 }
 
-export function StockLivePanel() {
+export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
   const L = useL();
   const { user, isLoaded } = useUser();
   const qc = useQueryClient();
@@ -51,6 +53,7 @@ export function StockLivePanel() {
 
   const [sid, setSid] = useState<string>(() => sessionStorage.getItem(KEY) ?? '');
   const [ack, setAck] = useState(false);
+  const [playbackAck, setPlaybackAck] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [roomState, setRoomState] = useState<string>('disconnected');
   const [hasVideo, setHasVideo] = useState(false);
@@ -104,6 +107,9 @@ export function StockLivePanel() {
   const end = useEndSession();
   const interrupt = useInterruptSession();
   const send = useSendLiveAudio();
+  const report = useReportAvatarLiveValidation();
+  const supported = !asset || (asset.providerId === 'tavus' && asset.status === 'ready' && !!asset.providerAvatarId);
+  useEffect(() => { setAck(false); setPlaybackAck(false); }, [asset?.id, sid, uid]);
   const endMutateRef = useRef(end.mutate); endMutateRef.current = end.mutate;
 
   const disconnect = useCallback(() => {
@@ -226,9 +232,15 @@ export function StockLivePanel() {
   }, []);
 
   const start = () => {
+    if (!ack || !uid || !supported) return;
     setErr(null);
+    send.reset(); report.reset();
     create.mutate(
-      { data: { providerId: 'tavus', avatarId: STOCK_ID, mode: 'live', costConfirmed: true } },
+      { data: {
+        providerId: 'tavus', avatarId: asset?.providerAvatarId ?? STOCK_ID,
+        ...(asset ? { avatarAssetId: asset.id, purpose: asset.liveValidation?.status === 'validated' ? 'conversation' as const : 'validation' as const } : {}),
+        mode: 'live', costConfirmed: true,
+      } },
       {
         onSuccess: (ns) => { setSid(ns.id); invalidate(ns.id); },
         onError: (e) => { setErr(errMsg(e)); qc.invalidateQueries({ queryKey: getGetUsageQueryKey() }); },
@@ -311,8 +323,8 @@ export function StockLivePanel() {
   return (
     <div id="stock" className="rise mb-8">
       <Panel
-        title={<span className="flex items-center gap-2"><Radio className="h-3.5 w-3.5 text-primary" />{L('Stock live test · Tavus', '기본 아바타 라이브 테스트 · Tavus')}</span>}
-        aside={<span className="mono text-[10.5px] text-muted-foreground">{L('independent of selected asset', '선택된 에셋과 무관')}</span>}
+        title={<span className="flex items-center gap-2"><Radio className="h-3.5 w-3.5 text-primary" />{asset ? L('Custom avatar live validation', '커스텀 아바타 라이브 검증') : L('Stock live test · Tavus', '기본 아바타 라이브 테스트 · Tavus')}</span>}
+        aside={<span className="mono text-[10.5px] text-muted-foreground">{asset ? asset.liveValidation?.status ?? 'unvalidated' : L('independent of selected asset', '선택된 에셋과 무관')}</span>}
       >
         {!uid ? (
           <div className="flex flex-wrap items-center justify-between gap-4 p-5" data-testid="stock-signed-out">
@@ -322,7 +334,7 @@ export function StockLivePanel() {
             </Link>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[1.25fr_1fr]">
+          <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
             <div className="relative aspect-video bg-sidebar text-sidebar-foreground">
               <video ref={videoRef} autoPlay playsInline muted className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-500', hasVideo && firstFrame ? 'opacity-100' : 'opacity-0')} data-testid="video-stock" />
               <audio ref={audioRef} autoPlay className="hidden" />
@@ -351,8 +363,8 @@ export function StockLivePanel() {
             <div className="space-y-4 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-lg font-bold">Lucy - Home</div>
-                  <div className="mono text-[10.5px] text-muted-foreground">tavus · {STOCK_ID}</div>
+                  <div className="break-all text-lg font-bold">{asset?.name ?? 'Lucy - Home'}</div>
+                  <div className="mono break-all text-[10.5px] text-muted-foreground">{s && active ? `${s.providerId} · ${s.avatarId}` : `${asset?.providerId ?? 'tavus'} · ${asset?.providerAvatarId ?? STOCK_ID}`}</div>
                 </div>
                 {s ? <Pill value={s.status} live={active} /> : <Pill value="ended" label={L('idle', '대기')} />}
               </div>
@@ -373,7 +385,10 @@ export function StockLivePanel() {
               {!active && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
                   <input type="checkbox" data-testid="checkbox-stock-ack" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
-                  <span>{L(
+                  <span>{asset ? L(
+                    'This starts a paid, bounded live session for the selected existing asset. No new training or image upload. A ready asset is not playback-validated. This only renders supplied audio; it does not start an AI conversation.',
+                    '선택한 기존 자산으로 유료 라이브 세션을 시작합니다(최대 120초). 새 학습이나 이미지 업로드는 없습니다. 생성 완료는 재생 검증 완료가 아닙니다. 보낸 오디오만 렌더링하며 AI 대화는 시작하지 않습니다.',
+                  ) : L(
                     'This uses provider and LiveKit credits. The session expires automatically after 120 s total (roughly 90 s live). Stock avatar only: no custom training or image upload. No AI dialogue: the avatar only echoes the audio you send, with lip-sync.',
                     '프로바이더 및 LiveKit 크레딧이 사용됩니다. 세션은 총 120초 후 자동 만료됩니다(라이브 약 90초). 기본 아바타 전용: 커스텀 학습이나 이미지 업로드가 없습니다. AI 대화 없음: 아바타는 보낸 오디오를 립싱크로 따라 말할 뿐입니다.',
                   )}</span>
@@ -382,9 +397,9 @@ export function StockLivePanel() {
 
               <div className="flex flex-wrap gap-2">
                 {!active ? (
-                  <button data-testid="button-stock-start" disabled={!ack || create.isPending || !limits.data?.workerReady || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
+                  <button data-testid="button-stock-start" disabled={!supported || !ack || create.isPending || !limits.data?.workerReady || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
-                    <Play className="h-4 w-4" /> {create.isPending ? L('Starting…', '시작 중…') : L('Start Lucy live', 'Lucy 라이브 시작')}
+                    <Play className="h-4 w-4" /> {create.isPending ? L('Starting…', '시작 중…') : asset ? L('Start selected avatar', '선택한 아바타 시작') : L('Start Lucy live', 'Lucy 라이브 시작')}
                   </button>
                 ) : (
                   <button data-testid="button-stock-end" disabled={end.isPending || s?.stopRequested} onClick={doEnd}
@@ -419,6 +434,27 @@ export function StockLivePanel() {
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground">{L('The tone is a synthetic beep, not speech. Uploaded PCM is kept briefly in private storage for the worker and then deleted. The microphone is never published to the room.', '톤은 합성 비프음이며 음성이 아닙니다. 업로드된 PCM은 워커 전달을 위해 비공개 저장소에 잠시 보관한 뒤 삭제합니다. 마이크는 룸에 게시되지 않습니다.')}</p>
               </div>
+
+              {asset && !supported && <p className="text-sm text-destructive" role="alert">{L('This asset is not ready or its live runtime is not supported. Anam custom playback remains unavailable.', '자산이 준비되지 않았거나 라이브 런타임이 지원되지 않습니다. Anam 커스텀 재생은 아직 사용할 수 없습니다.')}</p>}
+              {asset && s?.avatarAssetId === asset.id && s.purpose === 'validation' && (
+                <div className="space-y-2 rounded border p-3 text-xs" data-testid="panel-playback-validation">
+                  <p>{L('Playback report: server checks the exact asset, live session and completed audio command. This is an operator report, not independent provider certification.', '재생 확인 기록: 서버가 해당 자산·라이브 세션·오디오 명령 완료를 검사합니다. 운영자의 재생 확인이며 공급자의 별도 인증은 아닙니다.')}</p>
+                  <label className="flex items-start gap-2">
+                    <input type="checkbox" checked={playbackAck} onChange={e => setPlaybackAck(e.target.checked)} disabled={!ready || !firstFrame || !hasAudio || !send.isSuccess || needsAudio} data-testid="checkbox-playback-confirm" />
+                    {L('I saw moving video and heard the returned audio.', '실제 움직이는 영상과 반환된 소리를 확인했습니다.')}
+                  </label>
+                  <button data-testid="button-report-playback" disabled={!playbackAck || !ready || !firstFrame || !hasAudio || !send.isSuccess || needsAudio || report.isPending} className="rounded border px-3 py-2 disabled:opacity-40" onClick={() => {
+                    report.mutate({ id: asset.id, data: { sessionId: sid, videoObserved: true, audioObserved: true } }, {
+                      onSuccess: () => {
+                        qc.invalidateQueries({ queryKey: getGetAvatarAssetQueryKey(asset.id) });
+                        qc.invalidateQueries({ queryKey: getListAvatarAssetsQueryKey() });
+                      },
+                      onError: e => setErr(errMsg(e)),
+                    });
+                  }}>{L('Save playback validation', '재생 검증 기록 저장')}</button>
+                  {report.isSuccess && <p role="status">{L('Playback report saved. End this test and wait for confirmed cleanup.', '재생 확인을 저장했습니다. 테스트를 종료하고 원격 정리 완료를 확인하세요.')}</p>}
+                </div>
+              )}
 
               {(err || conn.isError) && (
                 <div className="rounded border border-[hsl(var(--warn))]/40 bg-[hsl(var(--warn))]/5 p-3" data-testid="text-stock-error">

@@ -16,7 +16,7 @@ export function useValidatedSelectedAsset() {
   const id = sel?.id ?? '';
   const q = useGetAvatarAsset(id, {
     query: {
-      queryKey: getGetAvatarAssetQueryKey(id),
+      queryKey: [...getGetAvatarAssetQueryKey(id), user?.id],
       enabled: isLoaded && !!user && !!id,
       staleTime: 10000,
       retry: false,
@@ -62,7 +62,7 @@ export function SelectedAssetPanel({ onRequestLive, pending, liveError }: { onRe
             <div className="flex items-center gap-2">
               {query.isLoading ? <Skel className="h-5 w-20" /> : query.isError ? <Pill value="error" label={L('unavailable', '사용 불가')} />
                 : record ? <Pill value={ready ? 'ready' : record.status === 'failed' ? 'failed' : 'pending'} label={record.status.replace('_', ' ')} live={PENDING.has(record.status)} /> : null}
-              <Pill value="pending" label={L('live unverified', '라이브 미검증')} />
+              <Pill value={record?.liveValidation?.status === 'validated' ? 'available' : 'pending'} label={record?.liveValidation?.status === 'validated' ? L('playback reported', '재생 확인 기록 있음') : L('live unverified', '라이브 미검증')} />
               <button data-testid="button-clear-asset" onClick={() => setSelectedAsset(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="clear"><X className="h-4 w-4" /></button>
             </div>
           </div>
@@ -76,8 +76,8 @@ export function SelectedAssetPanel({ onRequestLive, pending, liveError }: { onRe
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--warn))]" />
             <p>
               {L(
-                'Live runtime unavailable for this asset. The provider returned a reusable avatar ID, but a live session against it has not been verified end-to-end, so the server answers live requests with 409. No video is shown here, and the source still above is not a generated avatar.',
-                '이 에셋의 라이브 런타임은 사용할 수 없습니다. 프로바이더가 재사용 가능한 아바타 ID를 반환했지만 이를 사용한 라이브 세션이 종단 간 검증되지 않아 서버가 라이브 요청에 409로 응답합니다. 여기에는 영상이 표시되지 않으며, 위의 원본 정지 이미지는 생성된 아바타가 아닙니다.',
+                'Ready only means provisioned. Tavus assets can run in the cost-approved live panel above; unvalidated assets start in validation mode. Only report success after real video and returned audio. Anam live runtime is unavailable. This source still is not a live preview.',
+                'Ready는 생성 완료만 의미합니다. Tavus는 위 라이브 패널에서 비용 동의 후 실행할 수 있으며 미검증 자산은 검증 모드로 시작합니다. 실제 영상과 반환 음성을 확인한 뒤에만 성공을 기록하세요. Anam 라이브는 미지원입니다. 이 원본 정지 이미지는 라이브 미리보기가 아닙니다.',
               )}
             </p>
           </div>
@@ -87,7 +87,7 @@ export function SelectedAssetPanel({ onRequestLive, pending, liveError }: { onRe
                 className="inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                 <Radio className="h-3.5 w-3.5" /> {pending ? '…' : L('Check live availability', '라이브 가능 여부 확인')}
               </button>
-              <span className="text-[11px] text-muted-foreground">{L('Sends this asset to the server; expected answer while unverified is 409.', '이 에셋을 서버에 보냅니다. 미검증 상태에서는 409가 예상됩니다.')}</span>
+              <span className="text-[11px] text-muted-foreground">{L('Opens the live controls. Does not start or bill a session.', '라이브 조작 패널로 이동합니다. 세션 시작이나 과금은 하지 않습니다.')}</span>
             </div>
           )}
           {liveError && <p className="mono mt-2 rounded border border-[hsl(var(--warn)/.4)] bg-[hsl(var(--warn)/.06)] p-2 text-xs" data-testid="text-asset-live-error">{liveError}</p>}

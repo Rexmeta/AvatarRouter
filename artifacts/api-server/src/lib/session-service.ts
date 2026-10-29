@@ -8,6 +8,7 @@ export class SessionProblem extends Error {
 export function presentSession(row: AvatarSessionRecord) {
   return {
     id: row.id, providerId: row.providerId, avatarId: row.avatarId,
+    avatarAssetId: row.avatarAssetId, purpose: row.purpose,
     mode: row.mode, status: row.status, startedAt: row.startedAt.toISOString(),
     endedAt: row.endedAt?.toISOString() ?? null, expiresAt: row.expiresAt.toISOString(),
     durationSeconds: Math.max(0, Math.floor(((row.endedAt?.getTime() ?? Date.now()) - row.startedAt.getTime()) / 1000)),

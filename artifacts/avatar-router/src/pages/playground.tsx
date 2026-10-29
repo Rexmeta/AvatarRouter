@@ -69,17 +69,11 @@ export default function Playground() {
 
   const liveWithAsset = (r: AvatarAsset) => {
     setAssetLiveError(null);
-    if (r.status !== 'ready' || !r.providerAvatarId || (r.providerId !== 'anam' && r.providerId !== 'tavus')) {
-      setAssetLiveError('Selected asset is not a ready Anam/Tavus asset.');
+    if (r.status !== 'ready' || !r.providerAvatarId || r.providerId !== 'tavus') {
+      setAssetLiveError('Select a ready Tavus asset. Anam live runtime remains unavailable.');
       return;
     }
-    create.mutate(
-      { data: { providerId: r.providerId, avatarId: r.providerAvatarId, avatarAssetId: r.id, mode: 'live' } },
-      {
-        onSuccess: (ns) => { setSid(ns.id); invalidate(ns.id); },
-        onError: (e) => { const m = errMsg(e); setAssetLiveError(m); setLiveError(m); qc.invalidateQueries({ queryKey: getGetUsageQueryKey() }); },
-      },
-    );
+    document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const requestLive = (pid: 'anam' | 'tavus') => {
@@ -88,6 +82,10 @@ export default function Playground() {
     if (asset.sel && asset.sel.providerId === pid) {
       if (asset.ready && r && r.providerId === pid) { liveWithAsset(r); return; }
       setLiveError('Selected avatar asset is not ready (or could not be validated). Clear the selection to use the catalog avatar.');
+      return;
+    }
+    if (pid === 'tavus') {
+      document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     const av = avatars.data?.find((a) => a.providerId === pid);
@@ -117,7 +115,7 @@ export default function Playground() {
   return (
     <div>
       <PageHead index="02 / playground" title={t('pg.title')} lede={t('pg.lede')} />
-      <StockLivePanel />
+      <StockLivePanel asset={asset.record ?? undefined} />
       <SelectedAssetPanel onRequestLive={liveWithAsset} pending={create.isPending} liveError={assetLiveError} />
 
       <div className="rise mb-6 flex flex-wrap gap-2" role="tablist">

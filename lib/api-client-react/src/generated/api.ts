@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import {
   useMutation,
@@ -29,6 +29,7 @@ import type {
   Avatar,
   AvatarAsset,
   AvatarAssetInput,
+  AvatarPlaybackReport,
   CreateDeveloperKeyInput,
   DeveloperKey,
   HealthStatus,
@@ -76,6 +77,92 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getReportAvatarLiveValidationUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/avatar-assets/${id}/live-validation`
+}
+
+/**
+ * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
+ */
+export const reportAvatarLiveValidation = async (id: string,
+    avatarPlaybackReport: AvatarPlaybackReport, options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AvatarAsset>(getReportAvatarLiveValidationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(avatarPlaybackReport)
+  }
+);}
+
+
+
+
+
+export const getReportAvatarLiveValidationMutationKey = () => ['reportAvatarLiveValidation'] as const;
+
+export const getReportAvatarLiveValidationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportAvatarLiveValidation>>, TError,ReportAvatarLiveValidationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportAvatarLiveValidation>>, TError,ReportAvatarLiveValidationMutationVariables, TContext> => {
+
+const mutationKey = getReportAvatarLiveValidationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportAvatarLiveValidation>>, ReportAvatarLiveValidationMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportAvatarLiveValidation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportAvatarLiveValidationMutationResult = NonNullable<Awaited<ReturnType<typeof reportAvatarLiveValidation>>>
+    export type ReportAvatarLiveValidationMutationBody = BodyType<AvatarPlaybackReport>
+    export type ReportAvatarLiveValidationMutationError = ErrorType<void>
+    export type ReportAvatarLiveValidationMutationVariables = {id: string;data: BodyType<AvatarPlaybackReport>}
+
+    export const useReportAvatarLiveValidation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportAvatarLiveValidation>>, TError,ReportAvatarLiveValidationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportAvatarLiveValidation>>,
+        TError,
+        ReportAvatarLiveValidationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportAvatarLiveValidationMutationOptions(options), queryClient);
+    }
 
 export const getListDeveloperKeysUrl = () => {
 

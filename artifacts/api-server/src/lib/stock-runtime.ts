@@ -4,11 +4,18 @@ import { AudioFrame, Room } from "@livekit/rtc-node";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { SessionProblem } from "./session-service";
 import { setTimeout as delay } from "node:timers/promises";
-import { STOCK_FACE, STOCK_PAL } from "./stock-policy";
+import { STOCK_AVATAR, STOCK_FACE, STOCK_PAL } from "./stock-policy";
 export { STOCK_FACE, STOCK_PAL, STOCK_AVATAR, STOCK_KEYS, stockConfigured, safeLiveError, validateLiveAudio } from "./stock-policy";
 
-// Exactly the defaults in the installed official Tavus plugin, not an uploaded face.
+// The official plugin's pal handles externally supplied PCM for both stock and custom faces.
 let loggerInitialized = false;
+
+export function runtimeFace(row: { providerId: string; avatarId: string; avatarAssetId: string | null }) {
+  if (row.providerId !== "tavus" || !row.avatarId || (!row.avatarAssetId && row.avatarId !== STOCK_AVATAR)) {
+    throw new SessionProblem(409, "LIVE_TARGET_UNSUPPORTED", "No enabled runtime for this avatar target.");
+  }
+  return row.avatarAssetId ? row.avatarId : STOCK_FACE;
+}
 
 export function roomClient() {
   return new RoomServiceClient(process.env.LIVEKIT_URL!, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, { requestTimeout: 5 });
@@ -55,6 +62,7 @@ export class StockRuntime {
     private beforeCreate: () => Promise<void> = async () => {},
     private onRejected: () => Promise<void> = async () => {},
     private cleanup = terminateResources,
+    faceId = STOCK_FACE,
   ) {
     if (!loggerInitialized) {
       // SDK debug logs can contain full provider payloads. Never enable them here.
@@ -63,7 +71,7 @@ export class StockRuntime {
     }
     this.agent = new voice.AgentSession();
     this.avatar = new AvatarSession({
-      faceId: STOCK_FACE, palId: STOCK_PAL,
+      faceId, palId: STOCK_PAL,
       connOptions: { timeoutMs: 15_000, maxRetry: 0, retryIntervalMs: 1000 },
     });
   }

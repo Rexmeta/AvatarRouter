@@ -3,9 +3,53 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import * as zod from 'zod';
+
+
+/**
+ * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
+ */
+export const ReportAvatarLiveValidationParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const ReportAvatarLiveValidationBody = zod.object({
+  "sessionId": zod.string().uuid(),
+  "videoObserved": zod.boolean(),
+  "audioObserved": zod.boolean()
+})
+
+export const ReportAvatarLiveValidationResponse = zod.object({
+  "id": zod.string(),
+  "imageAssetId": zod.string(),
+  "name": zod.string(),
+  "sourceContentHash": zod.string(),
+  "providerId": zod.string(),
+  "providerAvatarId": zod.string().nullable(),
+  "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "creationMode": zod.enum(['image_training', 'one_shot']),
+  "capabilities": zod.object({
+  "reusable": zod.boolean(),
+  "liveRendering": zod.boolean(),
+  "emotionControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
+  "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
+}),
+  "liveValidation": zod.object({
+  "status": zod.enum(['unvalidated', 'validated']),
+  "runtimeSupported": zod.boolean(),
+  "method": zod.union([zod.literal('client_playback_report'),zod.literal(null)]).nullable(),
+  "sessionId": zod.string().nullable(),
+  "validatedAt": zod.coerce.date().nullable()
+}).optional(),
+  "errorCode": zod.string().nullable(),
+  "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullable()
+})
 
 
 export const ListDeveloperKeysResponseItem = zod.object({
@@ -204,6 +248,13 @@ export const ListAvatarAssetsResponseItem = zod.object({
   "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
   "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
 }),
+  "liveValidation": zod.object({
+  "status": zod.enum(['unvalidated', 'validated']),
+  "runtimeSupported": zod.boolean(),
+  "method": zod.union([zod.literal('client_playback_report'),zod.literal(null)]).nullable(),
+  "sessionId": zod.string().nullable(),
+  "validatedAt": zod.coerce.date().nullable()
+}).optional(),
   "errorCode": zod.string().nullable(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
@@ -243,6 +294,13 @@ export const ProvisionAvatarResponse = zod.object({
   "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
   "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
 }),
+  "liveValidation": zod.object({
+  "status": zod.enum(['unvalidated', 'validated']),
+  "runtimeSupported": zod.boolean(),
+  "method": zod.union([zod.literal('client_playback_report'),zod.literal(null)]).nullable(),
+  "sessionId": zod.string().nullable(),
+  "validatedAt": zod.coerce.date().nullable()
+}).optional(),
   "errorCode": zod.string().nullable(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
@@ -274,6 +332,13 @@ export const GetAvatarAssetResponse = zod.object({
   "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
   "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
 }),
+  "liveValidation": zod.object({
+  "status": zod.enum(['unvalidated', 'validated']),
+  "runtimeSupported": zod.boolean(),
+  "method": zod.union([zod.literal('client_playback_report'),zod.literal(null)]).nullable(),
+  "sessionId": zod.string().nullable(),
+  "validatedAt": zod.coerce.date().nullable()
+}).optional(),
   "errorCode": zod.string().nullable(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
@@ -305,6 +370,13 @@ export const DeleteAvatarAssetResponse = zod.object({
   "behaviorControl": zod.enum(['unsupported', 'unverified', 'supported']),
   "validation": zod.enum(['documentation_only', 'provisioned', 'live_verified'])
 }),
+  "liveValidation": zod.object({
+  "status": zod.enum(['unvalidated', 'validated']),
+  "runtimeSupported": zod.boolean(),
+  "method": zod.union([zod.literal('client_playback_report'),zod.literal(null)]).nullable(),
+  "sessionId": zod.string().nullable(),
+  "validatedAt": zod.coerce.date().nullable()
+}).optional(),
   "errorCode": zod.string().nullable(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
@@ -376,6 +448,8 @@ export const ListSessionsResponseItem = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
   "mode": zod.enum(['mock', 'live']),
   "status": zod.enum(['active', 'ended', 'expired', 'failed']),
   "startedAt": zod.string(),
@@ -396,13 +470,15 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
  */
 export const createSessionBodyAvatarIdMax = 160;
 
+export const createSessionBodyPurposeDefault = `conversation`;
 export const createSessionBodyCostConfirmedDefault = false;
 
 export const CreateSessionBody = zod.object({
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
-  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated.'),
-  "costConfirmed": zod.boolean().default(createSessionBodyCostConfirmedDefault).describe('Required for bounded stock live sessions. Provider/LiveKit usage may consume credits.'),
+  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),
+  "purpose": zod.enum(['conversation', 'validation']).default(createSessionBodyPurposeDefault).describe('Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID.'),
+  "costConfirmed": zod.boolean().default(createSessionBodyCostConfirmedDefault).describe('Required for every live session including validation. Provider/LiveKit usage may consume credits.'),
   "mode": zod.enum(['mock', 'live'])
 })
 
@@ -410,6 +486,8 @@ export const CreateSessionResponse = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
   "mode": zod.enum(['mock', 'live']),
   "status": zod.enum(['active', 'ended', 'expired', 'failed']),
   "startedAt": zod.string(),
@@ -435,6 +513,8 @@ export const GetSessionResponse = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
   "mode": zod.enum(['mock', 'live']),
   "status": zod.enum(['active', 'ended', 'expired', 'failed']),
   "startedAt": zod.string(),
@@ -495,6 +575,8 @@ export const EndSessionResponse = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
   "mode": zod.enum(['mock', 'live']),
   "status": zod.enum(['active', 'ended', 'expired', 'failed']),
   "startedAt": zod.string(),
@@ -520,6 +602,8 @@ export const InterruptSessionResponse = zod.object({
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
   "mode": zod.enum(['mock', 'live']),
   "status": zod.enum(['active', 'ended', 'expired', 'failed']),
   "startedAt": zod.string(),

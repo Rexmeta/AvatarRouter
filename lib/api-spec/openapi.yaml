@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AvatarRouter Live Avatar API
-  version: 0.4.0
+  version: 0.5.0
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready.
@@ -15,6 +15,29 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
 paths:
+  /v1/avatar-assets/{id}/live-validation:
+    post:
+      operationId: reportAvatarLiveValidation
+      description: >-
+        Requires assets:write and the original validation-session owner. Records a trusted
+        client playback report, not independent provider certification. The server requires
+        a running, unexpired validation session for this exact asset revision and a completed
+        audio command. Never call until the client has observed video frames and audible output.
+      security: [{ ClerkSessionJWT: [] }, { ServiceApiKey: [] }, { RoleplayXDelegationJWT: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AvatarPlaybackReport" }
+      responses:
+        "200":
+          description: Updated tenant-owned asset with recorded playback evidence.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarAsset" }
+        "409": { description: "Missing playback evidence, expired session, or changed asset revision." }
   /v1/developer/keys:
     get:
       operationId: listDeveloperKeys
@@ -579,11 +602,29 @@ components:
         status: { type: string, enum: [queued, submitting, processing, ready, failed, reconciliation_required, deleting, deleted] }
         creationMode: { type: string, enum: [image_training, one_shot] }
         capabilities: { $ref: "#/components/schemas/AvatarCapabilities" }
+        liveValidation: { $ref: "#/components/schemas/AvatarLiveValidation" }
         errorCode: { type: [string, "null"] }
         deletionStatus: { type: string, enum: [not_requested, pending, confirmed, manual_review] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: [string, "null"], format: date-time }
+    AvatarPlaybackReport:
+      type: object
+      additionalProperties: false
+      required: [sessionId, videoObserved, audioObserved]
+      properties:
+        sessionId: { type: string, format: uuid }
+        videoObserved: { type: boolean }
+        audioObserved: { type: boolean }
+    AvatarLiveValidation:
+      type: object
+      required: [status, runtimeSupported, method, sessionId, validatedAt]
+      properties:
+        status: { type: string, enum: [unvalidated, validated] }
+        runtimeSupported: { type: boolean }
+        method: { type: [string, "null"], enum: [client_playback_report, null] }
+        sessionId: { type: [string, "null"] }
+        validatedAt: { type: [string, "null"], format: date-time }
     AvatarCapabilities:
       type: object
       required: [reusable, liveRendering, emotionControl, behaviorControl, validation]
@@ -668,8 +709,9 @@ components:
       properties:
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
-        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated." }
-        costConfirmed: { type: boolean, default: false, description: "Required for bounded stock live sessions. Provider/LiveKit usage may consume credits." }
+        avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable." }
+        purpose: { type: string, enum: [conversation, validation], default: conversation, description: "Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID." }
+        costConfirmed: { type: boolean, default: false, description: "Required for every live session including validation. Provider/LiveKit usage may consume credits." }
         mode: { type: string, enum: [mock, live] }
     Session:
       type: object
@@ -678,6 +720,8 @@ components:
         id: { type: string }
         providerId: { type: string }
         avatarId: { type: string }
+        avatarAssetId: { type: [string, "null"] }
+        purpose: { type: string, enum: [conversation, validation] }
         mode: { type: string, enum: [mock, live] }
         status: { type: string, enum: [active, ended, expired, failed] }
         startedAt: { type: string }

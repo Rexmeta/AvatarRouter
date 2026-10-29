@@ -58,6 +58,7 @@ export default function Docs() {
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/persona-live-integration.md`} download="persona-live-integration.md">Persona live integration · API 0.5</a>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
               <b className="text-foreground">Identity bridge:</b> RoleplayX keeps its existing login. Its backend issues a user-and-tenant-bound RS256 delegation JWT valid for at most 60 seconds. AvatarRouter verifies a registered public JWKS, issuer, audience, client ID and route scope. No existing user session token, shared account, browser owner cookie or private signing key is shared. This path is optional; API keys need no issuer or JWKS enrollment.

@@ -10,7 +10,6 @@ pool.options.connectionTimeoutMillis = 5000;
 pool.options.query_timeout = 8000;
 pool.options.statement_timeout = 8000;
 pool.options.lock_timeout = 5000;
-await worker.start();
 const port = Number(process.env.PORT);
 if (!Number.isInteger(port) || port <= 0) throw new Error("Renderer PORT is required.");
 const health = createServer((req, res) => {
@@ -18,7 +17,14 @@ const health = createServer((req, res) => {
   res.statusCode = worker.healthy ? 200 : 503;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify({ service: "renderer", status: worker.healthy ? "ready" : "unavailable" }));
-}).listen(port, "0.0.0.0");
+});
+// Do not advertise a worker heartbeat or dispatch paid work before binding
+// succeeds. A port collision must not briefly make live admission look ready.
+await new Promise<void>((resolve, reject) => {
+  health.once("error", reject);
+  health.listen(port, "0.0.0.0", () => { health.off("error", reject); resolve(); });
+});
+await worker.start();
 logger.info({ workerId: worker.id }, "Dedicated renderer worker ready");
 let exiting = false;
 for (const signal of ["SIGTERM", "SIGINT"]) {

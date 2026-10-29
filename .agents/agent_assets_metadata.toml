@@ -19,14 +19,14 @@ content_type = "application/pdf"
 id = "NDnbNcEHhEWs5oO4zHcrw"
 uri = "file://generated-artifacts/roleplayx/avatarrouter-openapi-reference.pdf"
 type = "pdf"
-title = "AvatarRouter API 명세 0.4"
-description = "프로젝트 API 키 인증, 키 발급·교체·폐기 및 무료 auth/check를 반영했습니다. OpenAPI YAML은 /docs에서 다운로드할 수 있습니다."
+title = "AvatarRouter API 0.5 명세"
+description = "검증 목적의 세션, 커스텀 자산 실행, 재생 확인 보고와 조회 응답을 반영한 API 명세입니다."
 logical_id = "5fe9b182-a0da-407b-b744-7b441361846b"
-content_hash = "sha256:c36c3e313c596a1061bd89dfefd0687bba5078b2fd1af926a88816e7cc13726a"
-size = 79326
-mtime_ms = 1793096507877
-storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/5fe9b182-a0da-407b-b744-7b441361846b/f5329125-c97d-4a52-b8dc-ab4d18c23b8e"
-storage_version_token = "1793097027890130"
+content_hash = "sha256:f488d2ab9d8d31554b6e6bdf1503fa8c341a2b23b0bf986f7bb3b1d1d9e47fbf"
+size = 83009
+mtime_ms = 1793269026987
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/5fe9b182-a0da-407b-b744-7b441361846b/c3eaefc0-0500-4127-b75b-02f8ec9eadde"
+storage_version_token = "1793269107652862"
 content_type = "application/pdf"
 
 [[outputs]]
@@ -42,3 +42,17 @@ mtime_ms = 1793096505701
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/dc559f96-4e12-4558-aa58-2aad464b3aff/d3277e3b-92df-48d6-8c8f-54ec178518d4"
 storage_version_token = "1793097029142794"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "GQekoHkvlFVVCptbnr995"
+uri = "file://docs/persona-live-integration.md"
+type = "text"
+title = "RoleplayX 페르소나 라이브 연동 가이드"
+description = "API 0.5: 커스텀 Tavus 검증·실행 절차, 자산별 재생 확인과 권한·비용 안전 조건. RoleplayX 구현 담당자에게 전달할 문서입니다."
+logical_id = "3560a827-bad2-4d7e-9154-8ce8de94b5e0"
+content_hash = "sha256:781855371c572462a64b554600c979a7dd188b376268df4788162dc18099cc9f"
+size = 6313
+mtime_ms = 1793268733927
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/3560a827-bad2-4d7e-9154-8ce8de94b5e0/049ecc72-1793-498f-9b50-841db9fafab2"
+storage_version_token = "1793269106368764"
+content_type = "text/markdown"

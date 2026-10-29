@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql, type AvatarSessionRecord } from "@workspace/db";
-import { StockRuntime, terminateResources } from "./stock-runtime";
+import { StockRuntime, terminateResources, runtimeFace } from "./stock-runtime";
 import { HEARTBEAT_MS, LEASE_MS, safeLiveError } from "./stock-policy";
 import { SessionProblem } from "./session-service";
 import { readRendererAudio, removeRendererAudio } from "./private-images";
@@ -22,7 +22,7 @@ export class RendererWorker {
 
   constructor(
     private factory: Factory = (row, onId, before, rejected) => {
-      const runtime = new StockRuntime(row.roomName!, onId, before, rejected);
+      const runtime = new StockRuntime(row.roomName!, onId, before, rejected, terminateResources, runtimeFace(row));
       return Object.assign(runtime, { connected: () => runtime.room.isConnected });
     },
     private terminate = terminateResources,
@@ -135,7 +135,7 @@ export class RendererWorker {
         local.closing = true;
         await this.finish(row, local);
       } else {
-        await this.event(row.id, "started", "Renderer worker connected the real stock avatar. No AI dialogue or custom training.");
+        await this.event(row.id, "started", "Renderer worker connected the selected real avatar. Playback validation is separate; no AI dialogue or custom training.");
       }
     } catch (error) {
       local.starting = false;

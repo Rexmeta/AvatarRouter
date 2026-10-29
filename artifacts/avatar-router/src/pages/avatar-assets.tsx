@@ -619,7 +619,7 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
 
               {a.status === 'ready' && (
                 <div className="space-y-2 rounded border border-[hsl(var(--warn)/.35)] bg-[hsl(var(--warn)/.06)] p-3 text-[12.5px]">
-                  <p>{L('Ready means the provider returned a reusable avatar ID. A live session against this asset has not been verified, so live runtime remains unavailable and no preview video exists.', 'Ready는 프로바이더가 재사용 가능한 ID를 반환했다는 뜻입니다. 라이브 세션은 검증되지 않아 라이브 런타임은 사용할 수 없고 미리보기 영상도 없습니다.')}</p>
+                  <p>{L('Ready means provisioned, not playback-verified. Use Playground for a cost-approved Tavus validation session. Anam live runtime remains unavailable. Validation is recorded separately after actual playback.', 'Ready는 생성 완료이며 재생 검증 완료가 아닙니다. 플레이그라운드에서 비용 동의 후 Tavus 검증 세션을 실행하세요. Anam 라이브는 미지원입니다. 실제 재생 확인은 별도로 기록됩니다.')}</p>
                   <button data-testid="button-use-in-playground"
                     onClick={() => { setSelectedAsset({ id: a.id, name: a.name, providerId: a.providerId, providerAvatarId: a.providerAvatarId, imageAssetId: a.imageAssetId }); setLocation('/playground'); }}
                     className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition active:scale-[.97]">

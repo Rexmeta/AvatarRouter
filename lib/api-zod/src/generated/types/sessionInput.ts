@@ -3,10 +3,11 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import type { SessionInputMode } from './sessionInputMode';
 import type { SessionInputProviderId } from './sessionInputProviderId';
+import type { SessionInputPurpose } from './sessionInputPurpose';
 
 export interface SessionInput {
   providerId: SessionInputProviderId;
@@ -15,9 +16,11 @@ export interface SessionInput {
      * @maxLength 160
      */
   avatarId: string;
-  /** Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated. */
+  /** Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable. */
   avatarAssetId?: string;
-  /** Required for bounded stock live sessions. Provider/LiveKit usage may consume credits. */
+  /** Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID. */
+  purpose?: SessionInputPurpose;
+  /** Required for every live session including validation. Provider/LiveKit usage may consume credits. */
   costConfirmed?: boolean;
   mode: SessionInputMode;
 }

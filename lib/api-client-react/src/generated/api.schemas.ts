@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and session lifecycle. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 export interface CreateDeveloperKeyInput {
   /**
@@ -243,6 +243,35 @@ export interface AvatarCapabilities {
   validation: AvatarCapabilitiesValidation;
 }
 
+export type AvatarLiveValidationStatus = typeof AvatarLiveValidationStatus[keyof typeof AvatarLiveValidationStatus];
+
+
+export const AvatarLiveValidationStatus = {
+  unvalidated: 'unvalidated',
+  validated: 'validated',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AvatarLiveValidationMethod = typeof AvatarLiveValidationMethod[keyof typeof AvatarLiveValidationMethod] | null;
+
+
+export const AvatarLiveValidationMethod = {
+  client_playback_report: 'client_playback_report',
+} as const;
+
+export interface AvatarLiveValidation {
+  status: AvatarLiveValidationStatus;
+  runtimeSupported: boolean;
+  /** @nullable */
+  method: AvatarLiveValidationMethod;
+  /** @nullable */
+  sessionId: string | null;
+  /** @nullable */
+  validatedAt: string | null;
+}
+
 export interface AvatarAsset {
   id: string;
   imageAssetId: string;
@@ -254,6 +283,7 @@ export interface AvatarAsset {
   status: AvatarAssetStatus;
   creationMode: AvatarAssetCreationMode;
   capabilities: AvatarCapabilities;
+  liveValidation?: AvatarLiveValidation;
   /** @nullable */
   errorCode: string | null;
   deletionStatus: AvatarAssetDeletionStatus;
@@ -261,6 +291,12 @@ export interface AvatarAsset {
   updatedAt: string;
   /** @nullable */
   expiresAt: string | null;
+}
+
+export interface AvatarPlaybackReport {
+  sessionId: string;
+  videoObserved: boolean;
+  audioObserved: boolean;
 }
 
 export interface ProvisioningProvider {
@@ -397,6 +433,17 @@ export const SessionInputProviderId = {
   tavus: 'tavus',
 } as const;
 
+/**
+ * Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID.
+ */
+export type SessionInputPurpose = typeof SessionInputPurpose[keyof typeof SessionInputPurpose];
+
+
+export const SessionInputPurpose = {
+  conversation: 'conversation',
+  validation: 'validation',
+} as const;
+
 export type SessionInputMode = typeof SessionInputMode[keyof typeof SessionInputMode];
 
 
@@ -412,12 +459,22 @@ export interface SessionInput {
      * @maxLength 160
      */
   avatarId: string;
-  /** Resolve a ready tenant-owned avatar without regeneration. Custom live dispatch remains gated. */
+  /** Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable. */
   avatarAssetId?: string;
-  /** Required for bounded stock live sessions. Provider/LiveKit usage may consume credits. */
+  /** Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID. */
+  purpose?: SessionInputPurpose;
+  /** Required for every live session including validation. Provider/LiveKit usage may consume credits. */
   costConfirmed?: boolean;
   mode: SessionInputMode;
 }
+
+export type SessionPurpose = typeof SessionPurpose[keyof typeof SessionPurpose];
+
+
+export const SessionPurpose = {
+  conversation: 'conversation',
+  validation: 'validation',
+} as const;
 
 export type SessionMode = typeof SessionMode[keyof typeof SessionMode];
 
@@ -441,6 +498,9 @@ export interface Session {
   id: string;
   providerId: string;
   avatarId: string;
+  /** @nullable */
+  avatarAssetId?: string | null;
+  purpose?: SessionPurpose;
   mode: SessionMode;
   status: SessionStatus;
   startedAt: string;

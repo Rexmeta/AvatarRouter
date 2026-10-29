@@ -24,7 +24,7 @@ NODE_ENV = "production"
 path = "/api/healthz"
 
 [[services]]
-localPort = 8081
+localPort = 8083
 name = "Renderer Worker"
 paths = ["/api/renderer-health"]
 [services.development]
@@ -37,7 +37,7 @@ NODE_ENV = "production"
 [services.production.run]
 args = ["node", "--enable-source-maps", "artifacts/api-server/dist/renderer.mjs"]
 [services.production.run.env]
-PORT = "8081"
+PORT = "8083"
 NODE_ENV = "production"
 [services.production.health.startup]
 path = "/api/renderer-health"

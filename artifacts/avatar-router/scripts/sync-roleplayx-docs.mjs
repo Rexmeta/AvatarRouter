@@ -10,6 +10,7 @@ const files = [
   ["lib/api-spec/openapi.yaml", "openapi.yaml"],
   ["docs/api-key-quickstart.md", "integration-guide.md"],
   ["docs/roleplayx-identity-contract.md", "identity-contract.md"],
+  ["docs/persona-live-integration.md", "persona-live-integration.md"],
 ];
 
 await mkdir(publicDir, { recursive: true });

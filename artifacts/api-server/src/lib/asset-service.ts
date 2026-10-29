@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { db, and, eq, desc, sql, imageAssets, avatarAssets, type ImageAssetRecord, type AvatarAssetRecord } from "@workspace/db";
+import { db, and, eq, desc, sql, imageAssets, avatarAssets, avatarSessions, rendererCommands, type ImageAssetRecord, type AvatarAssetRecord } from "@workspace/db";
 import { IngestImageBody, ProvisionAvatarBody, IngestImageResponse, GetAvatarAssetResponse } from "@workspace/api-zod";
 import { SessionProblem } from "./session-service";
 import { decodeImageBase64, fetchAuthorizedImage, validateImage } from "./image-validation";
 import { savePrivateImage, removePrivateImage } from "./private-images";
 import { requireSupportedProvider } from "./provisioning-providers";
+import { assetLiveVerified } from "./asset-live-policy";
 
 export function presentImage(row: ImageAssetRecord) {
   const { tenantId, objectPath, lineageId, consentReference, rightsConfirmedAt, ...safe } = row;
@@ -15,7 +16,13 @@ export function presentAvatarAsset(row: AvatarAssetRecord) {
     id: row.id, imageAssetId: row.imageAssetId, name: row.name,
     sourceContentHash: row.sourceContentHash, providerId: row.providerId, providerAvatarId: row.providerAvatarId,
     status: row.status, creationMode: row.creationMode, errorCode: row.errorCode, deletionStatus: row.deletionStatus,
-    capabilities: { reusable: true, liveRendering: true, emotionControl: "unverified", behaviorControl: "unverified", validation: row.status === "ready" ? "provisioned" : "documentation_only" },
+    capabilities: { reusable: true, liveRendering: row.providerId === "tavus", emotionControl: "unverified", behaviorControl: "unverified", validation: assetLiveVerified(row) ? "live_verified" : row.status === "ready" ? "provisioned" : "documentation_only" },
+    liveValidation: {
+      status: assetLiveVerified(row) ? "validated" : "unvalidated", runtimeSupported: row.providerId === "tavus",
+      method: assetLiveVerified(row) ? "client_playback_report" : null,
+      sessionId: assetLiveVerified(row) ? row.liveValidationSessionId : null,
+      validatedAt: assetLiveVerified(row) ? row.liveValidatedAt?.toISOString() : null,
+    },
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), expiresAt: row.expiresAt?.toISOString() ?? null,
   });
 }
@@ -104,6 +111,11 @@ export async function deleteAsset(tenant: string, id: string) {
     const [row] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, id), eq(avatarAssets.tenantId, tenant))).for("update");
     if (!row) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");
     if (row.status === "deleted" || row.status === "deleting") return row;
+    const [session] = await tx.select({ id: avatarSessions.id }).from(avatarSessions).where(and(
+      eq(avatarSessions.avatarAssetId, id),
+      sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null or ${avatarSessions.error} = 'LIVE_CREATE_RECONCILIATION_REQUIRED')`,
+    )).limit(1);
+    if (session) throw new SessionProblem(409, "AVATAR_ASSET_IN_USE", "End live sessions and confirm remote cleanup before deleting this avatar.");
     if (row.leaseUntil && row.leaseUntil > new Date()) throw new SessionProblem(409, "ASSET_BUSY", "A provider operation is in progress. Retry after it finishes.");
     if (row.status === "reconciliation_required" || row.status === "submitting") {
       throw new SessionProblem(409, "RECONCILIATION_REQUIRED", "An operator must locate the provider resource before deletion can be confirmed.");
@@ -134,4 +146,34 @@ export async function resolveSessionAsset(tenant: string, id: string) {
     throw new SessionProblem(409, "AVATAR_ASSET_NOT_READY", "The provisioned avatar is not ready.");
   }
   return { avatarAssetId: row.id, providerId: row.providerId, avatarId: row.providerAvatarId };
+}
+
+export async function recordAssetPlayback(tenant: string, owner: string, id: string, report: { sessionId: string; videoObserved: boolean; audioObserved: boolean }) {
+  if (!report.videoObserved || !report.audioObserved) {
+    throw new SessionProblem(409, "PLAYBACK_EVIDENCE_REQUIRED", "Observe real video frames and audible returned audio before reporting success.");
+  }
+  return db.transaction(async tx => {
+    const [asset] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, id), eq(avatarAssets.tenantId, tenant))).for("update");
+    if (!asset) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");
+    const [session] = await tx.select().from(avatarSessions).where(and(
+      eq(avatarSessions.id, report.sessionId), eq(avatarSessions.ownerHash, owner), eq(avatarSessions.tenantId, tenant),
+    ));
+    if (!session) throw new SessionProblem(404, "SESSION_NOT_FOUND", "Validation session not found.");
+    if (asset.status !== "ready" || asset.providerId !== "tavus" ||
+        session.avatarAssetId !== id || session.avatarId !== asset.providerAvatarId || session.providerId !== asset.providerId ||
+        session.mode !== "live" || session.purpose !== "validation" || session.status !== "active" ||
+        session.rendererState !== "running" || session.providerCreateState !== "known" || !session.providerConversationId ||
+        session.stopRequestedAt || session.expiresAt <= new Date() || !session.leaseExpiresAt || session.leaseExpiresAt <= new Date()) {
+      throw new SessionProblem(409, "LIVE_VALIDATION_SESSION_INVALID", "A running, owned validation session for the current provider avatar is required.");
+    }
+    const [audio] = await tx.select({ id: rendererCommands.id }).from(rendererCommands).where(and(
+      eq(rendererCommands.sessionId, session.id), eq(rendererCommands.type, "audio"), eq(rendererCommands.state, "done"),
+    )).limit(1);
+    if (!audio) throw new SessionProblem(409, "LIVE_VALIDATION_AUDIO_REQUIRED", "A completed renderer audio command is required, not just a connected room.");
+    const [updated] = await tx.update(avatarAssets).set({
+      liveValidatedAt: new Date(), liveValidationSessionId: session.id,
+      liveValidationProviderAvatarId: asset.providerAvatarId, updatedAt: new Date(),
+    }).where(eq(avatarAssets.id, id)).returning();
+    return updated!;
+  });
 }

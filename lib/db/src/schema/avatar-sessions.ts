@@ -21,6 +21,8 @@ export const avatarSessions = pgTable("avatar_sessions", {
   reservedSeconds: integer("reserved_seconds").notNull().default(0),
   providerId: text("provider_id").notNull(),
   avatarId: text("avatar_id").notNull(),
+  avatarAssetId: text("avatar_asset_id"),
+  purpose: text("purpose", { enum: ["conversation", "validation"] }).notNull().default("conversation"),
   mode: text("mode", { enum: ["mock", "live"] }).notNull(),
   status: text("status", { enum: ["active", "ended", "expired", "failed"] }).notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),

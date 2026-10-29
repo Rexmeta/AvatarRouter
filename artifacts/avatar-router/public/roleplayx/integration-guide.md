@@ -1,6 +1,6 @@
 # AvatarRouter API-key quickstart for RoleplayX
 
-**API:** 0.4 · **Recommended connection:** base URL + project API key.
+**API:** 0.5 · **Recommended connection:** base URL + project API key.
 
 No issuer, JWKS endpoint, signing-key exchange, Clerk migration or shared user session is required.
 RoleplayX keeps its existing login, membership checks, conversation engine, prompts, scoring and voice pipeline.
