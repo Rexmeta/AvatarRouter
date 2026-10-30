@@ -20,6 +20,11 @@ production rollout, apply the same migration through the normal controlled
 database migration process before starting the new services; do not run a
 development schema push against production.
 
+Configure `LIVE_SESSION_OPERATOR_IDS` as a comma-separated allowlist of trusted
+Clerk user IDs on the API service. Leave it unset to disable operator
+reconciliation. This is an authorization setting, not a provider credential.
+Project API keys and RoleplayX delegated identities cannot use the operator API.
+
 Run/restart the managed API and Renderer Worker services independently. Both
 builds emit both entrypoints. HTTP restarts do not stop or recreate renderer RTC.
 Workers can scale horizontally: session claims use `FOR UPDATE SKIP LOCKED`.
@@ -59,16 +64,24 @@ after lease loss, allowing the current/replacement worker to terminate it.
 
 `LIVE_CREATE_RECONCILIATION_REQUIRED` means the paid POST may have succeeded
 without returning a usable ID. **Do not resend it or clear the error simply to
-free capacity.** A human operator must inspect the provider account, identify
-and end the matching conversation, and verify the matching room is absent.
-After an audited identification, attach the confirmed conversation ID to the
-existing session, set `provider_create_state = 'known'`,
-`renderer_state = 'cleanup_pending'`, and `cleanup_retry_at = NULL`; preserve
-ownership/lease fields so an active worker is not bypassed. The worker will retry
-termination and clear the warning only after both operations are confirmed.
-If no ID can be recovered, retain the warning until the provider independently
-confirms that no billable conversation exists. There is deliberately no tenant
-self-service “force clear” action.
+free capacity.** A trusted operator opens **Live reconciliation** in Studio,
+checks the Tavus account for the matching conversation, and submits that
+provider-confirmed conversation ID. The screen writes an append-only audit
+record with the signed-in Clerk user ID. It links the ID to the original session
+and requests existing worker cleanup; it does not mark provider termination or
+room absence as confirmed.
+
+The worker performs provider termination and verifies room absence independently.
+The warning and global paid-session block remain in place until both checks
+succeed. Failed checks retain their references and retry through the normal
+cleanup path. The operator screen has no force-close or warning-clear action,
+and API keys, delegated identities, or ordinary Studio accounts cannot approve
+themselves. If no ID can be recovered, retain the warning until the provider
+independently confirms that no billable conversation exists.
+
+The reconciliation audit table is created by the additive
+`avatar:migrate-renderer` migration. Do not edit session or audit rows directly
+in SQL to resolve an ambiguous paid creation.
 
 No software can guarantee immediate paid-resource deletion during a provider
 outage or recover an unreturned ID without provider reconciliation. The service

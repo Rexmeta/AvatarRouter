@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, BookOpen, Boxes, Compass, FlaskConical, ImageUp, KeyRound, ListTree } from 'lucide-react';
+import { Activity, BookOpen, Boxes, Compass, FlaskConical, ImageUp, KeyRound, ListTree, ShieldCheck } from 'lucide-react';
 import { AuthControl } from '@/components/auth-control';
 import { useGetHealth, useGetReadiness, useHealthCheck } from '@workspace/api-client-react';
 import { useI18n, type TKey } from '@/lib/i18n';
@@ -13,6 +13,7 @@ const nav: { href: string; key: TKey; icon: typeof Compass }[] = [
   { href: '/avatar-assets', key: 'nav.assets', icon: ImageUp },
   { href: '/providers', key: 'nav.providers', icon: Boxes },
   { href: '/sessions', key: 'nav.sessions', icon: ListTree },
+  { href: '/operator/live-reconciliation', key: 'nav.reconciliation', icon: ShieldCheck },
   { href: '/usage', key: 'nav.usage', icon: Activity },
   { href: '/api-keys', key: 'nav.apiKeys', icon: KeyRound },
   { href: '/docs', key: 'nav.docs', icon: BookOpen },

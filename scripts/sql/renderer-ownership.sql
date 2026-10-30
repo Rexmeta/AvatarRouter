@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS renderer_workers (
   id text PRIMARY KEY,
   heartbeat_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS avatar_session_reconciliation_audit (
+  id text PRIMARY KEY,
+  session_id text NOT NULL REFERENCES avatar_sessions(id) ON DELETE CASCADE,
+  operator_user_id text NOT NULL,
+  action text NOT NULL,
+  provider_conversation_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS avatar_reconciliation_audit_session_idx
+  ON avatar_session_reconciliation_audit (session_id, created_at);
 -- Legacy process-local live sessions must NEVER become new queued paid creates.
 -- Keep references and force cleanup/reconciliation; charge their bounded reservation too.
 UPDATE avatar_sessions SET

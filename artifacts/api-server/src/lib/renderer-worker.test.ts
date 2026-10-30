@@ -4,10 +4,12 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { fork } from "node:child_process";
-import { db, pool, avatarSessions, avatarSessionEvents, rendererWorkers, and, eq, sql } from "@workspace/db";
+import { db, pool, avatarSessions, avatarSessionEvents, avatarSessionReconciliationAudit, rendererWorkers, and, eq, sql } from "@workspace/db";
 import { RendererWorker } from "./renderer-worker";
 import * as apiA from "./live-sessions";
 import { safeLiveError } from "./stock-policy";
+import { attachLiveConversationId, listLiveReconciliation } from "./live-session-operator";
+import { isTrustedLiveOperator } from "../routes/live-reconciliation";
 
 // Real PostgreSQL locking/leases, isolated schema. Never call a provider or touch
 // application sessions, even if workflows are concurrently running.
@@ -24,7 +26,7 @@ before(async () => {
 });
 beforeEach(async () => {
   await Promise.all(workers.splice(0).map(w => w.shutdown()));
-  await pool.query("TRUNCATE renderer_commands, avatar_session_events, avatar_sessions, renderer_workers");
+  await pool.query("TRUNCATE renderer_commands, avatar_session_reconciliation_audit, avatar_session_events, avatar_sessions, renderer_workers");
   process.env.LIVE_USER_DAILY_SECONDS = "600";
   process.env.LIVE_GLOBAL_DAILY_SECONDS = "3600";
 });
@@ -173,6 +175,57 @@ test("ambiguous paid POST is quarantined, warns, blocks admission, and never ret
   assert.equal(stats.starts, 1);
   const events = await db.select().from(avatarSessionEvents).where(eq(avatarSessionEvents.sessionId, row.id));
   assert.ok(events.some(event => event.message.includes("operator reconciliation")));
+});
+
+test("operator reconciliation audits the provider ID and releases capacity only after worker cleanup", async () => {
+  const { w, stats } = worker({ ambiguous: true });
+  const row = await fixture();
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "reconciliation_required");
+
+  const attached = await attachLiveConversationId(row.id, "tavus-confirmed-123", "clerk-operator-1");
+  assert.deepEqual(attached, { sessionId: row.id, rendererState: "cleanup_pending", cleanupRequested: true });
+  const linked = await get(row.id);
+  assert.equal(linked.providerConversationId, "tavus-confirmed-123");
+  assert.equal(linked.providerCreateState, "known");
+  assert.equal(linked.rendererState, "cleanup_pending");
+  assert.equal(linked.error, "LIVE_CREATE_RECONCILIATION_REQUIRED");
+  assert.equal(linked.status, "failed");
+  assert.ok(linked.stopRequestedAt);
+  assert.equal((await listLiveReconciliation()).pending.length, 0);
+  const audit = await db.select().from(avatarSessionReconciliationAudit).where(eq(avatarSessionReconciliationAudit.sessionId, row.id));
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0]!.operatorUserId, "clerk-operator-1");
+  assert.equal(audit[0]!.providerConversationId, "tavus-confirmed-123");
+  await assert.rejects(apiA.createStockSession("other-owner", "other-tenant", true), { code: "LIVE_CAPACITY_REACHED" });
+
+  await fixture({
+    status: "failed", rendererState: "closed", providerCreateState: "known",
+    providerConversationId: "already-linked-conversation", roomName: null,
+  });
+  const otherPending = await fixture({
+    rendererState: "reconciliation_required", providerCreateState: "unknown",
+    error: "LIVE_CREATE_RECONCILIATION_REQUIRED",
+  });
+  await assert.rejects(
+    attachLiveConversationId(otherPending.id, "already-linked-conversation", "clerk-operator-1"),
+    { code: "PROVIDER_CONVERSATION_ALREADY_ATTACHED" },
+  );
+
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  const closed = await get(row.id);
+  assert.equal(closed.providerConversationId, null);
+  assert.equal(closed.roomName, null);
+  assert.equal(closed.error, null);
+  assert.equal(stats.starts, 1);
+  await assert.rejects(attachLiveConversationId(row.id, "another-id", "clerk-operator-1"), { code: "LIVE_SESSION_NOT_RECONCILABLE" });
+});
+
+test("operator allowlist matches exact Clerk user IDs and denies empty configuration", () => {
+  assert.equal(isTrustedLiveOperator("user_trusted", "user_trusted, user_other"), true);
+  assert.equal(isTrustedLiveOperator("user_trusted-extra", "user_trusted"), false);
+  assert.equal(isTrustedLiveOperator("user_trusted", ""), false);
 });
 
 test("definite insufficient-credit rejection is displayed without paid retry", async () => {

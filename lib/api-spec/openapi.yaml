@@ -329,6 +329,45 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiFailure" }
+  /v1/operator/live-reconciliation:
+    get:
+      operationId: listLiveReconciliation
+      description: >-
+        Trusted operator only. Requires a signed-in Clerk user ID listed in
+        LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a
+        recent append-only audit history. API keys and delegated identities are rejected.
+      security: [{ ClerkSessionJWT: [] }]
+      responses:
+        "200":
+          description: Unresolved live session references and recent operator reconciliation audit entries.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveReconciliationList" }
+        "403": { description: "Signed-in user is not on the trusted operator allowlist." }
+  /v1/operator/live-reconciliation/{id}:
+    post:
+      operationId: attachLiveConversationId
+      description: >-
+        Trusted operator only. Attaches a conversation ID independently confirmed in Tavus
+        to the existing ambiguous session. This only requests existing worker cleanup; it
+        never marks provider termination or room deletion as confirmed.
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveConversationReconciliationInput" }
+      responses:
+        "202":
+          description: Provider conversation ID attached; existing renderer worker cleanup requested.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveConversationReconciliationResult" }
+        "400": { description: "Invalid conversation ID or missing provider confirmation." }
+        "403": { description: "Signed-in user is not on the trusted operator allowlist." }
+        "409": { description: "Session is no longer eligible or the conversation ID is already assigned." }
   /v1/sessions/{id}:
     get:
       operationId: getSession
@@ -746,6 +785,54 @@ components:
         workerReady: { type: boolean }
         providerCredits: { type: string, enum: [unknown] }
         resetsAt: { type: string }
+    LiveReconciliationList:
+      type: object
+      additionalProperties: false
+      required: [pending, recentAudit]
+      properties:
+        pending:
+          type: array
+          items: { $ref: "#/components/schemas/LiveReconciliationSession" }
+        recentAudit:
+          type: array
+          items: { $ref: "#/components/schemas/LiveReconciliationAudit" }
+    LiveReconciliationSession:
+      type: object
+      additionalProperties: false
+      required: [id, roomName, startedAt, expiresAt, rendererState, providerCreateState]
+      properties:
+        id: { type: string }
+        roomName: { type: [string, "null"] }
+        startedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        rendererState: { type: string }
+        providerCreateState: { type: string }
+    LiveReconciliationAudit:
+      type: object
+      additionalProperties: false
+      required: [id, sessionId, operatorUserId, action, providerConversationId, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        sessionId: { type: string }
+        operatorUserId: { type: string }
+        action: { type: string, enum: [conversation_id_attached] }
+        providerConversationId: { type: string }
+        createdAt: { type: string, format: date-time }
+    LiveConversationReconciliationInput:
+      type: object
+      additionalProperties: false
+      required: [providerConversationId, confirmedFromProvider]
+      properties:
+        providerConversationId: { type: string, minLength: 1, maxLength: 200, pattern: "^[A-Za-z0-9._:-]+$" }
+        confirmedFromProvider: { type: boolean, const: true, description: "Explicitly attest that this exact ID was verified in the provider account." }
+    LiveConversationReconciliationResult:
+      type: object
+      additionalProperties: false
+      required: [sessionId, rendererState, cleanupRequested]
+      properties:
+        sessionId: { type: string }
+        rendererState: { type: string, enum: [cleanup_pending] }
+        cleanupRequested: { type: boolean, const: true, description: "Worker still must confirm provider termination and room absence." }
     LiveConnection:
       type: object
       required: [url, token, expiresAt]

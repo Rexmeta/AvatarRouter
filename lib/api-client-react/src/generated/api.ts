@@ -39,7 +39,10 @@ import type {
   LiveAudioInput,
   LiveAudioResult,
   LiveConnection,
+  LiveConversationReconciliationInput,
+  LiveConversationReconciliationResult,
   LiveLimits,
+  LiveReconciliationList,
   Provider,
   ProvisioningProvider,
   Readiness,
@@ -2119,6 +2122,190 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getCreateSessionMutationOptions(options), queryClient);
+    }
+
+export const getListLiveReconciliationUrl = () => {
+
+
+
+
+  return `/api/v1/operator/live-reconciliation`
+}
+
+/**
+ * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
+ */
+export const listLiveReconciliation = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveReconciliationList> => {
+
+  return customFetch<LiveReconciliationList>(getListLiveReconciliationUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLiveReconciliationQueryKey = () => {
+    return [
+    `/api/v1/operator/live-reconciliation`
+    ] as const;
+    }
+
+
+export const getListLiveReconciliationQueryOptions = <TData = Awaited<ReturnType<typeof listLiveReconciliation>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLiveReconciliationQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLiveReconciliation>>> = ({ signal }) => listLiveReconciliation({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListLiveReconciliationQueryResult = NonNullable<Awaited<ReturnType<typeof listLiveReconciliation>>>
+export type ListLiveReconciliationQueryError = ErrorType<void>
+
+
+export function useListLiveReconciliation<TData = Awaited<ReturnType<typeof listLiveReconciliation>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listLiveReconciliation>>,
+          TError,
+          Awaited<ReturnType<typeof listLiveReconciliation>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListLiveReconciliation<TData = Awaited<ReturnType<typeof listLiveReconciliation>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listLiveReconciliation>>,
+          TError,
+          Awaited<ReturnType<typeof listLiveReconciliation>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListLiveReconciliation<TData = Awaited<ReturnType<typeof listLiveReconciliation>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useListLiveReconciliation<TData = Awaited<ReturnType<typeof listLiveReconciliation>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLiveReconciliation>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListLiveReconciliationQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAttachLiveConversationIdUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/operator/live-reconciliation/${id}`
+}
+
+/**
+ * Trusted operator only. Attaches a conversation ID independently confirmed in Tavus to the existing ambiguous session. This only requests existing worker cleanup; it never marks provider termination or room deletion as confirmed.
+ */
+export const attachLiveConversationId = async (id: string,
+    liveConversationReconciliationInput: LiveConversationReconciliationInput, options?: Parameters<typeof customFetch>[1]): Promise<LiveConversationReconciliationResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LiveConversationReconciliationResult>(getAttachLiveConversationIdUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(liveConversationReconciliationInput)
+  }
+);}
+
+
+
+
+
+export const getAttachLiveConversationIdMutationKey = () => ['attachLiveConversationId'] as const;
+
+export const getAttachLiveConversationIdMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachLiveConversationId>>, TError,AttachLiveConversationIdMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof attachLiveConversationId>>, TError,AttachLiveConversationIdMutationVariables, TContext> => {
+
+const mutationKey = getAttachLiveConversationIdMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachLiveConversationId>>, AttachLiveConversationIdMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  attachLiveConversationId(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachLiveConversationIdMutationResult = NonNullable<Awaited<ReturnType<typeof attachLiveConversationId>>>
+    export type AttachLiveConversationIdMutationBody = BodyType<LiveConversationReconciliationInput>
+    export type AttachLiveConversationIdMutationError = ErrorType<void>
+    export type AttachLiveConversationIdMutationVariables = {id: string;data: BodyType<LiveConversationReconciliationInput>}
+
+    export const useAttachLiveConversationId = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachLiveConversationId>>, TError,AttachLiveConversationIdMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof attachLiveConversationId>>,
+        TError,
+        AttachLiveConversationIdMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAttachLiveConversationIdMutationOptions(options), queryClient);
     }
 
 export const getGetSessionUrl = (id: string,) => {

@@ -503,6 +503,58 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
+ * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
+ */
+export const ListLiveReconciliationResponse = zod.object({
+  "pending": zod.array(zod.object({
+  "id": zod.string(),
+  "roomName": zod.string().nullable(),
+  "startedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "rendererState": zod.string(),
+  "providerCreateState": zod.string()
+})),
+  "recentAudit": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "sessionId": zod.string(),
+  "operatorUserId": zod.string(),
+  "action": zod.enum(['conversation_id_attached']),
+  "providerConversationId": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Trusted operator only. Attaches a conversation ID independently confirmed in Tavus to the existing ambiguous session. This only requests existing worker cleanup; it never marks provider termination or room deletion as confirmed.
+ */
+export const attachLiveConversationIdPathIdMax = 128;
+
+
+
+export const AttachLiveConversationIdParams = zod.object({
+  "id": zod.coerce.string().min(1).max(attachLiveConversationIdPathIdMax)
+})
+
+export const attachLiveConversationIdBodyProviderConversationIdMax = 200;
+
+
+export const attachLiveConversationIdBodyProviderConversationIdRegExp = new RegExp('^[A-Za-z0-9._:-]+$');
+
+
+export const AttachLiveConversationIdBody = zod.object({
+  "providerConversationId": zod.string().min(1).max(attachLiveConversationIdBodyProviderConversationIdMax).regex(attachLiveConversationIdBodyProviderConversationIdRegExp),
+  "confirmedFromProvider": zod.literal(true).describe('Explicitly attest that this exact ID was verified in the provider account.')
+})
+
+export const AttachLiveConversationIdResponse = zod.object({
+  "sessionId": zod.string(),
+  "rendererState": zod.enum(['cleanup_pending']),
+  "cleanupRequested": zod.literal(true).describe('Worker still must confirm provider termination and room absence.')
+})
+
+
+/**
  * Requires a project API key or delegation JWT with sessions:read, or the original AvatarRouter owner cookie.
  */
 export const GetSessionParams = zod.object({

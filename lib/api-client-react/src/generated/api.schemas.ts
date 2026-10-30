@@ -536,6 +536,62 @@ export interface LiveLimits {
   resetsAt: string;
 }
 
+export interface LiveReconciliationSession {
+  id: string;
+  /** @nullable */
+  roomName: string | null;
+  startedAt: string;
+  expiresAt: string;
+  rendererState: string;
+  providerCreateState: string;
+}
+
+export type LiveReconciliationAuditAction = typeof LiveReconciliationAuditAction[keyof typeof LiveReconciliationAuditAction];
+
+
+export const LiveReconciliationAuditAction = {
+  conversation_id_attached: 'conversation_id_attached',
+} as const;
+
+export interface LiveReconciliationAudit {
+  id: string;
+  sessionId: string;
+  operatorUserId: string;
+  action: LiveReconciliationAuditAction;
+  providerConversationId: string;
+  createdAt: string;
+}
+
+export interface LiveReconciliationList {
+  pending: LiveReconciliationSession[];
+  recentAudit: LiveReconciliationAudit[];
+}
+
+export interface LiveConversationReconciliationInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^[A-Za-z0-9._:-]+$
+     */
+  providerConversationId: string;
+  /** Explicitly attest that this exact ID was verified in the provider account. */
+  confirmedFromProvider: true;
+}
+
+export type LiveConversationReconciliationResultRendererState = typeof LiveConversationReconciliationResultRendererState[keyof typeof LiveConversationReconciliationResultRendererState];
+
+
+export const LiveConversationReconciliationResultRendererState = {
+  cleanup_pending: 'cleanup_pending',
+} as const;
+
+export interface LiveConversationReconciliationResult {
+  sessionId: string;
+  rendererState: LiveConversationReconciliationResultRendererState;
+  /** Worker still must confirm provider termination and room absence. */
+  cleanupRequested: true;
+}
+
 export interface LiveConnection {
   url: string;
   /** Short-lived subscribe-only token scoped to exactly this room; never persist. */

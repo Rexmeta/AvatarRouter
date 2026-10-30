@@ -50,6 +50,17 @@ export const avatarSessionEvents = pgTable("avatar_session_events", {
 
 export const insertAvatarSessionEventSchema = createInsertSchema(avatarSessionEvents);
 
+export const avatarSessionReconciliationAudit = pgTable("avatar_session_reconciliation_audit", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull().references(() => avatarSessions.id),
+  operatorUserId: text("operator_user_id").notNull(),
+  action: text("action", { enum: ["conversation_id_attached"] }).notNull(),
+  providerConversationId: text("provider_conversation_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("avatar_reconciliation_audit_session_idx").on(t.sessionId, t.createdAt)]);
+export const insertAvatarSessionReconciliationAuditSchema = createInsertSchema(avatarSessionReconciliationAudit);
+export type AvatarSessionReconciliationAudit = typeof avatarSessionReconciliationAudit.$inferSelect;
+
 export const rendererCommands = pgTable("renderer_commands", {
   id: text("id").primaryKey(),
   sessionId: text("session_id").notNull().references(() => avatarSessions.id, { onDelete: "cascade" }),
