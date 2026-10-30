@@ -20,3 +20,9 @@ Negotiate custom-live features against the actual configured server before sendi
 **Why:** The external persona integration can be newer than the published AvatarRouter. Treating a valid project key as custom-runtime support allowed operators to reach incompatible workflows.
 
 **How to apply:** Require explicit custom-validation and playback-report capabilities for new custom workflows. Keep read-only reconciliation and ending existing sessions available when capability discovery is absent. Never clear uncertain paid-operation fences merely because a server version is old.
+
+Stock avatars and user-owned custom avatar assets are separate reference namespaces. Never represent a stock catalog entry as an owned asset or manufacture a UUID for it.
+
+**Why:** The user explicitly requires persona stock selection without mixing AvatarRouter `/avatars` and `/avatar-assets`; existing custom draft values must remain compatible.
+
+**How to apply:** Resolve a reference against its own catalog. Choosing or saving a reference is not authorization to create a paid session or activate learner Live rendering.

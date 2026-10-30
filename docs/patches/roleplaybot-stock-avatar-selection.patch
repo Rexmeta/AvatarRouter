@@ -1,0 +1,511 @@
+diff --git a/client/src/components/admin/PersonaAvatarSettings.tsx b/client/src/components/admin/PersonaAvatarSettings.tsx
+index 3df4ba9..82b8500 100644
+--- a/client/src/components/admin/PersonaAvatarSettings.tsx
++++ b/client/src/components/admin/PersonaAvatarSettings.tsx
+@@ -1,8 +1,8 @@
+ import React, { useEffect, useRef, useState } from 'react';
+ import { Button } from '@/components/ui/button';
+ import { apiRequest } from '@/lib/queryClient';
+-import type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
+-import { isLiveValidatedPersonaAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
++import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@shared/avatar/personaAvatar';
++import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+ import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
+ import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
+ export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
+@@ -28,7 +28,7 @@ type AvatarAsset = {
+   };
+ };
+ 
+-type AssetResponse = { projectId: string; assets: AvatarAsset[]; runtimeAvailable: false };
++type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[]; runtimeAvailable: false };
+ 
+ type Props = {
+   mode: PersonaAvatarMode;
+@@ -64,6 +64,7 @@ function errorMessage(error: unknown): string {
+ 
+ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false }: Props) {
+   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
++  const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [projectId, setProjectId] = useState<string | null>(null);
+@@ -88,6 +89,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+       const result: AssetResponse = personaAvatarCatalogSchema.parse(await response.json());
+       if (!mountedRef.current || requestRef.current !== requestId) return;
+       setAssets(result.assets);
++      setStockAvatars(result.stockAvatars);
+       setProjectId(result.projectId);
+     } catch (cause) {
+       if (!mountedRef.current || requestRef.current !== requestId) return;
+@@ -97,8 +99,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+     }
+   };
+ 
+-  const selectedAsset = assets?.find(asset => asset.id === liveAvatar?.assetId);
+-  const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset);
++  const customAssetId = liveAvatar && liveAvatar.kind !== 'stock' ? liveAvatar.assetId : null;
++  const stockAvatarId = liveAvatar?.kind === 'stock' ? liveAvatar.avatarId : null;
++  const selectedAsset = assets?.find(asset => asset.id === customAssetId);
++  const selectedStock = stockAvatars?.find(avatar => avatar.id === stockAvatarId && avatar.providerId === liveAvatar?.providerId);
++  const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
+   const selectableAssets = (assets ?? []).filter(asset =>
+     asset.status === 'ready' &&
+     asset.capabilities.reusable &&
+@@ -114,6 +119,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+     const asset = selectableAssets.find(candidate => candidate.id === assetId);
+     if (!asset) return;
+     onLiveAvatarChange({
++      kind: 'custom',
+       assetId: asset.id,
+       providerId: asset.providerId,
+       voiceMode: 'roleplayx',
+@@ -123,6 +129,17 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+     });
+   };
+ 
++  const chooseStock = (avatarId: string) => {
++    if (!avatarId) return onLiveAvatarChange(null);
++    const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
++    if (!avatar) return;
++    onLiveAvatarChange({
++      kind: 'stock', avatarId: avatar.id, providerId: 'tavus',
++      voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
++      ...(projectId ? { projectId } : {}),
++    });
++  };
++
+   return (
+     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="persona-avatar-settings-title">
+       <div className="mb-4">
+@@ -193,7 +210,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+               <div className="flex flex-wrap items-start justify-between gap-2">
+                 <div>
+                   <p className="font-semibold text-slate-800">저장된 초안 선택</p>
+-                  <p className="mt-1 break-all text-slate-600">자산 ID: {liveAvatar.assetId} · 제공자: {liveAvatar.providerId}</p>
++                  <p className="mt-1 break-all text-slate-600">
++                    {liveAvatar.kind === 'stock' ? `기본 아바타 ID: ${liveAvatar.avatarId}` : `자산 ID: ${liveAvatar.assetId}`} · 제공자: {liveAvatar.providerId}
++                  </p>
+                   <p className="mt-1 text-slate-600">
+                     Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'} · 활성화: 초안
+                   </p>
+@@ -207,6 +226,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+                   새로 조회한 목록에서 저장된 자산을 찾지 못했습니다. 삭제·실패·목록 접근 불가일 수 있습니다. 다른 자산으로 자동 변경하지 않았습니다.
+                 </p>
+               )}
++              {selectedStock && (
++                <p className="mt-2 text-slate-600">
++                  기본 아바타: {selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '초안 선택 가능' : '현재 선택 불가'}
++                </p>
++              )}
+               {selectedAsset && (
+                 <>
+                   <p className="mt-2 text-slate-600">
+@@ -222,6 +246,27 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+             </div>
+           )}
+ 
++          {stockAvatars !== null && !loading && !error && (
++            <div className="space-y-2">
++              <label htmlFor="live-avatar-stock" className="text-sm font-semibold text-slate-700">기본 아바타</label>
++              <select
++                id="live-avatar-stock"
++                value={selectedStock ? stockAvatarId ?? '' : ''}
++                onChange={event => chooseStock(event.target.value)}
++                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800"
++              >
++                <option value="">기본 아바타 선택</option>
++                {stockAvatars.map(avatar => (
++                  <option key={avatar.id} value={avatar.id} disabled={!isSelectableStockAvatar(avatar)}>
++                    {avatar.name} · {avatar.providerId}{!isSelectableStockAvatar(avatar) ? ' · 선택 불가' : ''}
++                  </option>
++                ))}
++              </select>
++              {stockAvatars.length === 0 && <p className="text-xs text-slate-500">조회 가능한 기본 아바타가 없습니다.</p>}
++              <p className="text-xs text-slate-500">기본 아바타는 커스텀 자산과 별도로 저장됩니다. 선택·저장은 무료이며 세션을 시작하지 않습니다. 실제 Live 사용은 별도 비용 동의가 필요합니다.</p>
++            </div>
++          )}
++
+           {assets !== null && !loading && !error && (
+             assets.length === 0 ? (
+               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+@@ -232,7 +277,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+                 <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">초안에 연결할 자산</label>
+                 <select
+                   id="live-avatar-asset"
+-                  value={selectedAsset ? liveAvatar?.assetId ?? '' : ''}
++                  value={selectedAsset ? customAssetId ?? '' : ''}
+                   onChange={event => chooseAsset(event.target.value)}
+                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                 >
+@@ -264,7 +309,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+           </div>
+ 
+           <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} />
+-          {assets !== null && liveAvatar?.providerId === 'tavus' && (
++          {assets !== null && liveAvatar?.providerId === 'tavus' && liveAvatar.kind !== 'stock' && (
+               <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} />
+             )}
+ 
+diff --git a/docs/live-avatar-integration.md b/docs/live-avatar-integration.md
+index e8bb228..c5a6fe9 100644
+--- a/docs/live-avatar-integration.md
++++ b/docs/live-avatar-integration.md
+@@ -1,5 +1,29 @@
+ # 선택형 AvatarRouter 연동
+ 
++## 페르소나의 기본/커스텀 아바타 초안 선택
++
++관리자 페르소나 편집의 Live 탭에서 **아바타 목록 조회**를 누르면, 로그인한 관리자의
++프로젝트·사용자 연결을 통해 두 목록을 읽는다. 자동 생성·유료 세션 시작은 하지 않는다.
++
++- **기본 아바타**: `/avatars`의 stock 참조. 현재 `configured: true`인 Tavus
++  `tavus-stock-lucy`만 초안 선택 가능하다. mock 또는 다른 configured 참조는 비활성화한다.
++  저장 형태: `{ kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", ... }`.
++- **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
++  프로젝트/사용자 소유권 검사를 유지한다.
++  새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.
++- 기존 `kind` 없이 `assetId` UUID만 있는 저장값은 커스텀 초안으로 계속 읽는다.
++  기존 값을 일괄 변환하거나 가짜 자산 UUID를 만들지 않는다. JSON 초안 컬럼을 그대로
++  사용하므로 데이터베이스 마이그레이션이 필요하지 않다.
++- 두 종류를 전환하면 이전 종류의 ID 필드는 제거된다. `assetId`와 `avatarId`를 함께
++  보내거나 stock ID를 UUID 자산으로 보내면 서버가 거부한다.
++
++서버는 선택 시 해당 목록을 다시 확인하며 브라우저의 검증 상태를 신뢰하지 않는다.
++stock 선택은 `validationStatus: "unverified"`이며 모든 선택은 `activation: "draft"`,
++`voiceMode: "roleplayx"`다. 기본 아바타에는 커스텀 자산 검증 패널을 연결하지 않는다.
++목록에서 사라지거나 사용 불가가 된 기존 선택은 다른 아바타로 자동 대체하지 않는다.
++기존 로그인·시나리오 선택·이미지/비디오 fallback·유료 작업의 명시적 동의·정리 방어는
++바뀌지 않는다. 실제 학습자 Live 연결은 별도 단계이며 이 선택만으로 활성화되지 않는다.
++
+ ## 현재 구현 범위와 제한
+ 
+ 기존 대화 엔진·음성 재생·이미지 및 클립 아바타는 그대로 사용한다.
+diff --git a/server/services/liveAvatar/personaCatalog.ts b/server/services/liveAvatar/personaCatalog.ts
+index e6e5f03..6eabaa7 100644
+--- a/server/services/liveAvatar/personaCatalog.ts
++++ b/server/services/liveAvatar/personaCatalog.ts
+@@ -3,6 +3,7 @@ import { storage } from "../../storage";
+ import {
+   personaAvatarAssetSchema, personaAvatarModeSchema, personaLiveAvatarSchema,
+   isSelectablePersonaAvatar, isLiveValidatedPersonaAvatar,
++  personaStockAvatarSchema, isSelectableStockAvatar,
+ } from "../../../shared/avatar/personaAvatar";
+ import { AvatarProjectClient } from "./projectClient";
+ import { avatarRouterProjectConnection } from "./projectConnection";
+@@ -24,8 +25,10 @@ export class PersonaAvatarCatalog {
+   async list(userId: string) {
+     const auth = await this.authorize(userId);
+     const assets = await this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500));
++    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
+     return {
+       projectId: auth.projectId, runtimeAvailable: false as const,
++      stockAvatars,
+       assets: assets.filter(a => a.providerId === "tavus" || a.providerId === "anam")
+         .map(a => ({ ...a, liveValidated: isLiveValidatedPersonaAvatar(a) })),
+     };
+@@ -61,6 +64,20 @@ export class PersonaAvatarCatalog {
+     if (parsed.data.projectId && parsed.data.projectId !== auth.projectId) {
+       throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
+     }
++    if (parsed.data.kind === "stock") {
++      const reference = parsed.data;
++      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500)))
++        .find(avatar => avatar.id === reference.avatarId && avatar.providerId === reference.providerId);
++      if (!stock || !isSelectableStockAvatar(stock)) {
++        throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
++      }
++      return {
++        ...result, liveAvatar: {
++          kind: "stock", avatarId: stock.id, providerId: stock.providerId, projectId: auth.projectId,
++          voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
++        },
++      };
++    }
+     const asset = await this.client.call(userId, `/avatar-assets/${parsed.data.assetId}`, personaAvatarAssetSchema);
+     if (asset.id !== parsed.data.assetId || asset.providerId !== parsed.data.providerId) {
+       throw new AvatarIdentityError("persona_avatar_asset_mismatch", 409);
+@@ -68,6 +85,7 @@ export class PersonaAvatarCatalog {
+     if (!isSelectablePersonaAvatar(asset)) throw new AvatarIdentityError("persona_avatar_asset_not_ready", 409);
+     return {
+       ...result, liveAvatar: {
++        ...(parsed.data.kind === "custom" ? { kind: "custom" } : {}),
+         assetId: asset.id, providerId: asset.providerId, projectId: auth.projectId,
+         voiceMode: "roleplayx", activation: "draft",
+         validationStatus: isLiveValidatedPersonaAvatar(asset) ? "live_verified" : "unverified",
+diff --git a/server/services/liveAvatar/projectClient.ts b/server/services/liveAvatar/projectClient.ts
+index 1dd62af..e612f12 100644
+--- a/server/services/liveAvatar/projectClient.ts
++++ b/server/services/liveAvatar/projectClient.ts
+@@ -22,7 +22,8 @@ export class AvatarProjectClient {
+     const catalogRead = body === undefined && /^\/avatar-assets(?:\/[a-fA-F0-9-]{36})?$/.test(path);
+     const assetWrite = body !== undefined && /^\/(?:assets\/images|avatar-assets(?:\/[a-fA-F0-9-]{36}\/live-validation)?)$/.test(path);
+     const imageRead = body === undefined && path === "/assets/images";
+-    if (!catalogRead && !assetWrite && !imageRead && !/^\/(?:live-limits|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:connection|audio|interrupt|end))?)?)$/.test(path)) {
++    const stockRead = body === undefined && path === "/avatars";
++    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:connection|audio|interrupt|end))?)?)$/.test(path)) {
+       throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+     }
+     const identity = await resolveAvatarIdentity(this.store, userId);
+diff --git a/shared/avatar/personaAvatar.ts b/shared/avatar/personaAvatar.ts
+index 6bd59f5..28d261b 100644
+--- a/shared/avatar/personaAvatar.ts
++++ b/shared/avatar/personaAvatar.ts
+@@ -3,17 +3,49 @@ import { z } from "zod";
+ export const personaAvatarModeSchema = z.enum(["image", "video", "live"]);
+ export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
+ 
+-/** Desired live configuration only. This release cannot activate a live persona. */
+-export const personaLiveAvatarSchema = z.object({
+-  assetId: z.string().uuid(),
++const liveDraftShape = {
+   providerId: z.enum(["tavus", "anam"]),
+   voiceMode: z.literal("roleplayx"),
+   validationStatus: z.enum(["unverified", "live_verified"]),
+   activation: z.literal("draft"),
+   projectId: z.string().min(1).max(256).optional(),
++};
++
++const stockReferenceSchema = z.object({
++  kind: z.literal("stock"), avatarId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
+ }).strict();
++const customReferenceSchema = z.object({ kind: z.literal("custom"), assetId: z.string().uuid() }).strict();
++export const personaAvatarReferenceSchema = z.discriminatedUnion("kind", [
++  stockReferenceSchema, customReferenceSchema,
++]);
++export type PersonaAvatarReference = z.infer<typeof personaAvatarReferenceSchema>;
++
++/** Desired configuration only. Neither catalog selection nor verification activates Live. */
++export const personaLiveAvatarSchema = z.union([
++  stockReferenceSchema.extend(liveDraftShape),
++  // Missing kind is exclusively a legacy custom UUID reference, never a stock ID.
++  customReferenceSchema.extend({ ...liveDraftShape, kind: z.literal("custom").optional() }),
++]);
+ export type PersonaLiveAvatar = z.infer<typeof personaLiveAvatarSchema>;
+ 
++/** /avatars catalog entries are not owned /avatar-assets resources. */
++export const personaStockAvatarSchema = z.object({
++  id: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
++  providerId: z.string().min(1).max(100),
++  name: z.string().max(500),
++  description: z.string(),
++  kind: z.enum(["mock", "configured"]),
++  configured: z.boolean(),
++  languages: z.array(z.string()),
++});
++export type PersonaStockAvatar = z.infer<typeof personaStockAvatarSchema>;
++
++export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
++  // Other configured entries and mock avatars have not passed the stock runtime contract.
++  return avatar.id === "tavus-stock-lucy" && avatar.providerId === "tavus" &&
++    avatar.kind === "configured" && avatar.configured;
++}
++
+ export const personaAvatarAssetSchema = z.object({
+   id: z.string().uuid(),
+   name: z.string().max(500),
+@@ -38,6 +70,7 @@ export type PersonaAvatarAsset = z.infer<typeof personaAvatarAssetSchema> & { li
+ export const personaAvatarCatalogSchema = z.object({
+   projectId: z.string().min(1).max(256),
+   runtimeAvailable: z.literal(false),
++  stockAvatars: z.array(personaStockAvatarSchema).max(500).default([]),
+   assets: z.array(personaAvatarAssetSchema.extend({
+     providerId: z.enum(["tavus", "anam"]),
+     liveValidated: z.boolean(),
+diff --git a/tests/client/personaAvatarSettings.test.tsx b/tests/client/personaAvatarSettings.test.tsx
+index 19009cd..849c68c 100644
+--- a/tests/client/personaAvatarSettings.test.tsx
++++ b/tests/client/personaAvatarSettings.test.tsx
+@@ -43,10 +43,10 @@ describe("persona avatar settings", () => {
+   it("loads only on explicit action and saves a project-bound unverified draft", async () => {
+     render(<Harness />);
+     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+-    await screen.findByRole("combobox");
++    await screen.findByLabelText("초안에 연결할 자산");
+     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+-    fireEvent.change(screen.getByRole("combobox"), { target: { value: id } });
+-    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
++    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
+     expect(screen.getByText(/현재 자산 상태: 준비 완료 · Live 검증: 미검증/)).toBeTruthy();
+     expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
+     fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
+@@ -57,7 +57,7 @@ describe("persona avatar settings", () => {
+     api.mockResolvedValue({ json: async () => response([row({ id: "22345678-1234-4234-8234-123456789abc", status: "processing" })]) });
+     render(<Harness initial={saved} />);
+     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+-    await screen.findByRole("combobox");
++    await screen.findByLabelText("초안에 연결할 자산");
+     expect(screen.getByRole("option", { name: /처리 중 · 선택 불가/ }).hasAttribute("disabled")).toBe(true);
+     expect(screen.getByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/)).toBeTruthy();
+     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
+@@ -96,4 +96,44 @@ describe("persona avatar settings", () => {
+     fireEvent.click(screen.getByRole("radio", { name: "Live" }));
+     expect(change).toHaveBeenCalledWith("live");
+   });
++
++  it("selects stock Lucy separately, replaces custom references and never starts validation or a session", async () => {
++    api.mockResolvedValue({ json: async () => ({ ...response(), stockAvatars: [
++      { id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy", description: "Stock",
++        kind: "configured", configured: true, languages: ["en"] },
++      { id: "mock-orbit", providerId: "mock", name: "Orbit", description: "Mock",
++        kind: "mock", configured: true, languages: [] },
++    ] }) });
++    render(<Harness initial={saved} />);
++    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
++    await screen.findByLabelText("기본 아바타");
++    expect(screen.getByRole("option", { name: /Orbit.*선택 불가/ }).hasAttribute("disabled")).toBe(true);
++    // An existing custom draft mounts its read-only preflight before we switch.
++    api.mockClear();
++    fireEvent.change(screen.getByLabelText("기본 아바타"), { target: { value: "tavus-stock-lucy" } });
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({
++      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
++      validationStatus: "unverified", activation: "draft", projectId: "project-one",
++    });
++    expect(screen.getByText(/기본 아바타 ID: tavus-stock-lucy/)).toBeTruthy();
++    expect((screen.getByLabelText("초안에 연결할 자산") as HTMLSelectElement).value).toBe("");
++    expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
++    expect(api).not.toHaveBeenCalled();
++    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
++  });
++
++  it("retains a saved stock selection when removed after refresh, and supports unlink", async () => {
++    const stockDraft: PersonaLiveAvatar = {
++      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
++      activation: "draft", validationStatus: "unverified", projectId: "project-one",
++    };
++    render(<Harness initial={stockDraft} />);
++    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
++    await screen.findByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/);
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stockDraft);
++    expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
++    fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
++    expect(screen.getByTestId("draft").textContent).toBe("null");
++  });
+ });
+diff --git a/tests/server/personaAvatarDraftRoundTrip.test.ts b/tests/server/personaAvatarDraftRoundTrip.test.ts
+index 54b313b..88d9c31 100644
+--- a/tests/server/personaAvatarDraftRoundTrip.test.ts
++++ b/tests/server/personaAvatarDraftRoundTrip.test.ts
+@@ -19,6 +19,21 @@ const draft = {
+ };
+ beforeEach(() => rows.clear());
+ describe("persona draft storage compatibility", () => {
++  it("round-trips stock references without manufacturing an asset UUID or changing fallback media", async () => {
++    const stockDraft = {
++      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", projectId: "project-one",
++      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
++    };
++    const images = { base: "portrait.webp" };
++    await fileManager.createMBTIPersona({ id: "stock", mbti: "INTJ", images, avatarMode: "live", liveAvatar: stockDraft });
++    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({ liveAvatar: stockDraft, images });
++    await fileManager.updateMBTIPersona("stock", { motivation: "unchanged avatar" });
++    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({ liveAvatar: stockDraft, images });
++    expect(rows.get("stock").liveAvatar).not.toHaveProperty("assetId");
++    await fileManager.updateMBTIPersona("stock", { liveAvatar: null });
++    expect(rows.get("stock").liveAvatar).toBeNull();
++  });
++
+   it("round-trips create, list and edit while preserving images and video slots", async () => {
+     const media = { images: { base: "portrait.webp" }, videos: { enabled: true, clips: { male: { speaking_neutral: "clip.mp4" } } } };
+     await fileManager.createMBTIPersona({ id: "manager", mbti: "ENTJ", ...media, avatarMode: "live", liveAvatar: draft });
+diff --git a/tests/server/personaLiveAvatar.test.ts b/tests/server/personaLiveAvatar.test.ts
+index 52294ed..03b9498 100644
+--- a/tests/server/personaLiveAvatar.test.ts
++++ b/tests/server/personaLiveAvatar.test.ts
+@@ -6,6 +6,10 @@ import { AvatarProjectClient } from "../../server/services/liveAvatar/projectCli
+ import { personaLiveAvatarSchema } from "../../shared/avatar/personaAvatar";
+ 
+ const id = "12345678-1234-4234-8234-123456789abc";
++const stock = (patch: any = {}) => ({
++  id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy - Home",
++  description: "Stock", kind: "configured", configured: true, languages: ["en"], ...patch,
++});
+ const asset = (patch: any = {}) => ({
+   id, name: "테스트 아바타", providerId: "tavus", providerAvatarId: "provider-face",
+   status: "ready", capabilities: { reusable: true, liveRendering: true, validation: "provisioned" }, ...patch,
+@@ -18,7 +22,7 @@ let call: ReturnType<typeof vi.fn>;
+ let check: ReturnType<typeof vi.fn>;
+ let catalog: PersonaAvatarCatalog;
+ beforeEach(() => {
+-  call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatar-assets" ? [asset()] : asset()));
++  call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()] : path === "/avatar-assets" ? [asset()] : asset()));
+   check = vi.fn(async () => ({ projectId: "project-one", scopes: ["assets:read"] }));
+   catalog = new PersonaAvatarCatalog({ call } as any, { check } as any);
+ });
+@@ -106,6 +110,55 @@ describe("persona project catalog and inactive drafts", () => {
+     call.mockImplementation(async (_user, _path, schema) => schema.parse({ items: [asset()] }));
+     await expect(catalog.list("operator")).rejects.toThrow();
+   });
++
++  it("keeps stock and custom catalogs separate and resolves stock using reads only", async () => {
++    const list = await catalog.list("operator");
++    expect(list.stockAvatars).toEqual([stock()]);
++    expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars"]);
++    call.mockClear();
++    const stockDraft = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
++      voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified" };
++    const normalized = await catalog.normalize("operator", { liveAvatar: stockDraft });
++    expect(normalized.liveAvatar).toEqual({ ...stockDraft, projectId: "project-one", validationStatus: "unverified" });
++    expect(normalized.liveAvatar).not.toHaveProperty("assetId");
++    expect(call.mock.calls.map(args => args.slice(0, 2))).toEqual([["operator", "/avatars"]]);
++    expect(call.mock.calls[0]).toHaveLength(3);
++    expect(check).toHaveBeenCalledWith("operator");
++  });
++
++  it.each([
++    { configured: false }, { id: "mock-orbit", providerId: "mock", kind: "mock" },
++    { id: "tavus-configured" }, { providerId: "anam" },
++  ])("rejects unavailable, unsupported or mismatched stock catalog rows: %j", async patch => {
++    call.mockImplementation(async (_user, _path, schema) => schema.parse([stock(patch)]));
++    await expect(catalog.normalize("operator", { liveAvatar: {
++      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
++      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
++    } })).rejects.toMatchObject({ code: "persona_stock_avatar_unavailable", status: 409 });
++  });
++
++  it("preserves legacy UUID drafts and accepts explicit custom references without stock lookup", async () => {
++    expect(personaLiveAvatarSchema.parse(draft())).toEqual(draft());
++    expect(await catalog.normalize("operator", { liveAvatar: draft({ kind: "custom" }) })).toMatchObject({
++      liveAvatar: { kind: "custom", assetId: id, activation: "draft", validationStatus: "unverified" },
++    });
++    expect(call.mock.calls.map(args => args[1])).toEqual([`/avatar-assets/${id}`]);
++  });
++
++  it("rejects mixed namespaces, traversal and stock project mismatches before catalog access", async () => {
++    const stockDraft = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
++      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified" };
++    for (const value of [
++      { ...stockDraft, assetId: id }, { ...stockDraft, avatarId: "../sessions" },
++      { ...stockDraft, kind: "custom" }, { ...stockDraft, activation: "active" },
++      draft({ assetId: "tavus-stock-lucy" }),
++    ]) {
++      await expect(catalog.normalize("operator", { liveAvatar: value })).rejects.toMatchObject({ status: 400 });
++    }
++    await expect(catalog.normalize("operator", { liveAvatar: { ...stockDraft, projectId: "other" } }))
++      .rejects.toMatchObject({ code: "persona_avatar_project_mismatch", status: 409 });
++    expect(call).not.toHaveBeenCalled();
++  });
+ });
+ 
+ describe("project client catalog transport boundary", () => {
+@@ -122,4 +175,18 @@ describe("project client catalog transport boundary", () => {
+     }
+     expect(request).toHaveBeenCalledTimes(1);
+   });
++
++  it("permits only read-only stock catalog access with the existing project/user identity headers", async () => {
++    const request = vi.fn(async () => new Response(JSON.stringify([stock()]), { headers: { "content-type": "application/json" } }));
++    const client = new AvatarProjectClient(identity, request as any, () => ({
++      baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_key_not_real_123456",
++    }));
++    await client.call("admin", "/avatars", z.array(z.object({ id: z.string() })));
++    expect(request.mock.calls[0][0]).toBe("https://avatar-router.replit.app/api/v1/avatars");
++    expect(request.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "X-Avatar-User-ID": expect.any(String) } });
++    for (const path of ["/avatars", "/avatars/tavus-stock-lucy", "/avatars/../sessions"]) {
++      await expect(client.call("admin", path, z.unknown(), {})).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
++    }
++    expect(request).toHaveBeenCalledTimes(1);
++  });
+ });
