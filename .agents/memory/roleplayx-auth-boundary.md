@@ -12,3 +12,9 @@ The default external connection should work like OpenRouter: base URL plus a ded
 **Why:** The user explicitly requested this boundary.
 
 **How to apply:** Preserve the RoleplayX login/account authority when changing external integration. Do not solve partner authentication by sharing a Clerk user session, a common account or a JWT signing secret.
+
+Repair missing permissions on the explicitly selected existing project credential through its interactive owner; do not automatically broaden every credential or create a replacement project to repair permissions.
+
+**Why:** RoleplayX persona references and existing assets must remain attached to the same project during permission repair. Credential replacement is unnecessary when only permissions change.
+
+**How to apply:** Keep permissions opt-in, explain asset read/write separately, preserve existing identity and expiry, and distinguish shipping permission-management code from actually changing an operator's live credential.

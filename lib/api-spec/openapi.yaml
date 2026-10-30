@@ -75,6 +75,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/IssuedDeveloperKey" }
   /v1/developer/keys/{id}:
+    patch:
+      operationId: updateDeveloperKeyScopes
+      description: "Interactive owner only. Replaces scopes on an active key while preserving its secret, project, expiry and existing assets. No provider calls or session creation."
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateDeveloperKeyScopesInput" }
+      responses:
+        "200":
+          description: Updated key metadata; never returns a secret or digest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeveloperKey" }
+        "400": { description: Invalid or unsupported scopes. }
+        "403": { description: Interactive owner login required. }
+        "404": { description: Active unexpired owned key not found. }
     delete:
       operationId: revokeDeveloperKey
       security: [{ ClerkSessionJWT: [] }]
@@ -561,6 +581,12 @@ components:
       properties:
         key: { $ref: "#/components/schemas/DeveloperKey" }
         secret: { type: string, description: "One-time server secret. Never log, persist in browser storage, or return from list endpoints." }
+    UpdateDeveloperKeyScopesInput:
+      type: object
+      additionalProperties: false
+      required: [scopes]
+      properties:
+        scopes: { type: array, minItems: 1, maxItems: 9, uniqueItems: true, items: { type: string } }
     ServiceKeyCheck:
       type: object
       required: [authenticated, authType, projectId, projectName, scopes, expiresAt, userContext]

@@ -66,4 +66,5 @@ export * from './sessionPurpose';
 export * from './sessionStatus';
 export * from './setup';
 export * from './setupCheck';
+export * from './updateDeveloperKeyScopesInput';
 export * from './usage';

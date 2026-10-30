@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react';
 import {
-  getListDeveloperKeysQueryKey, useCreateDeveloperKey, useListDeveloperKeys, useRevokeDeveloperKey, useRotateDeveloperKey,
+  getListDeveloperKeysQueryKey, useCreateDeveloperKey, useListDeveloperKeys, useRevokeDeveloperKey, useRotateDeveloperKey, useUpdateDeveloperKeyScopes,
   type DeveloperKey,
 } from '@workspace/api-client-react';
 import { CopyBlock, ErrorState, PageHead, Panel, Pill, Skel, errMsg, fmtTime } from '@/components/bits';
@@ -16,7 +16,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 type Issued = { key: DeveloperKey; secret: string; rotated: boolean };
-type Pending = { kind: 'rotate' | 'revoke'; key: DeveloperKey } | null;
+type Pending = { kind: 'rotate' | 'revoke' | 'scopes'; key: DeveloperKey } | null;
 
 function keyState(k: DeveloperKey): 'active' | 'revoked' | 'expired' {
   if (k.revokedAt) return 'revoked';
@@ -35,16 +35,19 @@ export default function ApiKeys() {
   const create = useCreateDeveloperKey({ mutation: { gcTime: 0 } });
   const rotate = useRotateDeveloperKey({ mutation: { gcTime: 0 } });
   const revoke = useRevokeDeveloperKey();
+  const updateScopes = useUpdateDeveloperKeyScopes();
 
   const [issued, setIssued] = useState<Issued | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [editingScopes, setEditingScopes] = useState<string[]>([]);
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<string[]>(DEFAULT_SCOPES);
   const [days, setDays] = useState('90');
 
   // Clear one-time secret on sign-out or user switch.
-  useEffect(() => { setIssued(null); setPending(null); }, [userId, isSignedIn]);
+  useEffect(() => { setIssued(null); setPending(null); setEditingScopes([]); setActionNotice(null); setActionError(null); }, [userId, isSignedIn]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListDeveloperKeysQueryKey() });
   const daysNum = Number(days);
@@ -69,11 +72,17 @@ export default function ApiKeys() {
     const { kind, key } = pending;
     setPending(null);
     setActionError(null);
+    setActionNotice(null);
     try {
       if (kind === 'rotate') {
         const r = await rotate.mutateAsync({ id: key.id });
         if (currentUser.current !== initiatingUser) return;
         setIssued({ key: r.key, secret: r.secret, rotated: true });
+      } else if (kind === 'scopes') {
+        await updateScopes.mutateAsync({ id: key.id, data: { scopes: editingScopes } });
+        if (currentUser.current !== initiatingUser) return;
+        setIssued(null);
+        setActionNotice(en ? 'Permissions saved. The same key and project are retained. No Secret replacement is needed; run /auth/check in RoleplayX again.' : '권한을 저장했습니다. 기존 키와 프로젝트는 유지됩니다. Secret 교체 없이 RoleplayX에서 /auth/check를 다시 실행하세요.');
       } else {
         await revoke.mutateAsync({ id: key.id });
         if (issued?.key.id === key.id) setIssued(null);
@@ -99,7 +108,7 @@ export default function ApiKeys() {
   }
 
   const keys = list.data ?? [];
-  const busy = rotate.isPending || revoke.isPending;
+  const busy = rotate.isPending || revoke.isPending || updateScopes.isPending;
 
   return (
     <div>
@@ -126,12 +135,14 @@ export default function ApiKeys() {
           <button onClick={() => setActionError(null)} aria-label="dismiss" data-testid="button-dismiss-error"><X className="h-4 w-4" /></button>
         </div>
       )}
+      {actionNotice && <div role="status" className="mb-6 rounded-md border border-primary/40 bg-primary/5 px-4 py-3 text-sm">{actionNotice}</div>}
 
       <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-8">
           <Panel title={en ? 'Create project key' : '프로젝트 키 생성'}>
             <div className="space-y-4 p-4">
               <p className="text-[13px] text-muted-foreground">{en ? 'Each new key creates a separate project. Rotating keeps the project and its sessions.' : '새 키마다 별도 프로젝트가 생성됩니다. 교체 시 프로젝트는 유지됩니다.'}</p>
+              <p className="text-xs text-muted-foreground">{en ? 'Defaults cover sessions only. RoleplayX persona asset listing needs assets:read; custom creation also needs assets:write. For an existing connection, edit that key’s permissions below instead of creating a new project.' : '기본 권한은 세션용입니다. RoleplayX 페르소나 자산 조회에는 assets:read, 커스텀 생성에는 assets:write도 필요합니다. 기존 연결은 새 프로젝트를 만들지 말고 아래 해당 키의 권한을 수정하세요.'}</p>
               <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
                 <label className="text-sm">
                   <span className="eyebrow mb-1 block">{en ? 'Project name' : '프로젝트 이름'}</span>
@@ -202,6 +213,7 @@ export default function ApiKeys() {
                       </div>
                       {!k.revokedAt && (
                         <div className="flex shrink-0 gap-2">
+                          {st === 'active' && <button data-testid={`button-scopes-${k.id}`} disabled={busy} onClick={() => { setEditingScopes([...k.scopes]); setPending({ kind: 'scopes', key: k }); }} className="inline-flex items-center gap-1 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40">{en ? 'Permissions' : '권한 수정'}</button>}
                           <button data-testid={`button-rotate-${k.id}`} disabled={busy} onClick={() => setPending({ kind: 'rotate', key: k })} className="inline-flex items-center gap-1 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"><RefreshCw className="h-3 w-3" />{en ? 'Rotate' : '교체'}</button>
                           <button data-testid={`button-revoke-${k.id}`} disabled={busy} onClick={() => setPending({ kind: 'revoke', key: k })} className="inline-flex items-center gap-1 rounded border border-destructive/40 px-2.5 py-1.5 text-xs text-destructive hover:bg-destructive/5 disabled:opacity-40"><Trash2 className="h-3 w-3" />{en ? 'Revoke' : '폐기'}</button>
                         </div>
@@ -230,18 +242,27 @@ export default function ApiKeys() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-destructive" />
-              {pending?.kind === 'rotate' ? (en ? 'Rotate key?' : '키를 교체할까요?') : (en ? 'Revoke key?' : '키를 폐기할까요?')}
+              {pending?.kind === 'scopes' ? (en ? 'Update key permissions?' : '키 권한을 수정할까요?') : pending?.kind === 'rotate' ? (en ? 'Rotate key?' : '키를 교체할까요?') : (en ? 'Revoke key?' : '키를 폐기할까요?')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pending?.kind === 'rotate'
+              {pending?.kind === 'scopes'
+                ? (en ? 'Only permissions change. The secret, project and expiry stay the same. assets:read enables asset listing; assets:write permits image upload and custom creation, which may incur provider costs when explicitly requested. Saving permissions starts no paid operation.' : '권한만 변경하며 기존 키·프로젝트·만료일은 유지합니다. assets:read는 자산 조회, assets:write는 이미지 전송과 커스텀 생성을 허용합니다. 생성 요청 시 공급자 비용이 발생할 수 있지만 권한 저장 자체는 유료 작업을 실행하지 않습니다.')
+                : pending?.kind === 'rotate'
                 ? (en ? `The current secret for ${pending.key.projectName} stops working immediately. The project and scopes are kept, with a fresh 90-day expiry. Update your server with the new secret.` : `${pending.key.projectName}의 현재 시크릿은 즉시 무효화됩니다. 프로젝트와 권한은 유지되며 만료일이 90일 후로 갱신됩니다. 서버에 새 시크릿을 반영하세요.`)
                 : (en ? `Revoking ${pending?.key.projectName ?? ''} blocks new calls but does not prove running paid sessions are cleaned up. End live sessions first.` : `${pending?.key.projectName ?? ''} 폐기는 새 호출을 차단하지만 실행 중인 유료 세션 정리를 보장하지 않습니다. 먼저 라이브 세션을 종료하세요.`)}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {pending?.kind === 'scopes' && <div className="grid gap-2 py-2">
+            {SCOPES.map(scope => <label key={scope} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={editingScopes.includes(scope)} onChange={e => setEditingScopes(current => e.target.checked ? [...current, scope] : current.filter(s => s !== scope))} />
+              <span className="mono">{scope}</span>
+            </label>)}
+            {editingScopes.length === 0 && <p className="text-xs text-destructive">{en ? 'Select at least one permission.' : '권한을 하나 이상 선택하세요.'}</p>}
+          </div>}
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-confirm">{en ? 'Cancel' : '취소'}</AlertDialogCancel>
-            <AlertDialogAction data-testid="button-confirm-action" onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {pending?.kind === 'rotate' ? (en ? 'Rotate now' : '지금 교체') : (en ? 'Revoke' : '폐기')}
+            <AlertDialogAction data-testid="button-confirm-action" disabled={busy || (pending?.kind === 'scopes' && editingScopes.length === 0)} onClick={onConfirm} className={pending?.kind === 'scopes' ? 'bg-primary text-primary-foreground' : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}>
+              {pending?.kind === 'scopes' ? (en ? 'Save permissions' : '권한 저장') : pending?.kind === 'rotate' ? (en ? 'Rotate now' : '지금 교체') : (en ? 'Revoke' : '폐기')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

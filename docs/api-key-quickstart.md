@@ -2,6 +2,16 @@
 
 **API:** 0.5 · **Recommended connection:** base URL + project API key.
 
+## 기존 키에 자산 권한 추가
+
+목록 조회가 `assets:read`, 커스텀 생성이 `assets:write` 누락으로 거절되면 AvatarRouter의 **API keys → 해당 기존 키 → 권한 수정**에서 필요한 두 항목을 선택하고 저장하세요.
+
+이 변경은 기존 키 값·프로젝트·만료일·자산 연결을 유지하므로 RoleplayX의 `AVATAR_ROUTER_API_KEY`를 교체하지 않아도 됩니다. 저장 후 RoleplayX에서 무료 `/auth/check`를 다시 실행해 두 권한을 확인하세요. 권한 변경 자체는 이미지 전송이나 유료 세션을 실행하지 않습니다.
+
+소유자 로그인으로만 `PATCH /api/v1/developer/keys/{id}`를 호출할 수 있습니다. 요청의 `scopes` 배열에는 기존에 필요한 권한과 추가할 `assets:read`, `assets:write`를 포함한 **전체 권한 목록**을 전달합니다. API 키 자체는 자신의 권한을 올릴 수 없습니다. 만료·폐기 키는 수정할 수 없습니다.
+
+“새 키 생성”은 별도 프로젝트를 만들므로 기존 프로젝트를 유지하기 위한 대체 수단이 아닙니다. 키 “교체”도 기존 권한을 보존하므로 누락 권한을 추가하지 않습니다.
+
 No issuer, JWKS endpoint, signing-key exchange, Clerk migration or shared user session is required.
 RoleplayX keeps its existing login, membership checks, conversation engine, prompts, scoring and voice pipeline.
 This is OpenRouter-style credential setup, not compatibility with OpenAI chat/completions.

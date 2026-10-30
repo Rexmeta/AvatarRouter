@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import test, { after, before } from "node:test";
 import type { Server } from "node:http";
 import { db, pool, integrationApiKeys, avatarSessions, avatarSessionEvents, eq } from "@workspace/db";
-import { createDeveloperKey, listDeveloperKeys, rotateDeveloperKey, revokeDeveloperKey, hashServiceValue } from "./service-api-keys";
+import { createDeveloperKey, listDeveloperKeys, rotateDeveloperKey, revokeDeveloperKey, hashServiceValue, updateDeveloperKeyScopes } from "./service-api-keys";
 import app from "../app";
 
 const owner = `test-key-owner-${randomUUID()}`;
@@ -30,6 +30,42 @@ before(async () => {
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   origin = `http://127.0.0.1:${address.port}`;
+});
+
+test("only an owner can add asset permissions without replacing the secret, project or expiry", async () => {
+  const issued = await issue();
+  const [before] = await db.select().from(integrationApiKeys).where(eq(integrationApiKeys.id, issued.key.id));
+  assert.equal((await call("/avatar-assets", issued.secret)).status, 403);
+  const write = { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" };
+  assert.equal((await call("/avatar-assets", issued.secret, write)).status, 403);
+  const nextScopes = [...scopes, "assets:read", "assets:write"];
+  const patch = { ...write, method: "PATCH", body: JSON.stringify({ scopes: nextScopes }) };
+  assert.equal((await call(`/developer/keys/${issued.key.id}`, issued.secret, patch)).status, 403);
+  assert.equal((await call(`/developer/keys/${issued.key.id}`, undefined, patch)).status, 401);
+  await assert.rejects(updateDeveloperKeyScopes("another-owner", issued.key.id, nextScopes), { code: "KEY_NOT_FOUND" });
+  for (const invalid of [[], ["admin:*"]]) {
+    await assert.rejects(updateDeveloperKeyScopes(owner, issued.key.id, invalid), { code: "INVALID_SCOPE" });
+  }
+  const result = await updateDeveloperKeyScopes(owner, issued.key.id, nextScopes);
+  assert.equal(result.projectId, issued.key.projectId);
+  assert.equal("secret" in result || "secretHash" in result, false);
+  const [after] = await db.select().from(integrationApiKeys).where(eq(integrationApiKeys.id, issued.key.id));
+  assert.equal(after.secretHash === before.secretHash, true);
+  assert.equal(after.prefix, before.prefix);
+  assert.equal(after.expiresAt.toISOString(), before.expiresAt.toISOString());
+  const checked = await (await call("/auth/check", issued.secret)).json() as { scopes: string[]; projectId: string };
+  assert.deepEqual(checked.scopes, nextScopes);
+  assert.equal(checked.projectId, issued.key.projectId);
+  assert.equal((await call("/avatar-assets", issued.secret)).status, 200);
+  // Invalid input is rejected after scope authorization, before any provider call.
+  assert.equal((await call("/avatar-assets", issued.secret, write)).status, 400);
+  await updateDeveloperKeyScopes(owner, issued.key.id, scopes);
+  assert.equal((await call("/avatar-assets", issued.secret)).status, 403);
+  await revokeDeveloperKey(owner, issued.key.id);
+  await assert.rejects(updateDeveloperKeyScopes(owner, issued.key.id, nextScopes), { code: "KEY_NOT_FOUND" });
+  const expired = await issue();
+  await db.update(integrationApiKeys).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(integrationApiKeys.id, expired.key.id));
+  await assert.rejects(updateDeveloperKeyScopes(owner, expired.key.id, nextScopes), { code: "KEY_NOT_FOUND" });
 });
 
 test("keys store only a digest, list no credentials, and enforce input/owner permissions", async () => {

@@ -44,6 +44,14 @@ export interface IssuedDeveloperKey {
   secret: string;
 }
 
+export interface UpdateDeveloperKeyScopesInput {
+  /**
+     * @minItems 1
+     * @maxItems 9
+     */
+  scopes: string[];
+}
+
 /**
  * Implemented API contract only, not worker readiness, provider entitlement, playback certification or permission to create a paid session. Older servers omit this field; do not infer custom-live support from authentication success.
  */

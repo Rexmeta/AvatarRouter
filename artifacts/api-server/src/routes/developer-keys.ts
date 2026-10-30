@@ -1,8 +1,8 @@
 import { Router, type RequestHandler } from "express";
 import { getAuth } from "@clerk/express";
 import rateLimit from "express-rate-limit";
-import { CreateDeveloperKeyBody, ListDeveloperKeysResponse, CreateDeveloperKeyResponse, RotateDeveloperKeyResponse, CheckServiceApiKeyResponse } from "@workspace/api-zod";
-import { createDeveloperKey, developerOwnerHash, listDeveloperKeys, revokeDeveloperKey, rotateDeveloperKey } from "../lib/service-api-keys";
+import { CreateDeveloperKeyBody, ListDeveloperKeysResponse, CreateDeveloperKeyResponse, RotateDeveloperKeyResponse, CheckServiceApiKeyResponse, UpdateDeveloperKeyScopesBody, UpdateDeveloperKeyScopesResponse, UpdateDeveloperKeyScopesParams } from "@workspace/api-zod";
+import { createDeveloperKey, developerOwnerHash, listDeveloperKeys, revokeDeveloperKey, rotateDeveloperKey, updateDeveloperKeyScopes } from "../lib/service-api-keys";
 import { SessionProblem } from "../lib/session-service";
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { integrationContract } from "../lib/integration-contract";
@@ -34,6 +34,11 @@ router.post("/v1/developer/keys", async (req, res) => {
 });
 router.post("/v1/developer/keys/:id/rotate", async (req, res) => {
   res.json(RotateDeveloperKeyResponse.parse(await rotateDeveloperKey(res.locals.developerOwner, req.params.id)));
+});
+router.patch("/v1/developer/keys/:id", async (req, res) => {
+  const { id } = UpdateDeveloperKeyScopesParams.parse(req.params);
+  const { scopes } = UpdateDeveloperKeyScopesBody.strict().parse(req.body);
+  res.json(UpdateDeveloperKeyScopesResponse.parse(await updateDeveloperKeyScopes(res.locals.developerOwner, id, scopes)));
 });
 router.delete("/v1/developer/keys/:id", async (req, res) => {
   await revokeDeveloperKey(res.locals.developerOwner, req.params.id);

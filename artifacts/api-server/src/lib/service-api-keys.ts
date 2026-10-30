@@ -55,6 +55,20 @@ export async function rotateDeveloperKey(owner: string, id: string) {
   return { key: presentDeveloperKey(row), secret };
 }
 
+export async function updateDeveloperKeyScopes(owner: string, id: string, scopes: string[]) {
+  if (scopes.length < 1 || scopes.length > ROLEPLAYX_SCOPES.length ||
+      scopes.some(scope => !(ROLEPLAYX_SCOPES as readonly string[]).includes(scope))) {
+    throw new SessionProblem(400, "INVALID_SCOPE", "Choose at least one scope from the documented allowlist.");
+  }
+  // Ownership is derived from interactive Clerk login, never from a project key.
+  // Updating only scopes preserves project data, the existing secret and expiry.
+  const [row] = await db.update(integrationApiKeys).set({ scopes: [...new Set(scopes)] })
+    .where(and(eq(integrationApiKeys.id, id), eq(integrationApiKeys.ownerIdHash, owner),
+      sql`${integrationApiKeys.revokedAt} is null`, sql`${integrationApiKeys.expiresAt} > now()`)).returning();
+  if (!row) throw new SessionProblem(404, "KEY_NOT_FOUND", "Active unexpired integration key not found.");
+  return presentDeveloperKey(row);
+}
+
 export async function revokeDeveloperKey(owner: string, id: string) {
   const [row] = await db.update(integrationApiKeys).set({ revokedAt: sql`coalesce(${integrationApiKeys.revokedAt}, now())` })
     .where(and(eq(integrationApiKeys.id, id), eq(integrationApiKeys.ownerIdHash, owner))).returning({ id: integrationApiKeys.id });

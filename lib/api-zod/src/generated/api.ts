@@ -117,6 +117,34 @@ export const RotateDeveloperKeyResponse = zod.object({
 })
 
 
+/**
+ * Interactive owner only. Replaces scopes on an active key while preserving its secret, project, expiry and existing assets. No provider calls or session creation.
+ */
+export const UpdateDeveloperKeyScopesParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const updateDeveloperKeyScopesBodyScopesMax = 9;
+
+
+
+export const UpdateDeveloperKeyScopesBody = zod.object({
+  "scopes": zod.array(zod.string()).min(1).max(updateDeveloperKeyScopesBodyScopesMax)
+})
+
+export const UpdateDeveloperKeyScopesResponse = zod.object({
+  "id": zod.string().uuid(),
+  "projectId": zod.string().uuid(),
+  "projectName": zod.string(),
+  "prefix": zod.string().describe('Public display prefix'),
+  "scopes": zod.array(zod.string()),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "lastUsedAt": zod.coerce.date().nullable(),
+  "revokedAt": zod.coerce.date().nullable()
+})
+
+
 export const RevokeDeveloperKeyParams = zod.object({
   "id": zod.coerce.string().uuid()
 })
