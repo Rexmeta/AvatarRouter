@@ -35,6 +35,7 @@ export * from './imageAssetConsentStatus';
 export * from './imageAssetLikeness';
 export * from './imageInput';
 export * from './imageInputLikeness';
+export * from './integrationContract';
 export * from './issuedDeveloperKey';
 export * from './liveAudioInput';
 export * from './liveAudioResult';

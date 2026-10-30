@@ -52,9 +52,20 @@ test("HTTP key integration is cookie-free, project/user isolated, scoped, and ca
   const readonly = await issue(["sessions:read"]);
   const check = await call("/auth/check", one.secret);
   assert.equal(check.status, 200);
-  const data = await check.json() as {projectId: string; authenticated: boolean};
+  const data = await check.json() as {
+    projectId: string; authenticated: boolean;
+    integration: { apiVersion: string; features: string[]; customLiveProviders: string[]; stockAvatarId: string; assetNamespace: string };
+  };
   assert.equal(data.projectId, one.key.projectId);
   assert.equal(data.authenticated, true);
+  assert.equal(check.headers.get("cache-control"), "private, no-store");
+  assert.equal(data.integration.apiVersion, "0.5.0");
+  assert.ok(data.integration.features.includes("custom_live_validation"));
+  assert.ok(data.integration.features.includes("client_playback_report"));
+  assert.deepEqual(data.integration.customLiveProviders, ["tavus"]);
+  assert.equal(data.integration.stockAvatarId, "tavus-stock-lucy");
+  assert.equal(data.integration.assetNamespace, "project");
+  assert.ok(!JSON.stringify(data).includes(one.secret));
   assert.equal(check.headers.get("set-cookie"), null);
   assert.equal((await call("/auth/check", "ar_sk_invalid")).status, 401);
   assert.equal((await call("/auth/check")).status, 401);

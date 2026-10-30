@@ -5,6 +5,7 @@ import { CreateDeveloperKeyBody, ListDeveloperKeysResponse, CreateDeveloperKeyRe
 import { createDeveloperKey, developerOwnerHash, listDeveloperKeys, revokeDeveloperKey, rotateDeveloperKey } from "../lib/service-api-keys";
 import { SessionProblem } from "../lib/session-service";
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
+import { integrationContract } from "../lib/integration-contract";
 
 const router = Router();
 const owner: RequestHandler = (req, res, next) => {
@@ -41,6 +42,10 @@ router.delete("/v1/developer/keys/:id", async (req, res) => {
 router.get("/v1/auth/check", (req, res) => {
   if (!res.locals.serviceApiIdentity) throw new SessionProblem(401, "API_KEY_REQUIRED", "Provide Authorization: Bearer <project API key>.");
   assertSameOriginForBridgeRequest(req);
-  res.json(CheckServiceApiKeyResponse.parse({ authenticated: true, authType: "api-key", ...res.locals.serviceKey }));
+  res.set("Cache-Control", "private, no-store");
+  res.json(CheckServiceApiKeyResponse.parse({
+    authenticated: true, authType: "api-key", ...res.locals.serviceKey,
+    integration: integrationContract(),
+  }));
 });
 export default router;

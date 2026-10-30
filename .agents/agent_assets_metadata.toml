@@ -56,3 +56,17 @@ mtime_ms = 1793268733927
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/3560a827-bad2-4d7e-9154-8ce8de94b5e0/049ecc72-1793-498f-9b50-841db9fafab2"
 storage_version_token = "1793269106368764"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "2H4vvWtSJQxJiyzVhcQnW"
+uri = "file://docs/roleplaybot-live-diagnostics.md"
+type = "text"
+title = "RoleplayBot Live 연동 원인·적용 가이드"
+description = "버전 불일치, 기본/커스텀 목록 구분, 초안 제한과 적용 순서를 정리했습니다."
+logical_id = "e8aaadfe-e6d5-41f2-a445-1ebb6a901737"
+content_hash = "sha256:b44fa677a34cffbd86c2f3be85d31eba23b2077a61556eef08fbe1477944cbd1"
+size = 3874
+mtime_ms = 1793336176255
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/e8aaadfe-e6d5-41f2-a445-1ebb6a901737/e6a09f40-3f24-46aa-801d-786e68b2b75f"
+storage_version_token = "1793336377743621"
+content_type = "text/markdown"

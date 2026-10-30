@@ -131,7 +131,16 @@ export const CheckServiceApiKeyResponse = zod.object({
   "projectName": zod.string(),
   "scopes": zod.array(zod.string()),
   "expiresAt": zod.coerce.date(),
-  "userContext": zod.boolean().describe('Whether X-Avatar-User-ID partitions this call.')
+  "userContext": zod.boolean().describe('Whether X-Avatar-User-ID partitions this call.'),
+  "integration": zod.object({
+  "apiVersion": zod.string(),
+  "features": zod.array(zod.string()),
+  "customLiveProviders": zod.array(zod.string()),
+  "assetNamespace": zod.literal("project"),
+  "stockAvatarId": zod.string().describe('Stock session reference; not an owned avatar asset UUID.'),
+  "stockCatalogPath": zod.literal("/avatars"),
+  "ownedAssetCatalogPath": zod.literal("/avatar-assets")
+}).optional().describe('Implemented API contract only, not worker readiness, provider entitlement, playback certification or permission to create a paid session. Older servers omit this field; do not infer custom-live support from authentication success.')
 })
 
 

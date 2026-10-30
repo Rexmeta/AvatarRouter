@@ -44,6 +44,20 @@ export interface IssuedDeveloperKey {
   secret: string;
 }
 
+/**
+ * Implemented API contract only, not worker readiness, provider entitlement, playback certification or permission to create a paid session. Older servers omit this field; do not infer custom-live support from authentication success.
+ */
+export interface IntegrationContract {
+  apiVersion: string;
+  features: string[];
+  customLiveProviders: string[];
+  assetNamespace: 'project';
+  /** Stock session reference; not an owned avatar asset UUID. */
+  stockAvatarId: string;
+  stockCatalogPath: '/avatars';
+  ownedAssetCatalogPath: '/avatar-assets';
+}
+
 export interface ServiceKeyCheck {
   authenticated: true;
   authType: 'api-key';
@@ -53,6 +67,7 @@ export interface ServiceKeyCheck {
   expiresAt: string;
   /** Whether X-Avatar-User-ID partitions this call. */
   userContext: boolean;
+  integration?: IntegrationContract;
 }
 
 export interface RoleplayXDelegationClaims {

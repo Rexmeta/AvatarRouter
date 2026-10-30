@@ -11,6 +11,7 @@ const files = [
   ["docs/api-key-quickstart.md", "integration-guide.md"],
   ["docs/roleplayx-identity-contract.md", "identity-contract.md"],
   ["docs/persona-live-integration.md", "persona-live-integration.md"],
+  ["docs/roleplaybot-live-diagnostics.md", "roleplaybot-live-diagnostics.md"],
 ];
 
 await mkdir(publicDir, { recursive: true });

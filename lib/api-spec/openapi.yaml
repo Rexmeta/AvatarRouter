@@ -572,6 +572,19 @@ components:
         scopes: { type: array, items: { type: string } }
         expiresAt: { type: string, format: date-time }
         userContext: { type: boolean, description: Whether X-Avatar-User-ID partitions this call. }
+        integration: { $ref: "#/components/schemas/IntegrationContract" }
+    IntegrationContract:
+      type: object
+      description: "Implemented API contract only, not worker readiness, provider entitlement, playback certification or permission to create a paid session. Older servers omit this field; do not infer custom-live support from authentication success."
+      required: [apiVersion, features, customLiveProviders, assetNamespace, stockAvatarId, stockCatalogPath, ownedAssetCatalogPath]
+      properties:
+        apiVersion: { type: string }
+        features: { type: array, items: { type: string } }
+        customLiveProviders: { type: array, items: { type: string } }
+        assetNamespace: { type: string, const: project }
+        stockAvatarId: { type: string, description: Stock session reference; not an owned avatar asset UUID. }
+        stockCatalogPath: { type: string, const: /avatars }
+        ownedAssetCatalogPath: { type: string, const: /avatar-assets }
     RoleplayXDelegationClaims:
       type: object
       additionalProperties: true
