@@ -11,6 +11,7 @@ import {
 import { ErrorState, PageHead, Panel, Pill, Skel, fmtTime } from '@/components/bits';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useI18n } from '@/lib/i18n';
+import RendererDiagnosticComparison from '@/components/renderer-diagnostic-comparison';
 
 function errorStatus(error: unknown) {
   return typeof error === 'object' && error !== null && 'status' in error
@@ -170,11 +171,14 @@ function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererSta
 
 export default function LiveReconciliation() {
   const { t } = useI18n();
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const query = useListLiveReconciliation({
     query: {
       enabled: isLoaded && !!isSignedIn,
-      queryKey: getListLiveReconciliationQueryKey(),
+      queryKey: [...getListLiveReconciliationQueryKey(), userId],
+      gcTime: 0,
+      staleTime: 0,
+      retry: false,
       refetchInterval: 10000,
     },
   });
@@ -227,6 +231,7 @@ export default function LiveReconciliation() {
       ) : null}
 
       <div className="grid gap-6">
+        {query.isSuccess && !query.isError && userId && <RendererDiagnosticComparison key={userId} userId={userId} />}
         <Panel title={<span>{t('recon.pending')} <span className="mono ml-1 text-muted-foreground" data-testid="text-pending-count">{query.data?.pending.length ?? 0}</span></span>} aside={<span className="mono text-[10px] text-muted-foreground">SERVER AUTHORITY</span>}>
           {query.data?.pending.length ? (
             <div data-testid="list-pending-reconciliation">

@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
 
 export type RendererStage =
@@ -40,6 +41,8 @@ export function safeRendererError(error: unknown): {
 
 export class RendererDiagnostics {
   private readonly started = performance.now();
+  private readonly attemptId = randomUUID();
+  private sequence = 0;
   private readonly active = new Map<RendererStage, number>();
   constructor(
     private readonly context: { sessionId: string; workerId: string; target: "stock" | "custom" },
@@ -54,6 +57,7 @@ export class RendererDiagnostics {
     try {
       this.sink(failed, {
         diagnosticVersion: 1, ...this.context,
+        attemptId: this.attemptId, sequence: ++this.sequence,
         elapsedMs: Math.round(performance.now() - this.started), ...fields,
       });
     } catch { /* logging is best-effort, lifecycle safety is not */ }
@@ -62,8 +66,9 @@ export class RendererDiagnostics {
   async stage<T>(stage: RendererStage, work: () => Promise<T>): Promise<T> {
     this.active.set(stage, (this.active.get(stage) ?? 0) + 1);
     const start = performance.now();
+    const stageRunId = randomUUID();
     const record = (outcome: Outcome, error?: unknown) => this.emit({
-      stage, outcome, durationMs: Math.round(performance.now() - start),
+      stage, stageRunId, outcome, durationMs: Math.round(performance.now() - start),
       ...(outcome === "failure" ? safeRendererError(error) : {}),
     }, outcome === "failure");
     record("begin");

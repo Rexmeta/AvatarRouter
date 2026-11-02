@@ -349,6 +349,43 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiFailure" }
+  /v1/operator/live-reconciliation/diagnostics/sessions:
+    get:
+      operationId: listRendererDiagnosticSessions
+      tags: [AvatarRouter]
+      summary: List recent live sessions for trusted operator comparison (read-only)
+      responses:
+        "200":
+          description: Recent live sessions, never provider IDs or user content
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RendererDiagnosticSession" }
+        "401": { description: Sign-in required }
+        "403": { description: Trusted operator required }
+  /v1/operator/live-reconciliation/diagnostics/compare:
+    get:
+      operationId: compareRendererDiagnostics
+      tags: [AvatarRouter]
+      summary: Compare safe persisted renderer evidence; never creates or unblocks a session
+      parameters:
+        - { name: left, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: right, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Bounded seven-day diagnostic evidence; missing evidence is not failure
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items: { $ref: "#/components/schemas/RendererDiagnosticComparison" }
+        "400": { description: Invalid session IDs }
+        "401": { description: Sign-in required }
+        "403": { description: Trusted operator required }
+        "404": { description: Live session not found }
   /v1/operator/live-reconciliation:
     get:
       operationId: listLiveReconciliation
@@ -824,6 +861,78 @@ components:
         workerReady: { type: boolean }
         providerCredits: { type: string, enum: [unknown] }
         resetsAt: { type: string }
+    RendererDiagnosticSession:
+      type: object
+      additionalProperties: false
+      required: [id, startedAt, status, rendererState]
+      properties:
+        id: { type: string }
+        startedAt: { type: string, format: date-time }
+        status: { type: string }
+        rendererState: { type: string }
+    RendererDiagnosticComparison:
+      type: object
+      additionalProperties: false
+      required: [session, observedAt, retentionDays, recordCount, invalidRecordCount, recordsTruncated, browserPlayback, attempts]
+      properties:
+        session: { $ref: "#/components/schemas/RendererDiagnosticSession" }
+        observedAt: { type: string, format: date-time }
+        retentionDays: { type: integer }
+        recordCount: { type: integer }
+        invalidRecordCount: { type: integer }
+        recordsTruncated: { type: boolean }
+        browserPlayback: { type: string, enum: [not_verified_by_renderer] }
+        attempts:
+          type: array
+          items: { $ref: "#/components/schemas/RendererDiagnosticAttempt" }
+    RendererDiagnosticAttempt:
+      type: object
+      additionalProperties: false
+      required: [attemptId, workerId, target, sequenceGaps, stages, signals]
+      properties:
+        attemptId: { type: string }
+        workerId: { type: string }
+        target: { type: string, enum: [stock, custom] }
+        sequenceGaps: { type: boolean }
+        stages:
+          type: array
+          items: { $ref: "#/components/schemas/RendererDiagnosticStage" }
+        signals:
+          type: array
+          items: { $ref: "#/components/schemas/RendererDiagnosticSignal" }
+    RendererDiagnosticStage:
+      type: object
+      additionalProperties: false
+      required: [stage, stageRunId, outcome, beginMissing, elapsedMs, durationMs]
+      properties:
+        stage: { type: string }
+        stageRunId: { type: string }
+        outcome: { type: string, enum: [success, failure, incomplete] }
+        beginMissing: { type: boolean }
+        elapsedMs: { type: integer }
+        durationMs: { type: [integer, "null"] }
+        errorClass: { type: string }
+        httpStatus: { type: integer }
+        transportCode: { type: string }
+    RendererDiagnosticSignal:
+      type: object
+      additionalProperties: false
+      required: [event, elapsedMs]
+      properties:
+        event: { type: string }
+        elapsedMs: { type: integer }
+        reason: { type: string }
+        activeStages: { type: array, items: { type: string } }
+        creationAllowed: { type: boolean }
+        queueWaitMs: { type: integer }
+        ttlRemainingMs: { type: integer }
+        leaseMs: { type: integer }
+        providerEnded: { type: boolean }
+        roomDeleted: { type: boolean }
+        creationUnknown: { type: boolean }
+        errorClass: { type: string }
+        httpStatus: { type: integer }
+        transportCode: { type: string }
     LiveReconciliationList:
       type: object
       additionalProperties: false

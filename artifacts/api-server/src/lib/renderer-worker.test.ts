@@ -10,6 +10,7 @@ import * as apiA from "./live-sessions";
 import { safeLiveError } from "./stock-policy";
 import { attachLiveConversationId, listLiveReconciliation } from "./live-session-operator";
 import { isTrustedLiveOperator } from "../routes/live-reconciliation";
+import { flushRendererDiagnostics } from "./renderer-diagnostic-store";
 
 // Real PostgreSQL locking/leases, isolated schema. Never call a provider or touch
 // application sessions, even if workflows are concurrently running.
@@ -26,12 +27,14 @@ before(async () => {
 });
 beforeEach(async () => {
   await Promise.all(workers.splice(0).map(w => w.shutdown()));
-  await pool.query("TRUNCATE renderer_commands, avatar_session_reconciliation_audit, avatar_session_events, avatar_sessions, renderer_workers");
+  await flushRendererDiagnostics();
+  await pool.query("TRUNCATE renderer_diagnostic_records, renderer_commands, avatar_session_reconciliation_audit, avatar_session_events, avatar_sessions, renderer_workers");
   process.env.LIVE_USER_DAILY_SECONDS = "600";
   process.env.LIVE_GLOBAL_DAILY_SECONDS = "3600";
 });
 after(async () => {
   await Promise.all(workers.map(w => w.shutdown()));
+  await flushRendererDiagnostics();
   await pool.query(`DROP SCHEMA ${schema} CASCADE`);
   if (env.user === undefined) delete process.env.LIVE_USER_DAILY_SECONDS; else process.env.LIVE_USER_DAILY_SECONDS = env.user;
   if (env.global === undefined) delete process.env.LIVE_GLOBAL_DAILY_SECONDS; else process.env.LIVE_GLOBAL_DAILY_SECONDS = env.global;

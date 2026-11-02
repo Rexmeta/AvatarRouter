@@ -30,6 +30,7 @@ import type {
   AvatarAsset,
   AvatarAssetInput,
   AvatarPlaybackReport,
+  CompareRendererDiagnosticsParams,
   CreateDeveloperKeyInput,
   DeveloperKey,
   HealthStatus,
@@ -46,6 +47,8 @@ import type {
   Provider,
   ProvisioningProvider,
   Readiness,
+  RendererDiagnosticComparison,
+  RendererDiagnosticSession,
   ServiceKeyCheck,
   Session,
   SessionEvent,
@@ -2210,6 +2213,215 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateSessionMutationOptions(options), queryClient);
     }
+
+export const getListRendererDiagnosticSessionsUrl = () => {
+
+
+
+
+  return `/api/v1/operator/live-reconciliation/diagnostics/sessions`
+}
+
+/**
+ * @summary List recent live sessions for trusted operator comparison (read-only)
+ */
+export const listRendererDiagnosticSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<RendererDiagnosticSession[]> => {
+
+  return customFetch<RendererDiagnosticSession[]>(getListRendererDiagnosticSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRendererDiagnosticSessionsQueryKey = () => {
+    return [
+    `/api/v1/operator/live-reconciliation/diagnostics/sessions`
+    ] as const;
+    }
+
+
+export const getListRendererDiagnosticSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRendererDiagnosticSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>> = ({ signal }) => listRendererDiagnosticSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRendererDiagnosticSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>>
+export type ListRendererDiagnosticSessionsQueryError = ErrorType<void>
+
+
+export function useListRendererDiagnosticSessions<TData = Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRendererDiagnosticSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listRendererDiagnosticSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRendererDiagnosticSessions<TData = Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRendererDiagnosticSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listRendererDiagnosticSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRendererDiagnosticSessions<TData = Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List recent live sessions for trusted operator comparison (read-only)
+ */
+
+export function useListRendererDiagnosticSessions<TData = Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRendererDiagnosticSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRendererDiagnosticSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCompareRendererDiagnosticsUrl = (params: CompareRendererDiagnosticsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/operator/live-reconciliation/diagnostics/compare?${stringifiedParams}` : `/api/v1/operator/live-reconciliation/diagnostics/compare`
+}
+
+/**
+ * @summary Compare safe persisted renderer evidence; never creates or unblocks a session
+ */
+export const compareRendererDiagnostics = async (params: CompareRendererDiagnosticsParams, options?: Parameters<typeof customFetch>[1]): Promise<RendererDiagnosticComparison[]> => {
+
+  return customFetch<RendererDiagnosticComparison[]>(getCompareRendererDiagnosticsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompareRendererDiagnosticsQueryKey = (params?: CompareRendererDiagnosticsParams,) => {
+    return [
+    `/api/v1/operator/live-reconciliation/diagnostics/compare`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompareRendererDiagnosticsQueryOptions = <TData = Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError = ErrorType<void>>(params: CompareRendererDiagnosticsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompareRendererDiagnosticsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof compareRendererDiagnostics>>> = ({ signal }) => compareRendererDiagnostics(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CompareRendererDiagnosticsQueryResult = NonNullable<Awaited<ReturnType<typeof compareRendererDiagnostics>>>
+export type CompareRendererDiagnosticsQueryError = ErrorType<void>
+
+
+export function useCompareRendererDiagnostics<TData = Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError = ErrorType<void>>(
+ params: CompareRendererDiagnosticsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareRendererDiagnostics>>,
+          TError,
+          Awaited<ReturnType<typeof compareRendererDiagnostics>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareRendererDiagnostics<TData = Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError = ErrorType<void>>(
+ params: CompareRendererDiagnosticsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof compareRendererDiagnostics>>,
+          TError,
+          Awaited<ReturnType<typeof compareRendererDiagnostics>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompareRendererDiagnostics<TData = Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError = ErrorType<void>>(
+ params: CompareRendererDiagnosticsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Compare safe persisted renderer evidence; never creates or unblocks a session
+ */
+
+export function useCompareRendererDiagnostics<TData = Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError = ErrorType<void>>(
+ params: CompareRendererDiagnosticsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof compareRendererDiagnostics>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCompareRendererDiagnosticsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListLiveReconciliationUrl = () => {
 

@@ -30,3 +30,9 @@ Diagnose the first lifecycle failure separately from the final reconciliation st
 **Why:** A live incident retained only a generic worker failure and the later reconciliation warning, leaving the initial cause unknowable. SDK error bodies can contain sensitive transport credentials, and logging failures must not prevent late-ID persistence or cleanup.
 
 **How to apply:** Compare successful and failed sessions by stage timings and worker/lease evidence. Record only approved error classes, numeric statuses and known codes. A diagnostic upgrade cannot reconstruct missing historical errors or prove that an ambiguous provider call failed.
+
+Treat diagnostic collection as best-effort evidence, never as the authority for releasing paid-session quarantine. Missing or expired records are not failed stages, and a server-side video-ready stage is not trusted browser-playback validation.
+
+**Why:** Operational comparison must remain useful even when collection drops records or a worker crashes, without turning incomplete observations into permission for another billable creation.
+
+**How to apply:** Keep the comparison read-only, show uncertainty explicitly, and preserve independent provider-cleanup and browser-validation requirements.

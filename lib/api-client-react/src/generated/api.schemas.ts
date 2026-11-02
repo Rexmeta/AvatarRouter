@@ -559,6 +559,87 @@ export interface LiveLimits {
   resetsAt: string;
 }
 
+export interface RendererDiagnosticSession {
+  id: string;
+  startedAt: string;
+  status: string;
+  rendererState: string;
+}
+
+export type RendererDiagnosticComparisonBrowserPlayback = typeof RendererDiagnosticComparisonBrowserPlayback[keyof typeof RendererDiagnosticComparisonBrowserPlayback];
+
+
+export const RendererDiagnosticComparisonBrowserPlayback = {
+  not_verified_by_renderer: 'not_verified_by_renderer',
+} as const;
+
+export type RendererDiagnosticAttemptTarget = typeof RendererDiagnosticAttemptTarget[keyof typeof RendererDiagnosticAttemptTarget];
+
+
+export const RendererDiagnosticAttemptTarget = {
+  stock: 'stock',
+  custom: 'custom',
+} as const;
+
+export type RendererDiagnosticStageOutcome = typeof RendererDiagnosticStageOutcome[keyof typeof RendererDiagnosticStageOutcome];
+
+
+export const RendererDiagnosticStageOutcome = {
+  success: 'success',
+  failure: 'failure',
+  incomplete: 'incomplete',
+} as const;
+
+export interface RendererDiagnosticStage {
+  stage: string;
+  stageRunId: string;
+  outcome: RendererDiagnosticStageOutcome;
+  beginMissing: boolean;
+  elapsedMs: number;
+  /** @nullable */
+  durationMs: number | null;
+  errorClass?: string;
+  httpStatus?: number;
+  transportCode?: string;
+}
+
+export interface RendererDiagnosticSignal {
+  event: string;
+  elapsedMs: number;
+  reason?: string;
+  activeStages?: string[];
+  creationAllowed?: boolean;
+  queueWaitMs?: number;
+  ttlRemainingMs?: number;
+  leaseMs?: number;
+  providerEnded?: boolean;
+  roomDeleted?: boolean;
+  creationUnknown?: boolean;
+  errorClass?: string;
+  httpStatus?: number;
+  transportCode?: string;
+}
+
+export interface RendererDiagnosticAttempt {
+  attemptId: string;
+  workerId: string;
+  target: RendererDiagnosticAttemptTarget;
+  sequenceGaps: boolean;
+  stages: RendererDiagnosticStage[];
+  signals: RendererDiagnosticSignal[];
+}
+
+export interface RendererDiagnosticComparison {
+  session: RendererDiagnosticSession;
+  observedAt: string;
+  retentionDays: number;
+  recordCount: number;
+  invalidRecordCount: number;
+  recordsTruncated: boolean;
+  browserPlayback: RendererDiagnosticComparisonBrowserPlayback;
+  attempts: RendererDiagnosticAttempt[];
+}
+
 export interface LiveReconciliationSession {
   id: string;
   /** @nullable */
@@ -674,4 +755,9 @@ export interface ApiFailure {
   error: string;
   code: string;
 }
+
+export type CompareRendererDiagnosticsParams = {
+left: string;
+right: string;
+};
 

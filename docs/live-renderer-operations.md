@@ -109,11 +109,61 @@ sessions (including lost leases); session polling continues during cleanup.
 Structured worker warnings include the session ID and retry count, not tokens,
 PCM, credentials or provider payloads.
 
-## Verification
+## Safe operator diagnostic comparison
+
+The reconciliation screen includes a **read-only renderer comparison** for two
+existing live-session UUIDs (also selectable from the latest 100 live sessions,
+including successful and failed sessions). It uses the same exact Clerk operator
+allowlist and origin boundary as reconciliation. Anonymous callers, ordinary
+users, project API keys and delegated RoleplayX identities are denied, including
+when an API key is combined with an operator identity. Responses are `no-store`;
+the UI scopes its short-lived cache to the signed-in operator.
+
+Replit's deployment monitoring documentation supports log search in the Publishing
+tool with 30-day retention, but does not document a general application API for
+querying those logs. Workspace workflow logs are developer tooling, not an
+application log store. This feature therefore does **not** scrape deployment logs
+or promise historical backfill. See
+https://docs.replit.com/features/publishing/monitoring-a-deployment .
+
+Apply `avatar:migrate-renderer` before starting the updated worker/API; it now
+also creates the additive private diagnostic table. The existing post-merge
+script already runs this migration. Do not push development schema to production.
+Only allowlisted classifications, stage outcomes/timings, worker/attempt/stage-run
+correlation, lease signals, and cleanup booleans are persisted. Raw provider errors,
+messages, stacks, SDK payloads, URLs, credentials and user dialogue are excluded.
+These records are never appended to tenant-visible session events.
+
+Collection is best effort and never awaited by the lifecycle. Each process has a
+bounded 512-record waiting queue; failed batches are dropped, not retried ahead
+of cleanup. A throttled generic warning reports degraded storage without error
+bodies. A crash or write failure can leave missing evidence. Queries enforce a
+rolling **7-day** visibility window, cap each session at **500** records, and
+report truncation and invalid evidence. Workers sweep up to 1000 expired records
+per minute. If workers are stopped, physical deletion resumes when one returns;
+the API still excludes expired evidence. This is not a backup-deletion guarantee.
+
+Each claim is a separate attempt, even on the same worker; each invocation of a
+stage has its own ID. Sequence gaps, missing begins, and begins without completion
+are shown separately from explicit failures. Unobserved stages may be skipped,
+historical, expired, or lost: absence is not failure, and no sequence gap is not
+proof of complete evidence. Nested stage durations overlap and are not additive.
+`video_join` records server-side video readiness only. It never certifies actual
+browser playback; that requires separate trusted-client validation. A successful
+stage does not override later failures or reconciliation state.
+
+`GET /api/v1/operator/live-reconciliation/diagnostics/sessions` and
+`GET /api/v1/operator/live-reconciliation/diagnostics/compare?left=<uuid>&right=<uuid>`
+perform only bounded database reads. They do not create sessions, poll providers,
+request cleanup, clear warnings, release reservations, or unblock paid admission.
+
+## Regression commands
 
 ```sh
 pnpm run typecheck
 pnpm --filter @workspace/scripts exec tsx --test \
+  ../artifacts/api-server/src/lib/renderer-diagnostics.test.ts \
+  ../artifacts/api-server/src/lib/renderer-diagnostic-query.test.ts \
   ../artifacts/api-server/src/lib/renderer-worker.test.ts \
   ../artifacts/api-server/src/lib/stock-runtime.test.ts
 ```

@@ -38,6 +38,16 @@ CREATE TABLE IF NOT EXISTS avatar_session_reconciliation_audit (
 );
 CREATE INDEX IF NOT EXISTS avatar_reconciliation_audit_session_idx
   ON avatar_session_reconciliation_audit (session_id, created_at);
+CREATE TABLE IF NOT EXISTS renderer_diagnostic_records (
+  id text PRIMARY KEY,
+  session_id text NOT NULL REFERENCES avatar_sessions(id) ON DELETE CASCADE,
+  recorded_at timestamptz NOT NULL DEFAULT now(),
+  evidence jsonb NOT NULL
+);
+CREATE INDEX IF NOT EXISTS renderer_diagnostics_session_idx
+  ON renderer_diagnostic_records (session_id, recorded_at);
+CREATE INDEX IF NOT EXISTS renderer_diagnostics_retention_idx
+  ON renderer_diagnostic_records (recorded_at);
 -- Legacy process-local live sessions must NEVER become new queued paid creates.
 -- Keep references and force cleanup/reconciliation; charge their bounded reservation too.
 UPDATE avatar_sessions SET

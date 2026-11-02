@@ -6,6 +6,7 @@ import { SessionProblem } from "./session-service";
 import { readRendererAudio, removeRendererAudio } from "./private-images";
 import { logger } from "./logger";
 import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
+import { storeRendererDiagnostic, pruneRendererDiagnostics } from "./renderer-diagnostic-store";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -40,6 +41,7 @@ export class RendererWorker {
 
   async tick() {
     if (this.ticking || this.stopping) return;
+    pruneRendererDiagnostics();
     this.ticking = true;
     try {
       await db.insert(rendererWorkers).values({ id: this.id }).onConflictDoUpdate({
@@ -88,7 +90,7 @@ export class RendererWorker {
           diagnostics: new RendererDiagnostics({
             sessionId: claimed.row.id, workerId: this.id,
             target: claimed.row.avatarAssetId ? "custom" : "stock",
-          }),
+          }, storeRendererDiagnostic),
         };
         local.diagnostics.claimed(claimed.canStart,
           Math.max(0, Date.now() - claimed.row.startedAt.getTime()),

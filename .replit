@@ -39,12 +39,12 @@ isValidation = true
 name = "renderer-regressions"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/renderer-worker.test.ts ../artifacts/api-server/src/lib/stock-runtime.test.ts"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/renderer-diagnostics.test.ts ../artifacts/api-server/src/lib/renderer-diagnostic-query.test.ts ../artifacts/api-server/src/lib/renderer-worker.test.ts ../artifacts/api-server/src/lib/stock-runtime.test.ts"
 
 [agent]
 stack = "PNPM_WORKSPACE"

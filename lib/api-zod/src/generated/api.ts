@@ -540,6 +540,76 @@ export const CreateSessionResponse = zod.object({
 
 
 /**
+ * @summary List recent live sessions for trusted operator comparison (read-only)
+ */
+export const ListRendererDiagnosticSessionsResponseItem = zod.object({
+  "id": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "status": zod.string(),
+  "rendererState": zod.string()
+})
+export const ListRendererDiagnosticSessionsResponse = zod.array(ListRendererDiagnosticSessionsResponseItem)
+
+
+/**
+ * @summary Compare safe persisted renderer evidence; never creates or unblocks a session
+ */
+export const CompareRendererDiagnosticsQueryParams = zod.object({
+  "left": zod.coerce.string().uuid(),
+  "right": zod.coerce.string().uuid()
+})
+
+export const CompareRendererDiagnosticsResponseItem = zod.object({
+  "session": zod.object({
+  "id": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "status": zod.string(),
+  "rendererState": zod.string()
+}),
+  "observedAt": zod.coerce.date(),
+  "retentionDays": zod.number().int(),
+  "recordCount": zod.number().int(),
+  "invalidRecordCount": zod.number().int(),
+  "recordsTruncated": zod.boolean(),
+  "browserPlayback": zod.enum(['not_verified_by_renderer']),
+  "attempts": zod.array(zod.object({
+  "attemptId": zod.string(),
+  "workerId": zod.string(),
+  "target": zod.enum(['stock', 'custom']),
+  "sequenceGaps": zod.boolean(),
+  "stages": zod.array(zod.object({
+  "stage": zod.string(),
+  "stageRunId": zod.string(),
+  "outcome": zod.enum(['success', 'failure', 'incomplete']),
+  "beginMissing": zod.boolean(),
+  "elapsedMs": zod.number().int(),
+  "durationMs": zod.number().int().nullable(),
+  "errorClass": zod.string().optional(),
+  "httpStatus": zod.number().int().optional(),
+  "transportCode": zod.string().optional()
+})),
+  "signals": zod.array(zod.object({
+  "event": zod.string(),
+  "elapsedMs": zod.number().int(),
+  "reason": zod.string().optional(),
+  "activeStages": zod.array(zod.string()).optional(),
+  "creationAllowed": zod.boolean().optional(),
+  "queueWaitMs": zod.number().int().optional(),
+  "ttlRemainingMs": zod.number().int().optional(),
+  "leaseMs": zod.number().int().optional(),
+  "providerEnded": zod.boolean().optional(),
+  "roomDeleted": zod.boolean().optional(),
+  "creationUnknown": zod.boolean().optional(),
+  "errorClass": zod.string().optional(),
+  "httpStatus": zod.number().int().optional(),
+  "transportCode": zod.string().optional()
+}))
+}))
+})
+export const CompareRendererDiagnosticsResponse = zod.array(CompareRendererDiagnosticsResponseItem).min(2).max(2)
+
+
+/**
  * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
  */
 export const ListLiveReconciliationResponse = zod.object({
