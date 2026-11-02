@@ -5,10 +5,11 @@ import { HEARTBEAT_MS, LEASE_MS, safeLiveError } from "./stock-policy";
 import { SessionProblem } from "./session-service";
 import { readRendererAudio, removeRendererAudio } from "./private-images";
 import { logger } from "./logger";
+import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
-type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>) => Runtime;
-type Local = { runtime?: Runtime; closing: boolean; deadline: number; audioBusy: boolean; starting: boolean; task?: Promise<void> };
+type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
+type Local = { runtime?: Runtime; closing: boolean; deadline: number; audioBusy: boolean; starting: boolean; task?: Promise<void>; diagnostics: RendererDiagnostics };
 
 /** RTC is owned exclusively here, never by an HTTP process. DB leases fence every state transition. */
 export class RendererWorker {
@@ -21,8 +22,8 @@ export class RendererWorker {
   get healthy() { return !this.stopping && Date.now() - this.healthyAt < 10_000; }
 
   constructor(
-    private factory: Factory = (row, onId, before, rejected) => {
-      const runtime = new StockRuntime(row.roomName!, onId, before, rejected, terminateResources, runtimeFace(row));
+    private factory: Factory = (row, onId, before, rejected, diagnostics) => {
+      const runtime = new StockRuntime(row.roomName!, onId, before, rejected, terminateResources, runtimeFace(row), diagnostics);
       return Object.assign(runtime, { connected: () => runtime.room.isConnected });
     },
     private terminate = terminateResources,
@@ -46,17 +47,17 @@ export class RendererWorker {
       });
       this.healthyAt = Date.now();
       for (const [id, local] of this.locals) {
-        if (Date.now() >= local.deadline) { this.loseLease(id, local); continue; }
+        if (Date.now() >= local.deadline) { this.loseLease(id, local, "deadline"); continue; }
         const [row] = await db.update(avatarSessions).set({
           heartbeatAt: sql`now()`, leaseExpiresAt: sql`now() + interval '20 seconds'`,
         }).where(this.owns(id)).returning();
-        if (!row) { this.loseLease(id, local); continue; }
+        if (!row) { this.loseLease(id, local, "ownership"); continue; }
         local.deadline = Date.now() + LEASE_MS - HEARTBEAT_MS;
         if (local.closing) continue;
         if (row.stopRequestedAt || row.expiresAt.getTime() <= Date.now() ||
             (!local.starting && local.runtime?.connected && !local.runtime.connected())) {
           local.closing = true;
-          local.task = this.finish(row, local).catch(() => this.cleanupFailed(id, local));
+          local.task = this.finish(row, local).catch(error => this.cleanupFailed(id, local, error));
         } else if (!local.starting) {
           await this.dispatchCommands(row, local);
         }
@@ -81,22 +82,33 @@ export class RendererWorker {
         return { row: updated!, canStart };
       });
       if (claimed) {
-        const local: Local = { closing: !claimed.canStart, starting: claimed.canStart, deadline: Date.now() + LEASE_MS - HEARTBEAT_MS, audioBusy: false };
+        const local: Local = {
+          closing: !claimed.canStart, starting: claimed.canStart,
+          deadline: Date.now() + LEASE_MS - HEARTBEAT_MS, audioBusy: false,
+          diagnostics: new RendererDiagnostics({
+            sessionId: claimed.row.id, workerId: this.id,
+            target: claimed.row.avatarAssetId ? "custom" : "stock",
+          }),
+        };
+        local.diagnostics.claimed(claimed.canStart,
+          Math.max(0, Date.now() - claimed.row.startedAt.getTime()),
+          claimed.row.expiresAt.getTime() - Date.now(), LEASE_MS);
         this.locals.set(claimed.row.id, local);
         local.task = (claimed.canStart ? this.initialize(claimed.row, local) : this.finish(claimed.row, local))
-          .catch(() => this.cleanupFailed(claimed.row.id, local));
+          .catch(error => this.cleanupFailed(claimed.row.id, local, error));
       }
       await this.gcCommands();
-    } catch {
-      logger.error({ workerId: this.id }, "Renderer tick failed; local lease watchdog will stop RTC");
+    } catch (error) {
+      logger.error({ workerId: this.id, ...safeRendererError(error) }, "Renderer tick failed; local lease watchdog will stop RTC");
     } finally { this.ticking = false; }
     // A DB outage cannot keep rendering indefinitely while heartbeat is blocked.
   }
 
-  private loseLease(id: string, local: Local) {
+  private loseLease(id: string, local: Local, reason: "deadline" | "ownership" | "watchdog" | "operation_failure" = "ownership") {
+    local.diagnostics.leaseLost(reason);
     this.locals.delete(id);
     local.closing = true;
-    void local.runtime?.stop().catch(() => logger.warn({ sessionId: id }, "Lease-loss remote cleanup unconfirmed; persisted references retained"));
+    void local.runtime?.stop().catch(error => local.diagnostics.failure("lease_cleanup_failed", error));
   }
 
   private async initialize(row: AvatarSessionRecord, local: Local) {
@@ -115,22 +127,22 @@ export class RendererWorker {
       if (!marked || local.closing || Date.now() >= local.deadline) throw new SessionProblem(409, "LIVE_LEASE_LOST", "Renderer lease lost before provider creation.");
     }, async () => {
       await db.update(avatarSessions).set({ providerCreateState: "rejected" }).where(this.owns(row.id));
-    });
+    }, local.diagnostics);
     local.runtime = runtime;
     // Independent local watchdog remains effective when PostgreSQL/network calls stall.
     const watchdog = setInterval(() => {
       if (Date.now() >= local.deadline || Date.now() >= row.expiresAt.getTime()) {
         clearInterval(watchdog);
-        this.loseLease(row.id, local);
+        this.loseLease(row.id, local, "watchdog");
       }
     }, 500);
     watchdog.unref();
     try {
-      await runtime.start();
+      await local.diagnostics.stage("runtime_start", () => runtime.start());
       local.starting = false;
-      const [running] = await db.update(avatarSessions).set({ rendererState: "running" }).where(and(
+      const [running] = await local.diagnostics.stage("running_persist", () => db.update(avatarSessions).set({ rendererState: "running" }).where(and(
         this.owns(row.id), sql`${avatarSessions.stopRequestedAt} is null and ${avatarSessions.expiresAt} > now()`,
-      )).returning();
+      )).returning());
       if (!running || local.closing) {
         local.closing = true;
         await this.finish(row, local);
@@ -138,6 +150,7 @@ export class RendererWorker {
         await this.event(row.id, "started", "Renderer worker connected the selected real avatar. Playback validation is separate; no AI dialogue or custom training.");
       }
     } catch (error) {
+      local.diagnostics.failure("initialize_failed", error);
       local.starting = false;
       local.closing = true;
       const problem = error instanceof SessionProblem ? error : safeLiveError(error);
@@ -158,19 +171,24 @@ export class RendererWorker {
   }
 
   private async finish(initial: AvatarSessionRecord, local: Local) {
+    return local.diagnostics.stage("cleanup", () => this.finishResources(initial, local));
+  }
+
+  private async finishResources(initial: AvatarSessionRecord, local: Local) {
     await db.update(avatarSessions).set({ rendererState: "stopping" }).where(this.owns(initial.id));
     // stop waits for an in-flight paid POST so late conversation IDs can be persisted.
-    const runtimeResult = local.runtime ? await local.runtime.stop() : undefined;
+    const runtimeResult = local.runtime ? await local.diagnostics.stage("runtime_stop", () => local.runtime!.stop()) : undefined;
     const [row] = await db.select().from(avatarSessions).where(this.owns(initial.id));
     if (!row) { this.locals.delete(initial.id); return; }
-    const result = runtimeResult ?? await this.terminate(row.roomName, row.providerConversationId);
+    const result = runtimeResult ?? await local.diagnostics.stage("remote_cleanup", () => this.terminate(row.roomName, row.providerConversationId, local.diagnostics));
     const unknown = (!row.providerConversationId && ["submitted", "unknown"].includes(row.providerCreateState)) ||
       (!row.providerConversationId && row.error === "LIVE_CREATE_RECONCILIATION_REQUIRED") ||
       (!result.providerEnded && !row.providerConversationId);
     const confirmed = !unknown && result.providerEnded && result.roomDeleted;
+    local.diagnostics.cleanupResult(result.providerEnded, result.roomDeleted, unknown);
     const status = row.stopStatus ?? (row.expiresAt.getTime() <= Date.now() ? "expired" : "failed");
     const attempts = row.cleanupAttempts + 1;
-    const [updated] = await db.update(avatarSessions).set({
+    const [updated] = await local.diagnostics.stage("cleanup_persist", () => db.update(avatarSessions).set({
       status: row.status === "active" ? status : row.status, endedAt: row.endedAt ?? new Date(),
       rendererState: unknown ? "reconciliation_required" : confirmed ? "closed" : "cleanup_pending",
       providerCreateState: unknown ? "unknown" : row.providerCreateState,
@@ -179,7 +197,7 @@ export class RendererWorker {
       providerConversationId: result.providerEnded && !unknown ? null : row.providerConversationId,
       cleanupAttempts: attempts, cleanupRetryAt: new Date(Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))),
       workerId: null, leaseExpiresAt: null,
-    }).where(and(this.owns(row.id), sql`${avatarSessions.providerConversationId} is not distinct from ${row.providerConversationId}`)).returning();
+    }).where(and(this.owns(row.id), sql`${avatarSessions.providerConversationId} is not distinct from ${row.providerConversationId}`)).returning());
     this.locals.delete(row.id);
     if (!updated) return; // a late ID changed the cleanup snapshot; another sweep will clean it.
     if (!confirmed) logger.warn({ sessionId: row.id, attempts, reconciliationRequired: unknown }, "Paid session cleanup unconfirmed; billing may continue");
@@ -189,9 +207,10 @@ export class RendererWorker {
         : "Remote cleanup unconfirmed. Provider termination and room deletion will retry; billing may continue.");
   }
 
-  private cleanupFailed(id: string, local: Local) {
+  private cleanupFailed(id: string, local: Local, error: unknown) {
+    local.diagnostics.failure("operation_failed", error);
     // Retain lease/references for another worker to recover after lease expiry.
-    this.loseLease(id, local);
+    this.loseLease(id, local, "operation_failure");
     logger.error({ sessionId: id }, "Renderer operation failed; durable cleanup will retry");
   }
 

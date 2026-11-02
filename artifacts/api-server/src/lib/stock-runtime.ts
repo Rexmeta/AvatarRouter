@@ -5,6 +5,7 @@ import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { SessionProblem } from "./session-service";
 import { setTimeout as delay } from "node:timers/promises";
 import { STOCK_AVATAR, STOCK_FACE, STOCK_PAL } from "./stock-policy";
+import type { RendererDiagnostics, RendererStage } from "./renderer-diagnostics";
 export { STOCK_FACE, STOCK_PAL, STOCK_AVATAR, STOCK_KEYS, stockConfigured, safeLiveError, validateLiveAudio } from "./stock-policy";
 
 // The official plugin's pal handles externally supplied PCM for both stock and custom faces.
@@ -21,23 +22,33 @@ export function roomClient() {
   return new RoomServiceClient(process.env.LIVEKIT_URL!, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, { requestTimeout: 5 });
 }
 
-export async function terminateResources(roomName: string | null, conversationId: string | null) {
+export async function terminateResources(roomName: string | null, conversationId: string | null, diagnostics?: RendererDiagnostics) {
+  const stage = <T>(name: RendererStage, work: () => Promise<T>) => diagnostics ? diagnostics.stage(name, work) : work();
   let providerEnded = !conversationId;
   let roomDeleted = !roomName;
   if (conversationId) {
     try {
-      const response = await fetch(`https://tavusapi.com/v2/conversations/${encodeURIComponent(conversationId)}/end`, {
-        method: "POST", headers: { "x-api-key": process.env.TAVUS_API_KEY! },
-        redirect: "error", signal: AbortSignal.timeout(10_000),
+      const response = await stage("provider_end", async () => {
+        const result = await fetch(`https://tavusapi.com/v2/conversations/${encodeURIComponent(conversationId)}/end`, {
+          method: "POST", headers: { "x-api-key": process.env.TAVUS_API_KEY! },
+          redirect: "error", signal: AbortSignal.timeout(10_000),
+        });
+        // Non-success statuses are diagnostics only; preserve existing cleanup decisions.
+        if (!result.ok && result.status !== 404 && result.status !== 410) {
+          throw { name: "APIStatusError", statusCode: result.status };
+        }
+        return result;
       });
       providerEnded = response.ok || response.status === 404 || response.status === 410;
     } catch { /* unresolved cleanup is retained for retry, never confirmed */ }
   }
   if (roomName) {
     try {
-      const client = roomClient();
-      if ((await client.listRooms([roomName])).length) await client.deleteRoom(roomName);
-      roomDeleted = (await client.listRooms([roomName])).length === 0;
+      roomDeleted = await stage("room_cleanup", async () => {
+        const client = roomClient();
+        if ((await client.listRooms([roomName])).length) await client.deleteRoom(roomName);
+        return (await client.listRooms([roomName])).length === 0;
+      });
     } catch { /* next cleanup tick retries persisted references */ }
   }
   return { providerEnded, roomDeleted };
@@ -63,6 +74,7 @@ export class StockRuntime {
     private onRejected: () => Promise<void> = async () => {},
     private cleanup = terminateResources,
     faceId = STOCK_FACE,
+    private diagnostics?: RendererDiagnostics,
   ) {
     if (!loggerInitialized) {
       // SDK debug logs can contain full provider payloads. Never enable them here.
@@ -80,39 +92,43 @@ export class StockRuntime {
     return this.starting ??= this.initialize();
   }
 
+  private stage<T>(stage: RendererStage, work: () => Promise<T>) {
+    return this.diagnostics ? this.diagnostics.stage(stage, work) : Promise.resolve().then(work);
+  }
+
   private async initialize() {
     const client = roomClient();
-    await client.createRoom({ name: this.roomName, emptyTimeout: 30, departureTimeout: 20, maxParticipants: 3 });
+    await this.stage("room_create", () => client.createRoom({ name: this.roomName, emptyTimeout: 30, departureTimeout: 20, maxParticipants: 3 }));
     if (this.closed) return;
     const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
       identity: "avatar-router-renderer", ttl: 150,
     });
     token.kind = "agent";
     token.addGrant({ roomJoin: true, room: this.roomName, canPublish: true, canSubscribe: true, canPublishData: true });
-    await this.room.connect(process.env.LIVEKIT_URL!, await token.toJwt(), { autoSubscribe: true, dynacast: false });
+    await this.stage("rtc_connect", async () => this.room.connect(process.env.LIVEKIT_URL!, await token.toJwt(), { autoSubscribe: true, dynacast: false }));
     if (this.closed) return;
     // No AgentSession.start / LLM / STT / TTS: externally supplied PCM only.
-    await this.beforeCreate();
+    await this.stage("provider_dispatch", this.beforeCreate);
     if (this.closed) return;
     this.creation = this.createAvatar();
     await this.creation;
     if (this.closed) return;
-    await this.avatar.waitForJoin({ timeout: 30_000 });
+    await this.stage("video_join", () => this.avatar.waitForJoin({ timeout: 30_000 }));
   }
 
   private async createAvatar() {
     try {
-      await this.avatar.start(this.agent, this.room);
+      await this.stage("provider_create", () => this.avatar.start(this.agent, this.room));
     } catch (error) {
       const e = error as { status?: number; statusCode?: number };
       const status = e.statusCode ?? e.status;
       this.creationUnknown = !this.avatar.conversationId && !(status && status >= 400 && status < 500 && status !== 408 && status !== 499);
       // A definite rejection is safe to mark; any other outcome stays submitted.
       if (!this.creationUnknown && !this.avatar.conversationId) await this.onRejected();
-      if (this.avatar.conversationId) await this.onConversation(this.avatar.conversationId);
+      if (this.avatar.conversationId) await this.stage("provider_id_persist", () => this.onConversation(this.avatar.conversationId!));
       throw error;
     }
-    if (this.avatar.conversationId) await this.onConversation(this.avatar.conversationId);
+    if (this.avatar.conversationId) await this.stage("provider_id_persist", () => this.onConversation(this.avatar.conversationId!));
   }
 
   async sendAudio(bytes: Buffer) {
@@ -157,12 +173,13 @@ export class StockRuntime {
     // Native shutdown can stall during a network split. It must never prevent
     // the explicit provider end + verified room deletion below.
     const sdkClose = Promise.allSettled([
-      Promise.resolve().then(() => this.agent.close()),
-      Promise.resolve().then(() => this.avatar.aclose()),
-      Promise.resolve().then(() => this.room.disconnect()),
+      this.stage("agent_close", async () => this.agent.close()),
+      this.stage("avatar_close", async () => this.avatar.aclose()),
+      this.stage("rtc_disconnect", async () => this.room.disconnect()),
     ]);
     await Promise.race([sdkClose, delay(3000)]);
-    const result = await this.cleanup(this.roomName, this.avatar.conversationId ?? null);
+    const result = await this.stage("remote_cleanup", () => this.cleanup(this.roomName, this.avatar.conversationId ?? null, this.diagnostics));
+    this.diagnostics?.cleanupResult(result.providerEnded, result.roomDeleted, this.creationUnknown);
     return { ...result, providerEnded: result.providerEnded && !this.creationUnknown };
   }
 }

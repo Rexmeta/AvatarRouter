@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime } from "./stock-runtime";
+import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime, terminateResources } from "./stock-runtime";
 import { createStockSession } from "./live-sessions";
+import { RendererDiagnostics } from "./renderer-diagnostics";
 
 test("stock configuration is explicit and never invents a trained face", () => {
   assert.equal(STOCK_AVATAR, "tavus-stock-lucy");
@@ -50,4 +51,77 @@ test("stalled native shutdown cannot block explicit provider and room cleanup", 
   assert.equal(cleanupCalls, 1);
   await runtime.stop();
   assert.equal(cleanupCalls, 1);
+});
+
+test("runtime logs provider HTTP failure before rejection handling without exposing provider data", async () => {
+  const logs: Record<string, unknown>[] = [];
+  const diagnostics = new RendererDiagnostics({ sessionId: "test", workerId: "test", target: "stock" },
+    (_failed, fields) => { logs.push(fields); });
+  let rejected = 0;
+  let ids = 0;
+  const runtime = new StockRuntime("fake-no-network", async () => { ids++; }, async () => {},
+    async () => { rejected++; }, async () => ({ providerEnded: true, roomDeleted: true }),
+    STOCK_FACE, diagnostics);
+  const error = Object.assign(new Error("private-provider-message"), {
+    statusCode: 403, body: "private-response", headers: { authorization: "private-token" },
+  });
+  runtime.avatar.start = async () => { throw error; };
+  const internal = runtime as unknown as { createAvatar(): Promise<void> };
+  await assert.rejects(internal.createAvatar(), (received: unknown) => received === error);
+  assert.equal(rejected, 1);
+  assert.equal(ids, 0);
+  const failure = logs.find(entry => entry.stage === "provider_create" && entry.outcome === "failure");
+  assert.equal(failure?.httpStatus, 403);
+  assert.doesNotMatch(JSON.stringify(logs), /private-/);
+});
+
+test("runtime logs provider ID persistence failure separately from accepted creation", async () => {
+  const logs: Record<string, unknown>[] = [];
+  const diagnostics = new RendererDiagnostics({ sessionId: "test", workerId: "test", target: "stock" },
+    (_failed, fields) => { logs.push(fields); });
+  const error = Object.assign(new Error("private SQL"), { code: "57P01" });
+  const runtime = new StockRuntime("fake-no-network", async () => { throw error; }, async () => {},
+    async () => {}, async () => ({ providerEnded: true, roomDeleted: true }), STOCK_FACE, diagnostics);
+  runtime.avatar.start = async () => { runtime.avatar.conversationId = "private-conversation"; };
+  const internal = runtime as unknown as { createAvatar(): Promise<void> };
+  await assert.rejects(internal.createAvatar(), (received: unknown) => received === error);
+  assert.ok(logs.some(entry => entry.stage === "provider_create" && entry.outcome === "success"));
+  assert.ok(logs.some(entry => entry.stage === "provider_id_persist" &&
+    entry.outcome === "failure" && entry.transportCode === "57P01"));
+  assert.doesNotMatch(JSON.stringify(logs), /private/);
+});
+
+test("cleanup HTTP diagnostics preserve unknown termination and 404 confirmation without retries", async t => {
+  const logs: Record<string, unknown>[] = [];
+  const diagnostics = new RendererDiagnostics({ sessionId: "test", workerId: "test", target: "stock" },
+    (_failed, fields) => { logs.push(fields); });
+  let status = 503;
+  const fetchMock = t.mock.method(globalThis, "fetch", async () =>
+    new Response("private-provider-body", { status }));
+  assert.deepEqual(await terminateResources(null, "private-id", diagnostics),
+    { providerEnded: false, roomDeleted: true });
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.ok(logs.some(entry => entry.stage === "provider_end" &&
+    entry.outcome === "failure" && entry.httpStatus === 503));
+  status = 404;
+  assert.deepEqual(await terminateResources(null, "private-id", diagnostics),
+    { providerEnded: true, roomDeleted: true });
+  assert.equal(fetchMock.mock.callCount(), 2);
+  assert.doesNotMatch(JSON.stringify(logs), /private/);
+});
+
+test("synchronous native close exceptions are logged but cannot skip explicit cleanup", async () => {
+  const logs: Record<string, unknown>[] = [];
+  const diagnostics = new RendererDiagnostics({ sessionId: "test", workerId: "test", target: "stock" },
+    (_failed, fields) => { logs.push(fields); });
+  let cleaned = false;
+  const runtime = new StockRuntime("fake-no-network", async () => {}, async () => {}, async () => {},
+    async () => { cleaned = true; return { providerEnded: true, roomDeleted: true }; }, STOCK_FACE, diagnostics);
+  runtime.agent.close = () => { throw new Error("private-native-error"); };
+  runtime.avatar.aclose = async () => {};
+  runtime.room.disconnect = async () => {};
+  assert.deepEqual(await runtime.stop(), { providerEnded: true, roomDeleted: true });
+  assert.equal(cleaned, true);
+  assert.ok(logs.some(entry => entry.stage === "agent_close" && entry.outcome === "failure"));
+  assert.doesNotMatch(JSON.stringify(logs), /private/);
 });

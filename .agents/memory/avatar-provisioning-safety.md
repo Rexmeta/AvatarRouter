@@ -24,3 +24,9 @@ Rights confirmation and a consent-reference string are attestations, not verifie
 **Why:** A caller's checkbox cannot establish whether a real person consented or whether a provider's identity requirements were met.
 
 **How to apply:** Hold real-person provisioning for independent trusted review of the evidence and provider rules. Never expose self-approval through the ordinary tenant API.
+
+Diagnose the first lifecycle failure separately from the final reconciliation state. Keep diagnostics allowlisted and best-effort; never enable raw SDK payload/error logging to investigate paid creation.
+
+**Why:** A live incident retained only a generic worker failure and the later reconciliation warning, leaving the initial cause unknowable. SDK error bodies can contain sensitive transport credentials, and logging failures must not prevent late-ID persistence or cleanup.
+
+**How to apply:** Compare successful and failed sessions by stage timings and worker/lease evidence. Record only approved error classes, numeric statuses and known codes. A diagnostic upgrade cannot reconstruct missing historical errors or prove that an ambiguous provider call failed.
