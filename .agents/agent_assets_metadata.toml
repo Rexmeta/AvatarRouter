@@ -70,3 +70,17 @@ mtime_ms = 1793336176255
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/e8aaadfe-e6d5-41f2-a445-1ebb6a901737/e6a09f40-3f24-46aa-801d-786e68b2b75f"
 storage_version_token = "1793336377743621"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "h1tuZ1XUE6PUcohenXFEK"
+uri = "file://generated-artifacts/roleplayx/avatar-router-worker-incident-2026-11-02.txt"
+type = "text"
+title = "AI Roleplay 전달용 Renderer Worker 로그"
+description = "운영 로그 발췌와 확인된 사실·원인 판별 한계. API 키·토큰·사용자 대화 내용 제외."
+logical_id = "af9daf48-da53-4d1c-9e96-3fa957fc2f1a"
+content_hash = "sha256:b2caf31a46524b4171943a7632af16a91b6fd05686b77f67aab7da968d160d87"
+size = 33537
+mtime_ms = 1793614194424
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/af9daf48-da53-4d1c-9e96-3fa957fc2f1a/1691684f-b0ab-4307-87ea-002b3d561145"
+storage_version_token = "1793614195985752"
+content_type = "text/plain"
