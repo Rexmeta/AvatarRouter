@@ -3,3 +3,4 @@
 - [Clerk test callbacks](clerk-test-callbacks.md) — use a plain return path; encoded fragments can send the tester to a 404 instead of the intended screen.
 - [RoleplayX authentication](roleplayx-auth-boundary.md) — preserve login; project API keys by default, JWKS optional; no shared user tokens or signing secrets.
 - [Persona live boundaries](persona-live-boundaries.md) — persona owns image/video/live choice; provisioning and trusted-client playback validation are separate.
+- [AvatarRouter UX direction](avatar-router-ux-direction.md) — user wants OpenRouter's information architecture rather than asset-provisioning-first navigation.
