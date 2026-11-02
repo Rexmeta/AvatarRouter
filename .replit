@@ -62,5 +62,8 @@ LIVEKIT_URL = "wss://avatarouter-n1q0eegf.livekit.cloud"
 [userenv.development]
 AVATAR_ROUTER_DELEGATION_ISSUER = "urn:roleplayx:avatarrouter:development"
 
+[userenv.production]
+LIVE_SESSION_OPERATOR_BOOTSTRAP_EMAILS = "btobkorea@gmail.com"
+
 [nix]
 channel = "stable-25_05"

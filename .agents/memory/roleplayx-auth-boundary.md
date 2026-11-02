@@ -18,3 +18,9 @@ Repair missing permissions on the explicitly selected existing project credentia
 **Why:** RoleplayX persona references and existing assets must remain attached to the same project during permission repair. Credential replacement is unnecessary when only permissions change.
 
 **How to apply:** Keep permissions opt-in, explain asset read/write separately, preserve existing identity and expiry, and distinguish shipping permission-management code from actually changing an operator's live credential.
+
+Production operator setup must resolve the designated verified identity within the production runtime, not copy a preview identity or signing credential.
+
+**Why:** Managed Clerk isolates development and production user stores. A shared email does not establish a shared Clerk user ID, and workspace verification cannot prove a production grant is active.
+
+**How to apply:** Keep owner authorization environment-specific, deny missing/ambiguous/unverified accounts, preserve explicit operator boundaries, and report configuration saved separately from post-publish access verification.

@@ -3,6 +3,8 @@ import { logger } from "./lib/logger";
 import { expireSessions } from "./lib/session-service";
 import { pool } from "@workspace/db";
 import { runProvisioningTick } from "./lib/provisioning-worker";
+import { clerkClient } from "@clerk/express";
+import { liveOperatorBootstrap } from "./lib/live-operator-bootstrap";
 
 const rawPort = process.env["PORT"];
 
@@ -16,6 +18,20 @@ const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+// Resolve only owner-configured production emails against the actual runtime
+// tenant. Development identities and credentials are never copied to production.
+const operatorBootstrap = await liveOperatorBootstrap.resolve(
+  email => clerkClient.users.getUserList({ emailAddress: [email], limit: 2 }),
+);
+if (operatorBootstrap.configuredCount) {
+  const message = "Production live operator bootstrap completed";
+  if (operatorBootstrap.resolvedCount === operatorBootstrap.configuredCount) {
+    logger.info(operatorBootstrap, message);
+  } else {
+    logger.warn(operatorBootstrap, "Production live operator bootstrap incomplete; unresolved accounts remain denied");
+  }
 }
 
 app.listen(port, (err) => {

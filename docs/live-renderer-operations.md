@@ -21,9 +21,46 @@ database migration process before starting the new services; do not run a
 development schema push against production.
 
 Configure `LIVE_SESSION_OPERATOR_IDS` as a comma-separated allowlist of trusted
-Clerk user IDs on the API service. Leave it unset to disable operator
-reconciliation. This is an authorization setting, not a provider credential.
+Clerk user IDs on the API service. Leave both this and the production bootstrap
+setting below unset to disable operator reconciliation.
+This is an authorization setting, not a provider credential.
 Project API keys and RoleplayX delegated identities cannot use the operator API.
+
+### Establishing the first production operator
+
+When the production Clerk user ID cannot be safely obtained from development,
+the owner may configure `LIVE_SESSION_OPERATOR_BOOTSTRAP_EMAILS` **in production
+only**, using exact trusted login emails (comma-separated, at most 10).
+Do not put personal emails in source files. This setting grants privileged,
+cross-project operator access; it must never come from an HTTP request or a
+user-editable profile.
+
+At API startup, the production runtime queries its own Clerk tenant. Only one
+matching existing account with an exactly matching **verified primary email**
+and a non-banned/non-locked status is granted an in-memory operator ID.
+The same exact-ID operator guard and origin checks remain in force.
+No accounts, metadata, passwords, provider sessions or database rows are created
+or changed. Development ignores this bootstrap setting entirely.
+
+Queries have an 8-second deadline. Missing, ambiguous, unverified, blocked or
+unreachable accounts remain denied; late results do not grant access.
+The startup log `Production live operator bootstrap completed` contains counts
+only; an incomplete warning means some configured accounts remain denied.
+No emails, credentials or raw Clerk errors are logged.
+
+Publish the new code and production setting before claiming access is active.
+If the account does not yet exist, its owner must sign up/sign in on the
+production site and restart/publish the API to rerun resolution.
+For verification, sign in as the designated production user and confirm the
+operator screen loads; anonymous, API-key and non-operator callers must still
+be denied. Do not copy a development user ID or production signing secret.
+
+The bootstrap setting is a continuing owner authorization, not a one-time grant.
+To revoke access, remove the email from this setting **and** remove any
+corresponding static ID from `LIVE_SESSION_OPERATOR_IDS`, then restart/publish
+all API replicas. Previously running replicas retain their startup resolution
+until replaced. Do not revoke only the static ID while leaving its email grant.
+An environment change does not prove the running production build has applied it.
 
 Run/restart the managed API and Renderer Worker services independently. Both
 builds emit both entrypoints. HTTP restarts do not stop or recreate renderer RTC.
