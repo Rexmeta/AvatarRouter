@@ -1,6 +1,7 @@
 - [Avatar probe cleanup](avatar-probe-cleanup.md) — outside a LiveKit JobContext, explicitly end provider conversations and verify room deletion.
 - [Avatar provisioning safety](avatar-provisioning-safety.md) — reconcile ambiguous paid creation; consent attestations must not self-approve real-person likenesses.
 - [Clerk test callbacks](clerk-test-callbacks.md) — use a plain return path; encoded fragments can send the tester to a 404 instead of the intended screen.
+- [Stable browser probes](live-probe-browser-stability.md) — isolate paid-capable media checks from Vite reloads and manual tool delays; collect evidence before cleanup.
 - [RoleplayX authentication](roleplayx-auth-boundary.md) — preserve login; project API keys by default, JWKS optional; no shared user tokens or signing secrets.
 - [Persona live boundaries](persona-live-boundaries.md) — persona owns image/video/live choice; provisioning and trusted-client playback validation are separate.
 - [AvatarRouter UX direction](avatar-router-ux-direction.md) — user wants OpenRouter's information architecture rather than asset-provisioning-first navigation.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime, terminateResources } from "./stock-runtime";
+import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime, terminateResources, liveRoomOptions } from "./stock-runtime";
 import { createStockSession } from "./live-sessions";
 import { RendererDiagnostics } from "./renderer-diagnostics";
 
@@ -13,6 +13,11 @@ test("stock configuration is explicit and never invents a trained face", () => {
     LIVEKIT_URL: "wss://invalid.example", LIVEKIT_API_KEY: "test",
     LIVEKIT_API_SECRET: "test", TAVUS_API_KEY: "test",
   }), true);
+});
+test("agent-only room does not expire before a bounded viewer join window", () => {
+  assert.deepEqual(liveRoomOptions("isolated-room"), {
+    name: "isolated-room",emptyTimeout:120,departureTimeout:120,maxParticipants:3,
+  });
 });
 test("stock allocation rejects missing cost permission before creating resources", async () => {
   await assert.rejects(createStockSession("test", "test", false), { code: "LIVE_COST_CONFIRMATION_REQUIRED" });

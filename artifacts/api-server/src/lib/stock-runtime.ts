@@ -4,9 +4,17 @@ import { AudioFrame, Room } from "@livekit/rtc-node";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { SessionProblem } from "./session-service";
 import { setTimeout as delay } from "node:timers/promises";
-import { STOCK_AVATAR, STOCK_FACE, STOCK_PAL } from "./stock-policy";
+import { STOCK_AVATAR, STOCK_FACE, STOCK_PAL, LIVE_SESSION_MS } from "./stock-policy";
 import type { RendererDiagnostics, RendererStage } from "./renderer-diagnostics";
 export { STOCK_FACE, STOCK_PAL, STOCK_AVATAR, STOCK_KEYS, stockConfigured, safeLiveError, validateLiveAudio } from "./stock-policy";
+
+export function liveRoomOptions(name: string) {
+  // Renderer/provider participants may be agents, not a human participant.
+  // Give the viewer the whole bounded session to join; the worker still enforces
+  // the independent 120-second provider/room cleanup deadline.
+  const seconds = LIVE_SESSION_MS / 1000;
+  return { name, emptyTimeout: seconds, departureTimeout: seconds, maxParticipants: 3 };
+}
 
 // The official plugin's pal handles externally supplied PCM for both stock and custom faces.
 let loggerInitialized = false;
@@ -98,7 +106,7 @@ export class StockRuntime {
 
   private async initialize() {
     const client = roomClient();
-    await this.stage("room_create", () => client.createRoom({ name: this.roomName, emptyTimeout: 30, departureTimeout: 20, maxParticipants: 3 }));
+    await this.stage("room_create", () => client.createRoom(liveRoomOptions(this.roomName)));
     if (this.closed) return;
     const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
       identity: "avatar-router-renderer", ttl: 150,

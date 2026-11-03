@@ -56,8 +56,17 @@ export class RendererWorker {
         if (!row) { this.loseLease(id, local, "ownership"); continue; }
         local.deadline = Date.now() + LEASE_MS - HEARTBEAT_MS;
         if (local.closing) continue;
-        if (row.stopRequestedAt || row.expiresAt.getTime() <= Date.now() ||
-            (!local.starting && local.runtime?.connected && !local.runtime.connected())) {
+        const disconnected = !local.starting && !!local.runtime?.connected && !local.runtime.connected();
+        if (row.stopRequestedAt || row.expiresAt.getTime() <= Date.now() || disconnected) {
+          if (disconnected && !row.stopRequestedAt && row.expiresAt.getTime() > Date.now()) {
+            const [failed] = await db.update(avatarSessions).set({
+              stopRequestedAt: sql`now()`, stopStatus: "failed", stopError: "LIVE_RTC_DISCONNECTED",
+            }).where(and(this.owns(id), sql`${avatarSessions.stopRequestedAt} is null`)).returning();
+            if (failed) {
+              Object.assign(row, failed);
+              await this.event(id, "rtc_disconnected", "Renderer RTC disconnected before the session deadline. Cleanup requested; playback was not verified.");
+            }
+          }
           local.closing = true;
           local.task = this.finish(row, local).catch(error => this.cleanupFailed(id, local, error));
         } else if (!local.starting) {

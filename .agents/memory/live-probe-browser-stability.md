@@ -1,0 +1,10 @@
+---
+name: Stable browser probes
+description: Keep real-provider browser probes independent from dev-server reloads and manual tool latency.
+---
+
+Run a bounded real-provider browser probe atomically in a stable document without the development application's hot-reload lifecycle. Prepare imports and media elements before creation; keep credential material in process memory and collect media evidence before ending.
+
+**Why:** A public documentation-file update caused Vite to reload the page during a real session and discard the in-memory LiveKit client and media elements. Manual browser-tool round trips also consumed a substantial part of the bounded session before audio could be sent. Neither failure proved that the provider could not deliver media.
+
+**How to apply:** Freeze workspace writes/workflow restarts while the probe runs. Use a stable same-origin non-app document, lexical imports/elements inside one browser routine, and lifecycle cleanup in a finally block. Distinguish decoded video frames and audio transport indicators from sustained recognizable imagery or human-perceived sound. Revoke any test-created API key after independent cleanup confirmation.

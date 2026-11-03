@@ -133,6 +133,15 @@ curl --fail-with-body --silent --show-error \
 
 HTTP 201 means **queued**, not video-ready. Poll `/sessions/{id}` every 1–2 seconds with the same project/user context until `status: "active"`, `rendererState: "running"`, `stopRequested: false` and `cleanupPending: false`. Request `/sessions/{id}/connection` and pass only its short-lived subscribe-only LiveKit token to the intended signed-in RoleplayX browser. Keep the project API key on the server.
 
+Prepare the browser media elements before starting. Register remote track handlers
+before `Room.connect`, and also inspect tracks already published when connection
+completes. Attach video and audio separately. Start the bounded playback sequence
+promptly after `running`; do not wait through repeated manual setup steps or wait
+for the first video frame before permitting the first authorized audio command.
+The 120-second cap includes queue/startup time, not 120 seconds after browser join.
+An unexpected RTC loss is reported as `LIVE_RTC_DISCONNECTED` after cleanup, not
+silently converted into a successful session.
+
 Audio supports `{ "sample": true }` or `{ "pcmBase64": "..." }` with signed 16-bit little-endian mono 24 kHz PCM, 20 ms–5 s. The sample is a synthetic tone. This renderer is not a new LLM, transcription or TTS engine, and it is not yet a continuous Gemini PCM stream. Interrupt also requires RoleplayX to cancel its own ongoing generation.
 
 POST `/sessions/{id}/end` requests stop. HTTP 200 is not proof provider billing stopped: poll until a terminal state AND `cleanupPending: false`. Never automatically retry ambiguous paid create/audio operations or clear a cleanup warning.

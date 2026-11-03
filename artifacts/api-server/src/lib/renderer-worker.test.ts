@@ -57,7 +57,7 @@ function apiProcess(input: { action: "create" | "stop" | "connect"; owner: strin
     child.send(input);
   });
 }
-function worker(options: { ambiguous?: boolean; rejected?: boolean; cleanup?: () => Promise<{ providerEnded: boolean; roomDeleted: boolean }> } = {}) {
+function worker(options: { ambiguous?: boolean; rejected?: boolean; connected?: () => boolean; cleanup?: () => Promise<{ providerEnded: boolean; roomDeleted: boolean }> } = {}) {
   const stats = { starts: 0, stops: 0, interrupts: 0 };
   const w = new RendererWorker((_row, onId, before, rejected) => ({
     async start() {
@@ -70,7 +70,7 @@ function worker(options: { ambiguous?: boolean; rejected?: boolean; cleanup?: ()
     async stop() { stats.stops++; return { providerEnded: !options.ambiguous, roomDeleted: true }; },
     async sendAudio() {},
     async interrupt() { stats.interrupts++; },
-    connected: () => true,
+    connected: options.connected ?? (() => true),
   }), options.cleanup ?? (async () => ({ providerEnded: true, roomDeleted: true })));
   workers.push(w);
   return { w, stats };
@@ -84,6 +84,20 @@ async function fixture(values: Partial<typeof avatarSessions.$inferInsert> = {})
   }).returning();
   return row!;
 }
+
+test("unexpected RTC loss retains a safe failure reason after confirmed cleanup", async () => {
+  const { w } = worker({ connected: () => false });
+  const row = await fixture();
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "running");
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  const closed = await get(row.id);
+  assert.equal(closed.status, "failed");
+  assert.equal(closed.error, "LIVE_RTC_DISCONNECTED");
+  assert.equal(closed.roomName, null);
+  assert.equal(closed.providerConversationId, null);
+});
 
 test("two API admissions and two workers reserve once and create exactly once", async () => {
   const { w: first, stats: s1 } = worker();
