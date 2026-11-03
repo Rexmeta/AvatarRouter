@@ -46,7 +46,7 @@ export async function getOwnedSession(owner: string, id: string) {
   return row;
 }
 
-export async function createMockSession(owner: string) {
+export async function createMockSession(owner: string, tenantId?: string) {
   return db.transaction(async (tx) => {
     // Serialize per browser, including across separate API instances.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${owner}))`);
@@ -54,7 +54,7 @@ export async function createMockSession(owner: string) {
       .where(and(eq(avatarSessions.ownerHash, owner), eq(avatarSessions.status, "active")));
     if (active) throw new SessionProblem(409, "ACTIVE_SESSION_EXISTS", "End your active mock session before starting another.");
     const [row] = await tx.insert(avatarSessions).values({
-      id: randomUUID(), ownerHash: owner, providerId: "mock", avatarId: "mock-orbit",
+      id: randomUUID(), ownerHash: owner, tenantId, providerId: "mock", avatarId: "mock-orbit",
       mode: "mock", status: "active", expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     }).returning();
     await tx.insert(avatarSessionEvents).values({

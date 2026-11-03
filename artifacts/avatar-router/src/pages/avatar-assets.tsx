@@ -20,12 +20,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useToast } from '@/hooks/use-toast';
 import { setSelectedAsset, useSelectedAsset } from '@/lib/selected-asset';
 import { cn } from '@/lib/utils';
+import { useAssetWorkspace } from '@/lib/workspace-assets';
 
 const MAX_BYTES = 4.5 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PENDING = new Set(['queued', 'submitting', 'processing', 'deleting']);
 const STEPS = ['queued', 'submitting', 'processing', 'ready'] as const;
-const imgSrc = (id: string) => `/api/v1/assets/images/${id}/content`;
 const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
 
 function useL() {
@@ -61,7 +61,9 @@ export default function AvatarAssets() {
 }
 
 function StockEntry() {
+  const { projectId } = useAssetWorkspace();
   const L = useL();
+  if (projectId) return <div className="mb-6 rounded border border-primary/30 bg-primary/5 p-4 text-sm">{L('These assets belong to this project. Integrate with its server-side API key; the personal Playground is a separate workspace.', '이 에셋은 현재 프로젝트 소속입니다. 해당 프로젝트의 서버 API 키로 연동하세요. 개인 Playground는 별도 공간입니다.')}</div>;
   return (
     <Link href="/playground#stock" data-testid="link-stock-playground" className="rise mb-6 flex items-center justify-between gap-4 rounded-md border border-primary/40 bg-primary/5 px-4 py-3 transition hover:bg-primary/10">
       <span>
@@ -102,6 +104,7 @@ function SignedOutGate() {
 }
 
 function SignedIn({ head }: { head: ReactNode }) {
+  const { projectId, request, base } = useAssetWorkspace();
   const { user } = useUser();
   const L = useL();
   const params = useParams<{ id?: string }>();
@@ -109,15 +112,17 @@ function SignedIn({ head }: { head: ReactNode }) {
   const [provisionFor, setProvisionFor] = useState<ImageAsset | null>(null);
 
   const images = useListImageAssets({
+    request,
     query: {
-      queryKey: getListImageAssetsQueryKey(),
+      queryKey: [...getListImageAssetsQueryKey(), projectId],
       enabled: !!user,
       staleTime: 15000,
     },
   });
   const avatars = useListAvatarAssets({
+    request,
     query: {
-      queryKey: getListAvatarAssetsQueryKey(),
+      queryKey: [...getListAvatarAssetsQueryKey(), projectId],
       enabled: !!user,
       staleTime: 3000,
       refetchInterval: (q) => ((q.state.data ?? []).some((a) => PENDING.has(a.status)) ? 4000 : false),
@@ -161,7 +166,7 @@ function SignedIn({ head }: { head: ReactNode }) {
             </div>
           ) : (
             <ul className="divide-y">
-              {avatars.data.map((a) => <AvatarRow key={a.id} a={a} onOpen={() => setLocation(`/avatar-assets/${a.id}`)} />)}
+              {avatars.data.map((a) => <AvatarRow key={a.id} a={a} onOpen={() => setLocation(`${base}/${a.id}`)} />)}
             </ul>
           )}
         </Panel>
@@ -170,7 +175,7 @@ function SignedIn({ head }: { head: ReactNode }) {
       <div className="mt-8"><CapabilityPanel /></div>
 
       <ProvisionDialog img={provisionFor} onClose={() => setProvisionFor(null)} />
-      <AvatarDetailSheet id={params.id ?? ''} onClose={() => setLocation('/avatar-assets')} />
+      <AvatarDetailSheet id={params.id ?? ''} onClose={() => setLocation(base)} />
     </div>
   );
 }
@@ -178,10 +183,11 @@ function SignedIn({ head }: { head: ReactNode }) {
 /* ---------------- ingest ---------------- */
 
 function IngestPanel({ images }: { images: ImageAsset[] }) {
+  const { request } = useAssetWorkspace();
   const L = useL();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const ingest = useIngestImage();
+  const ingest = useIngestImage({ request });
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'file' | 'url'>('file');
   const [name, setName] = useState('');
@@ -356,10 +362,11 @@ function consentLabel(s: string, L: (a: string, b: string) => string) {
 }
 
 function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision: () => void; avatars: AvatarAsset[] }) {
+  const { request, imageUrl } = useAssetWorkspace();
   const L = useL();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const del = useDeleteImageAsset();
+  const del = useDeleteImageAsset({ request });
   const [confirm, setConfirm] = useState(false);
   const linked = avatars.filter((a) => a.imageAssetId === img.id && a.status !== 'deleted').length;
   const blocked = img.consentStatus === 'pending_review';
@@ -367,7 +374,7 @@ function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision
   return (
     <article className="group overflow-hidden rounded border bg-background" data-testid={`card-image-${img.id}`}>
       <div className="relative aspect-[4/3] bg-muted">
-        <img src={imgSrc(img.id)} alt={img.name} loading="lazy" className="h-full w-full object-cover" />
+        <img src={imageUrl(img.id)} alt={img.name} loading="lazy" className="h-full w-full object-cover" />
         <div className="absolute left-2 top-2 flex gap-1">
           <span className="mono rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px]">v{img.version}</span>
           <span className="mono rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px]">{img.likeness === 'synthetic' ? L('synthetic', '합성') : L('real person', '실존 인물')}</span>
@@ -431,12 +438,13 @@ function providerBlock(p: ProvisioningProvider, L: (a: string, b: string) => str
 }
 
 function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: () => void }) {
+  const { request, base } = useAssetWorkspace();
   const L = useL();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const providers = useListProvisioningProviders({ query: { queryKey: getListProvisioningProvidersQueryKey(), staleTime: 60000 } });
-  const provision = useProvisionAvatar();
+  const provision = useProvisionAvatar({ request });
   const [pid, setPid] = useState('');
   const [voice, setVoice] = useState('anna');
   const [cost, setCost] = useState(false);
@@ -457,7 +465,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
           qc.invalidateQueries({ queryKey: getListAvatarAssetsQueryKey() });
           toast({ title: L('Provisioning queued', '프로비저닝 대기열 등록'), description: `${a.providerId} · ${a.status}` });
           close();
-          setLocation(`/avatar-assets/${a.id}`);
+          setLocation(`${base}/${a.id}`);
         },
         onError: (e) => setErr(errMsg(e)),
       },
@@ -536,11 +544,12 @@ function Progress({ status }: { status: string }) {
 }
 
 function AvatarRow({ a, onOpen }: { a: AvatarAsset; onOpen: () => void }) {
+  const { imageUrl } = useAssetWorkspace();
   const L = useL();
   return (
     <li>
       <button onClick={onOpen} data-testid={`row-avatar-${a.id}`} className="grid w-full grid-cols-[48px_1fr_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60">
-        <img src={imgSrc(a.imageAssetId)} alt="" className="h-12 w-12 rounded object-cover grayscale-[40%]" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+        <img src={imageUrl(a.imageAssetId)} alt="" className="h-12 w-12 rounded object-cover grayscale-[40%]" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
         <div className="min-w-0">
           <div className="truncate font-semibold">{a.name}</div>
           <div className="mono flex flex-wrap gap-x-3 text-[10.5px] text-muted-foreground">
@@ -557,6 +566,7 @@ function AvatarRow({ a, onOpen }: { a: AvatarAsset; onOpen: () => void }) {
 }
 
 function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void }) {
+  const { projectId, request, imageUrl } = useAssetWorkspace();
   const L = useL();
   const { user } = useUser();
   const { toast } = useToast();
@@ -565,14 +575,15 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
   const [confirm, setConfirm] = useState(false);
   const selected = useSelectedAsset();
   const q = useGetAvatarAsset(id, {
+    request,
     query: {
-      queryKey: getGetAvatarAssetQueryKey(id),
+      queryKey: [...getGetAvatarAssetQueryKey(id), projectId],
       enabled: !!user && !!id,
       staleTime: 3000,
       refetchInterval: (s) => (s.state.data && PENDING.has(s.state.data.status) ? 4000 : false),
     },
   });
-  const del = useDeleteAvatarAsset();
+  const del = useDeleteAvatarAsset({ request });
   const a = q.data;
   const caps = useMemo(() => (a ? [
     [L('Reusable ID', '재사용 ID'), a.capabilities.reusable ? 'yes' : 'no'],
@@ -591,7 +602,7 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
           : a ? (
             <div className="mt-5 space-y-5" data-testid="panel-avatar-detail">
               <div className="relative overflow-hidden rounded border bg-muted">
-                <img src={imgSrc(a.imageAssetId)} alt="" className="aspect-[4/3] w-full object-cover grayscale-[30%]" />
+                <img src={imageUrl(a.imageAssetId)} alt="" className="aspect-[4/3] w-full object-cover grayscale-[30%]" />
                 <span className="mono absolute bottom-2 left-2 rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px] uppercase tracking-wider">{L('source still — not generated output', '원본 정지 이미지 — 생성 결과 아님')}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -621,7 +632,9 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
                 <div className="space-y-2 rounded border border-[hsl(var(--warn)/.35)] bg-[hsl(var(--warn)/.06)] p-3 text-[12.5px]">
                   <p>{L('Ready means provisioned, not playback-verified. Use Playground for a cost-approved Tavus validation session. Anam live runtime remains unavailable. Validation is recorded separately after actual playback.', 'Ready는 생성 완료이며 재생 검증 완료가 아닙니다. 플레이그라운드에서 비용 동의 후 Tavus 검증 세션을 실행하세요. Anam 라이브는 미지원입니다. 실제 재생 확인은 별도로 기록됩니다.')}</p>
                   <button data-testid="button-use-in-playground"
-                    onClick={() => { setSelectedAsset({ id: a.id, name: a.name, providerId: a.providerId, providerAvatarId: a.providerAvatarId, imageAssetId: a.imageAssetId }); setLocation('/playground'); }}
+                    disabled={!!projectId}
+                    title={projectId ? '프로젝트 에셋은 해당 프로젝트 API 키를 통해 연동하세요. 개인 Playground로 이전하지 않습니다.' : undefined}
+                    onClick={() => { if (projectId) return; setSelectedAsset({ id: a.id, name: a.name, providerId: a.providerId, providerAvatarId: a.providerAvatarId, imageAssetId: a.imageAssetId }); setLocation('/playground'); }}
                     className="inline-flex items-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition active:scale-[.97]">
                     <FlaskConical className="h-3.5 w-3.5" /> {L('Select in Playground', '플레이그라운드에서 선택')} <ArrowUpRight className="h-3 w-3" />
                   </button>

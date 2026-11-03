@@ -33,6 +33,7 @@ import type {
   CompareRendererDiagnosticsParams,
   CreateDeveloperKeyInput,
   DeveloperKey,
+  GetDeveloperWorkspace200,
   HealthStatus,
   ImageAsset,
   ImageInput,
@@ -84,6 +85,210 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetDeveloperWorkspaceEventsUrl = (projectId: string,
+    id: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/sessions/${id}/events`
+}
+
+/**
+ * Interactive project owner reads lifecycle events only. No renderer diagnostics or provider resource references.
+ */
+export const getDeveloperWorkspaceEvents = async (projectId: string,
+    id: string, options?: Parameters<typeof customFetch>[1]): Promise<SessionEvent[]> => {
+
+  return customFetch<SessionEvent[]>(getGetDeveloperWorkspaceEventsUrl(projectId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeveloperWorkspaceEventsQueryKey = (projectId: string,
+    id: string,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/sessions/${id}/events`
+    ] as const;
+    }
+
+
+export const getGetDeveloperWorkspaceEventsQueryOptions = <TData = Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError = ErrorType<void>>(projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeveloperWorkspaceEventsQueryKey(projectId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>> = ({ signal }) => getDeveloperWorkspaceEvents(projectId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeveloperWorkspaceEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>>
+export type GetDeveloperWorkspaceEventsQueryError = ErrorType<void>
+
+
+export function useGetDeveloperWorkspaceEvents<TData = Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError = ErrorType<void>>(
+ projectId: string,
+    id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>,
+          TError,
+          Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeveloperWorkspaceEvents<TData = Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError = ErrorType<void>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>,
+          TError,
+          Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeveloperWorkspaceEvents<TData = Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError = ErrorType<void>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetDeveloperWorkspaceEvents<TData = Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError = ErrorType<void>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspaceEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeveloperWorkspaceEventsQueryOptions(projectId,id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDeveloperWorkspaceUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}`
+}
+
+/**
+ * Interactive owner-only project overview across all project user contexts. Read-only; never changes session cleanup or billing state.
+ */
+export const getDeveloperWorkspace = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<GetDeveloperWorkspace200> => {
+
+  return customFetch<GetDeveloperWorkspace200>(getGetDeveloperWorkspaceUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeveloperWorkspaceQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}`
+    ] as const;
+    }
+
+
+export const getGetDeveloperWorkspaceQueryOptions = <TData = Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError = ErrorType<void>>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeveloperWorkspaceQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeveloperWorkspace>>> = ({ signal }) => getDeveloperWorkspace(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeveloperWorkspaceQueryResult = NonNullable<Awaited<ReturnType<typeof getDeveloperWorkspace>>>
+export type GetDeveloperWorkspaceQueryError = ErrorType<void>
+
+
+export function useGetDeveloperWorkspace<TData = Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError = ErrorType<void>>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeveloperWorkspace>>,
+          TError,
+          Awaited<ReturnType<typeof getDeveloperWorkspace>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeveloperWorkspace<TData = Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeveloperWorkspace>>,
+          TError,
+          Awaited<ReturnType<typeof getDeveloperWorkspace>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeveloperWorkspace<TData = Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetDeveloperWorkspace<TData = Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeveloperWorkspace>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeveloperWorkspaceQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getReportAvatarLiveValidationUrl = (id: string,) => {
 

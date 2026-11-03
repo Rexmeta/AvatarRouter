@@ -24,7 +24,7 @@ function keyState(k: DeveloperKey): 'active' | 'revoked' | 'expired' {
   return 'active';
 }
 
-export default function ApiKeys() {
+export default function ApiKeys({ projectId }: { projectId?: string } = {}) {
   const { lang, t } = useI18n();
   const en = lang === 'en';
   const { isLoaded, isSignedIn, userId } = useAuth();
@@ -107,7 +107,7 @@ export default function ApiKeys() {
     );
   }
 
-  const keys = list.data ?? [];
+  const keys = (list.data ?? []).filter(key => !projectId || key.projectId === projectId);
   const busy = rotate.isPending || revoke.isPending || updateScopes.isPending;
 
   return (
@@ -126,6 +126,7 @@ export default function ApiKeys() {
           </div>
           <CopyBlock label="secret" code={issued.secret} />
           <div className="mt-4"><ConnectionSetup secret={issued.secret} /></div>
+          <Link href={`/workspaces/${issued.key.projectId}/activity`} data-testid="link-issued-workspace" className="mt-4 inline-flex rounded border border-primary/50 px-4 py-2 text-sm text-primary">{en ? 'Open this workspace' : '이 워크스페이스 열기'}</Link>
         </section>
       )}
 
@@ -139,7 +140,7 @@ export default function ApiKeys() {
 
       <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-8">
-          <Panel title={en ? 'Create project key' : '프로젝트 키 생성'}>
+          {!projectId && <Panel title={en ? 'Create workspace and project key' : '워크스페이스 및 프로젝트 키 생성'}>
             <div className="space-y-4 p-4">
               <p className="text-[13px] text-muted-foreground">{en ? 'Each new key creates a separate project. Rotating keeps the project and its sessions.' : '새 키마다 별도 프로젝트가 생성됩니다. 교체 시 프로젝트는 유지됩니다.'}</p>
               <p className="text-xs text-muted-foreground">{en ? 'Defaults cover sessions only. RoleplayX persona asset listing needs assets:read; custom creation also needs assets:write. For an existing connection, edit that key’s permissions below instead of creating a new project.' : '기본 권한은 세션용입니다. RoleplayX 페르소나 자산 조회에는 assets:read, 커스텀 생성에는 assets:write도 필요합니다. 기존 연결은 새 프로젝트를 만들지 말고 아래 해당 키의 권한을 수정하세요.'}</p>
@@ -178,7 +179,7 @@ export default function ApiKeys() {
                 <Plus className="h-4 w-4" />{create.isPending ? (en ? 'Creating…' : '생성 중…') : (en ? 'Create key' : '키 생성')}
               </button>
             </div>
-          </Panel>
+          </Panel>}
 
           <Panel title={en ? 'Keys' : '키 목록'} aside={list.isFetching ? <span className="mono text-[10px] opacity-50">sync…</span> : null}>
             {list.isLoading ? (

@@ -14,3 +14,9 @@ The user clarified that OpenRouter-style UX specifically includes whole-account 
 **Why:** The user supplied account/workspace screenshots to correct the initial design direction.
 
 **How to apply:** Keep account-wide navigation distinct from workspace-scoped navigation, show the current workspace and a clear return to account management, and make ownership of keys/assets/settings explicit. Do not treat a UX workspace proposal as permission to merge or migrate existing project and personal namespaces.
+
+Use the existing integration project as a workspace, with Personal Studio separate, rather than inventing new spaces that duplicate or migrate the same data.
+
+**Why:** The approved console must manage existing RoleplayX integrations without changing their keys or asset ownership. A new independent workspace tenant would strand existing integrations.
+
+**How to apply:** New account-console features must resolve exact project ownership server-side. A workspace label or client selector is not authority, and project membership never grants operator reconciliation privileges.

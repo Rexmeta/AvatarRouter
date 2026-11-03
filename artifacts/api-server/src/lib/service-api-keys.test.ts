@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { db, pool, integrationApiKeys, avatarSessions, avatarSessionEvents, eq } from "@workspace/db";
 import { createDeveloperKey, listDeveloperKeys, rotateDeveloperKey, revokeDeveloperKey, hashServiceValue, updateDeveloperKeyScopes } from "./service-api-keys";
 import app from "../app";
+import { developerWorkspace, developerWorkspaceEvents } from "./developer-workspaces";
 
 const owner = `test-key-owner-${randomUUID()}`;
 const projects: string[] = [];
@@ -125,6 +126,18 @@ test("HTTP key integration is cookie-free, project/user isolated, scoped, and ca
   assert.equal((await call(`/sessions/${alice.id}`, one.secret, {}, "alice")).status, 200);
   assert.equal((await call(`/sessions/${alice.id}`, one.secret, {}, "bob")).status, 404);
   assert.equal((await call(`/sessions/${alice.id}`, two.secret, {}, "alice")).status, 404);
+  // Console owners see all user partitions in their project, never another owner's.
+  const workspace = await developerWorkspace(owner, one.key.projectId);
+  assert.ok(workspace.sessions.some(session=>session.id===created.id));
+  assert.ok(workspace.sessions.some(session=>session.id===alice.id));
+  await assert.rejects(developerWorkspace("other-owner",one.key.projectId),{code:"WORKSPACE_NOT_FOUND"});
+  const isolated = await developerWorkspace(owner,two.key.projectId);
+  assert.ok(!isolated.sessions.some(session=>session.id===created.id || session.id===alice.id));
+  assert.ok((await developerWorkspaceEvents(owner,one.key.projectId,alice.id)).length>0);
+  await assert.rejects(developerWorkspaceEvents(owner,two.key.projectId,alice.id),{code:"SESSION_NOT_FOUND"});
+  assert.equal((await call(`/developer/workspaces/${one.key.projectId}`)).status,401);
+  assert.equal((await call(`/developer/workspaces/${one.key.projectId}`,one.secret)).status,403);
+  assert.equal((await call("/avatar-assets?workspaceId="+two.key.projectId,one.secret)).status,403);
   assert.equal((await call(`${path}/end/`, readonly.secret, { method: "POST" })).status, 403);
   assert.equal((await call("/ASSETS/images/", readonly.secret)).status, 403);
   assert.equal((await call(`${path}/connection`, readonly.secret)).status, 403);

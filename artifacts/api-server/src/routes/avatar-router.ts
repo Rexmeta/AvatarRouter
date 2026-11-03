@@ -70,7 +70,7 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   if (providerId !== "mock" || avatarId !== "mock-orbit") {
     res.status(400).json({ code: "MOCK_PROVIDER_MISMATCH", error: "Mock mode requires providerId mock and avatarId mock-orbit. Real providers are never silently simulated." }); return;
   }
-  const row = await createMockSession(res.locals.ownerHash);
+  const row = await createMockSession(res.locals.ownerHash, res.locals.tenantId);
   req.log.info({ sessionId: row.id, mode: row.mode }, "Mock session started");
   res.status(201).json(GetSessionResponse.parse(presentSession(row)));
 });

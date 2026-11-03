@@ -756,6 +756,14 @@ export interface ApiFailure {
   code: string;
 }
 
+export type GetDeveloperWorkspace200 = {
+  projectId: string;
+  projectName: string;
+  keys: DeveloperKey[];
+  sessions: Session[];
+  limits: LiveLimits;
+};
+
 export type CompareRendererDiagnosticsParams = {
 left: string;
 right: string;

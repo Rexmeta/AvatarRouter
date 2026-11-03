@@ -1,116 +1,82 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, BookOpen, Boxes, Compass, FlaskConical, ImageUp, KeyRound, ListTree, ShieldCheck } from 'lucide-react';
-import { AuthControl } from '@/components/auth-control';
-import { useGetHealth, useGetReadiness, useHealthCheck } from '@workspace/api-client-react';
-import { useI18n, type TKey } from '@/lib/i18n';
-import { Pill } from '@/components/bits';
-import { cn } from '@/lib/utils';
-
-const nav: { href: string; key: TKey; icon: typeof Compass }[] = [
-  { href: '/', key: 'nav.explore', icon: Compass },
-  { href: '/playground', key: 'nav.playground', icon: FlaskConical },
-  { href: '/avatar-assets', key: 'nav.assets', icon: ImageUp },
-  { href: '/providers', key: 'nav.providers', icon: Boxes },
-  { href: '/sessions', key: 'nav.sessions', icon: ListTree },
-  { href: '/operator/live-reconciliation', key: 'nav.reconciliation', icon: ShieldCheck },
-  { href: '/usage', key: 'nav.usage', icon: Activity },
-  { href: '/api-keys', key: 'nav.apiKeys', icon: KeyRound },
-  { href: '/docs', key: 'nav.docs', icon: BookOpen },
-];
-
-function LangToggle() {
-  const { lang, setLang } = useI18n();
-  return (
-    <div className="mono flex rounded border border-sidebar-border p-0.5 text-[11px]" role="group">
-      {(['en', 'ko'] as const).map((l) => (
-        <button
-          key={l}
-          data-testid={`button-lang-${l}`}
-          onClick={() => setLang(l)}
-          className={cn('rounded-sm px-2 py-0.5 uppercase transition', lang === l ? 'bg-sidebar-primary text-sidebar-primary-foreground' : 'opacity-60 hover:opacity-100')}
-        >
-          {l === 'en' ? 'EN' : '한'}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Diagnostics() {
-  const { t } = useI18n();
-  const hz = useHealthCheck({ query: { refetchInterval: 30000 } });
-  const h = useGetHealth({ query: { refetchInterval: 30000 } });
-  const r = useGetReadiness({ query: { refetchInterval: 30000 } });
-  return (
-    <div className="space-y-1.5 text-[11px]" data-testid="footer-diagnostics">
-      <Row label="healthz" v={hz.isError ? 'error' : hz.data?.status ?? '…'} />
-      <Row label={t('footer.api')} v={h.isError ? 'error' : h.data?.status ?? '…'} />
-      <Row label={t('footer.db')} v={r.data ? (r.data.database ? 'ok' : 'error') : r.isError ? 'error' : '…'} />
-      <Row label={t('footer.live')} v={r.data ? (r.data.liveEnabled ? 'available' : 'pending') : '…'} text={r.data ? (r.data.liveEnabled ? t('enabled') : t('disabled')) : undefined} />
-      {r.data?.message && <p className="pt-1 leading-snug opacity-50">{r.data.message}</p>}
-    </div>
-  );
-}
-
-function Row({ label, v, text }: { label: string; v: string; text?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="mono opacity-60">{label}</span>
-      {v === '…' ? <span className="opacity-40">…</span> : <Pill value={v} label={text} />}
-    </div>
-  );
-}
+import { useUser } from '@clerk/react';
+import { useListDeveloperKeys } from '@workspace/api-client-react';
+import { Activity, ArrowLeft, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AuthControl } from './auth-control';
+import { useI18n } from '@/lib/i18n';
 
 export function Shell({ children }: { children: ReactNode }) {
-  const [loc] = useLocation();
-  const { t } = useI18n();
-  return (
-    <div className="flex min-h-[100dvh] flex-col md:flex-row">
-      <aside className="sticky top-0 z-40 flex shrink-0 flex-col bg-sidebar text-sidebar-foreground md:h-[100dvh] md:w-60">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 md:block">
-          <Link href="/" className="flex items-center gap-2.5" data-testid="link-home">
-            <svg viewBox="0 0 24 24" className="h-6 w-6">
-              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeOpacity=".35" />
-              <circle cx="12" cy="12" r="5" fill="hsl(var(--sidebar-primary))" />
-              <path d="M2 12h5M17 12h5" stroke="currentColor" />
-            </svg>
-            <div className="leading-tight">
-              <div className="text-[15px] font-bold tracking-tight">AvatarRouter</div>
-              <div className="mono text-[10px] uppercase tracking-widest opacity-50">Studio</div>
-            </div>
-          </Link>
-          <div className="flex items-center gap-2 md:mt-4"><LangToggle /><AuthControl /></div>
+  const [loc, navigate] = useLocation();
+  const { user, isLoaded } = useUser();
+  const { lang, setLang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ko = lang === 'ko';
+  const t = (en: string, kr: string) => ko ? kr : en;
+  const projects = useListDeveloperKeys({ query: { enabled: isLoaded && !!user, refetchInterval: 30000 } });
+  const items = [...new Map((projects.data ?? []).map(key => [key.projectId, key])).values()];
+  const projectId = loc.match(/^\/workspaces\/([^/?]+)/)?.[1];
+  const personal = /^\/(avatar-assets|playground|sessions|usage)/.test(loc);
+  const inside = !!projectId || personal;
+  const base = projectId ? `/workspaces/${projectId}` : '';
+  const navigation = inside ? [
+    [projectId ? `${base}/activity` : '/usage', Activity, t('Activity', '활동')],
+    [projectId ? `${base}/sessions` : '/sessions', ListTree, t('Sessions & logs', '세션·로그')],
+    ...(projectId ? [[`${base}/keys`, KeyRound, t('API keys', 'API 키')]] : []),
+    [projectId ? `${base}/assets` : '/avatar-assets', ImageUp, t('Avatars & assets', '아바타·에셋')],
+    [projectId ? `${base}/limits` : '/usage', ShieldCheck, t('Usage & limits', '사용량·한도')],
+    ...(projectId ? [[`${base}/settings`, Settings, t('Settings', '설정')]] : [['/playground', FlaskConical, 'Playground']]),
+  ] : [
+    ['/workspaces', Boxes, t('Workspaces', '워크스페이스')],
+    ['/account/profile', UserRound, t('Profile & security', '프로필·보안')],
+    ['/api-keys', KeyRound, t('All API keys', '전체 API 키')],
+    ['/account/preferences', Settings, t('Preferences', '환경설정')],
+  ];
+  return <div className="ar-workspaces">
+    <header className="arw-topbar">
+      <div className="arw-top-left">
+        <Link href="/workspaces" className="arw-brand"><span className="arw-brand-mark">ar</span><span>AvatarRouter</span></Link>
+        <div className="arw-context">
+          <Link href="/workspaces" className="arw-context-button"><UserRound size={13} />{user?.firstName || t('Account', '계정')}</Link>
+          {inside && <><span className="arw-crumb-slash">/</span><select aria-label={t('Select workspace', '워크스페이스 선택')} data-testid="select-workspace" className="max-w-[230px] truncate rounded border border-border bg-card px-2 py-1 text-sm" value={projectId || 'personal'} onChange={e => { setOpen(false); navigate(e.target.value === 'personal' ? '/avatar-assets' : `/workspaces/${e.target.value}/activity`); }}>
+            <option value="personal">{t('Personal Studio', '개인 Studio')}</option>
+            {items.map(key => <option key={key.projectId} value={key.projectId}>{key.projectName}</option>)}
+            {projectId && !items.some(k=>k.projectId===projectId) && <option value={projectId}>{t('Loading workspace…', '공간 확인 중…')}</option>}
+          </select></>}
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible">
-          {nav.map(({ href, key, icon: Icon }) => {
-            const on = href === '/' ? loc === '/' : loc.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                data-testid={`link-${href.slice(1) || 'explore'}`}
-                className={cn(
-                  'group relative flex shrink-0 items-center gap-2.5 rounded px-3 py-2 text-sm transition',
-                  on ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'opacity-65 hover:bg-sidebar-accent/60 hover:opacity-100',
-                )}
-              >
-                <span className={cn('absolute left-0 top-1/2 hidden h-4 w-[3px] -translate-y-1/2 rounded-r bg-sidebar-primary transition md:block', on ? 'opacity-100' : 'opacity-0')} />
-                <Icon className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                {t(key)}
-              </Link>
-            );
-          })}
+      </div>
+      <div className="flex items-center gap-4">
+        <nav className="console-public-nav flex items-center gap-5" aria-label="Product">
+          <Link className="console-toplink" href="/providers"><Boxes size={14}/>{t('Avatars & providers','아바타·제공자')}</Link>
+          <Link className="console-toplink" href="/playground"><FlaskConical size={14}/>Playground</Link>
+          <Link className="console-toplink" href="/docs"><BookOpen size={14}/>{t('Docs','문서')}</Link>
         </nav>
-        <div className="mt-auto hidden border-t border-sidebar-border px-5 py-4 md:block">
-          <div className="mono mb-3 text-[10px] uppercase tracking-widest text-sidebar-primary">{t('phase')}</div>
-          <Diagnostics />
+        <AuthControl />
+        <button className="console-mobile rounded border p-2" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open ? <X size={17}/> : <Menu size={17}/>}</button>
+      </div>
+    </header>
+    <div className="console-layout">
+      <aside className={`arw-sidebar ${open ? 'is-open' : ''}`}>
+        {inside && <Link className="arw-back-account" href="/workspaces" onClick={()=>setOpen(false)}><ArrowLeft size={14}/>{t('Account management','계정 관리')}</Link>}
+        <div className="arw-sidebar-label">{inside ? 'WORKSPACE' : 'ACCOUNT'}</div>
+        <nav aria-label={inside ? 'Workspace' : 'Account'}>
+          {navigation.map(([href, Icon, label],i) => {
+            const Component = Icon as typeof Activity;
+            return <Link key={`${href}-${i}`} href={href as string} className="console-navlink" aria-current={loc === href || loc.startsWith(`${href}/`) ? 'page' : undefined} onClick={()=>setOpen(false)}><Component size={16}/>{label as string}</Link>;
+          })}
+          <div className="arw-sidebar-label">{t('PRODUCT','제품')}</div>
+          <Link className="console-navlink" href="/providers" onClick={()=>setOpen(false)}><Boxes size={16}/>{t('Avatars & providers','아바타·제공자')}</Link>
+          <Link className="console-navlink" href="/docs" onClick={()=>setOpen(false)}><BookOpen size={16}/>{t('Documentation','연동 문서')}</Link>
+        </nav>
+        <div className="arw-sidebar-foot flex-col items-start gap-3">
+          <button className="rounded border px-3 py-1" onClick={()=>setLang(ko ? 'en' : 'ko')}>{ko ? 'English' : '한국어'}</button>
+          <Link href="/operator/live-reconciliation" className="text-xs hover:underline">{t('Operator console · restricted','운영자 콘솔 · 권한 필요')}</Link>
         </div>
       </aside>
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-6xl px-5 py-8 md:px-10 md:py-12">{children}</div>
-        <div className="border-t px-5 py-4 md:hidden bg-sidebar text-sidebar-foreground"><Diagnostics /></div>
+      <main className="arw-main">
+        {inside && <div className="console-scope">{projectId ? t('Project workspace · its keys and assets only. Personal Studio stays separate.','프로젝트 워크스페이스 · 해당 프로젝트의 키·에셋만 표시합니다. 개인 Studio와 분리됩니다.') : t('Personal Studio · separate from integration project API keys and assets.','개인 Studio · 연동 프로젝트 API 키·에셋과 별도인 공간입니다.')}</div>}
+        <div className="console-content">{children}</div>
       </main>
     </div>
-  );
+  </div>;
 }

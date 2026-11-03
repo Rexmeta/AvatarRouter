@@ -15,6 +15,47 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
 paths:
+  /v1/developer/workspaces/{projectId}/sessions/{id}/events:
+    get:
+      operationId: getDeveloperWorkspaceEvents
+      description: Interactive project owner reads lifecycle events only. No renderer diagnostics or provider resource references.
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Project-scoped lifecycle events.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/SessionEvent" } }
+        "401": { description: Interactive sign-in required. }
+        "403": { description: Service credentials or cross-origin access rejected. }
+        "404": { description: Project or session not found. }
+  /v1/developer/workspaces/{projectId}:
+    get:
+      operationId: getDeveloperWorkspace
+      description: Interactive owner-only project overview across all project user contexts. Read-only; never changes session cleanup or billing state.
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Owned project, recent sessions (maximum 200), and admission limits. Billing is not inferred.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projectId, projectName, keys, sessions, limits]
+                properties:
+                  projectId: { type: string }
+                  projectName: { type: string }
+                  keys: { type: array, items: { $ref: "#/components/schemas/DeveloperKey" } }
+                  sessions: { type: array, items: { $ref: "#/components/schemas/Session" } }
+                  limits: { $ref: "#/components/schemas/LiveLimits" }
+        "401": { description: Interactive sign-in required. }
+        "403": { description: Integration credentials or cross-origin access rejected. }
+        "404": { description: Project not found or not owned. }
   /v1/avatar-assets/{id}/live-validation:
     post:
       operationId: reportAvatarLiveValidation

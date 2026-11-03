@@ -6,6 +6,8 @@ import { createDeveloperKey, developerOwnerHash, listDeveloperKeys, revokeDevelo
 import { SessionProblem } from "../lib/session-service";
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { integrationContract } from "../lib/integration-contract";
+import { developerWorkspace, developerWorkspaceEvents } from "../lib/developer-workspaces";
+import { GetDeveloperWorkspaceResponse, GetDeveloperWorkspaceEventsResponse } from "@workspace/api-zod";
 
 const router = Router();
 const owner: RequestHandler = (req, res, next) => {
@@ -23,6 +25,12 @@ const owner: RequestHandler = (req, res, next) => {
 router.use("/v1/developer", owner, rateLimit({ windowMs: 60_000, limit: 60, validate: { xForwardedForHeader: false }, standardHeaders: "draft-7", legacyHeaders: false }));
 router.get("/v1/developer/keys", async (_req, res) => {
   res.json(ListDeveloperKeysResponse.parse(await listDeveloperKeys(res.locals.developerOwner)));
+});
+router.get("/v1/developer/workspaces/:projectId", async (req, res): Promise<void> => {
+  res.json(GetDeveloperWorkspaceResponse.parse(await developerWorkspace(res.locals.developerOwner, String(req.params.projectId))));
+});
+router.get("/v1/developer/workspaces/:projectId/sessions/:id/events", async (req, res): Promise<void> => {
+  res.json(GetDeveloperWorkspaceEventsResponse.parse(await developerWorkspaceEvents(res.locals.developerOwner, String(req.params.projectId), String(req.params.id))));
 });
 router.post("/v1/developer/keys", async (req, res) => {
   const parsed = CreateDeveloperKeyBody.safeParse(req.body);

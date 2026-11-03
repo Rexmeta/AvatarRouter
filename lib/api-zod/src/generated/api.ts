@@ -9,6 +9,76 @@ import * as zod from 'zod';
 
 
 /**
+ * Interactive project owner reads lifecycle events only. No renderer diagnostics or provider resource references.
+ */
+export const GetDeveloperWorkspaceEventsParams = zod.object({
+  "projectId": zod.coerce.string().uuid(),
+  "id": zod.coerce.string().uuid()
+})
+
+export const GetDeveloperWorkspaceEventsResponseItem = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "message": zod.string(),
+  "createdAt": zod.string()
+})
+export const GetDeveloperWorkspaceEventsResponse = zod.array(GetDeveloperWorkspaceEventsResponseItem)
+
+
+/**
+ * Interactive owner-only project overview across all project user contexts. Read-only; never changes session cleanup or billing state.
+ */
+export const GetDeveloperWorkspaceParams = zod.object({
+  "projectId": zod.coerce.string().uuid()
+})
+
+export const GetDeveloperWorkspaceResponse = zod.object({
+  "projectId": zod.string(),
+  "projectName": zod.string(),
+  "keys": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "projectId": zod.string().uuid(),
+  "projectName": zod.string(),
+  "prefix": zod.string().describe('Public display prefix'),
+  "scopes": zod.array(zod.string()),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "lastUsedAt": zod.coerce.date().nullable(),
+  "revokedAt": zod.coerce.date().nullable()
+})),
+  "sessions": zod.array(zod.object({
+  "id": zod.string(),
+  "providerId": zod.string(),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
+  "mode": zod.enum(['mock', 'live']),
+  "status": zod.enum(['active', 'ended', 'expired', 'failed']),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "durationSeconds": zod.number(),
+  "interruptions": zod.number().int(),
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
+})),
+  "limits": zod.object({
+  "userDailySeconds": zod.number().int(),
+  "globalDailySeconds": zod.number().int(),
+  "userRemainingSeconds": zod.number().int(),
+  "globalRemainingSeconds": zod.number().int(),
+  "sessionSeconds": zod.number().int(),
+  "cleanupPending": zod.number().int(),
+  "workerReady": zod.boolean(),
+  "providerCredits": zod.enum(['unknown']),
+  "resetsAt": zod.string()
+})
+})
+
+
+/**
  * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
  */
 export const ReportAvatarLiveValidationParams = zod.object({

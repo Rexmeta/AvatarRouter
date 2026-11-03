@@ -16,6 +16,9 @@ import Docs from '@/pages/docs';
 import AvatarAssets from '@/pages/avatar-assets';
 import ApiKeys from '@/pages/api-keys';
 import LiveReconciliation from '@/pages/live-reconciliation';
+import Workspaces from '@/pages/workspaces';
+import Workspace from '@/pages/workspace';
+import Account from '@/pages/account';
 import { setSelectedAsset } from '@/lib/selected-asset';
 import { Shell } from '@/components/shell';
 import { I18nProvider, useI18n } from '@/lib/i18n';
@@ -146,7 +149,7 @@ function HomeRedirect() {
   return (
     <>
       <Show when="signed-in">
-        <Redirect to="/avatar-assets" />
+        <Redirect to="/workspaces" />
       </Show>
       <Show when="signed-out">
         <Home />
@@ -185,6 +188,11 @@ function ShellRoutes() {
       <RoutedErrorBoundary>
         <Switch>
           <Route path="/" component={HomeRedirect} />
+          <Route path="/workspaces" component={Workspaces} />
+          <Route path="/workspaces/:projectId/:section/:id" component={Workspace} />
+          <Route path="/workspaces/:projectId/:section" component={Workspace} />
+          <Route path="/workspaces/:projectId" component={Workspace} />
+          <Route path="/account/:section" component={Account} />
           <Route path="/avatar-assets" component={AvatarAssets} />
           <Route path="/avatar-assets/:id" component={AvatarAssets} />
           <Route path="/playground" component={Playground} />
@@ -192,7 +200,7 @@ function ShellRoutes() {
           <Route path="/sessions" component={Sessions} />
           <Route path="/operator/live-reconciliation" component={LiveReconciliation} />
           <Route path="/usage" component={Usage} />
-          <Route path="/api-keys" component={ApiKeys} />
+          <Route path="/api-keys"><ApiKeys /></Route>
           <Route path="/docs" component={Docs} />
           <Route component={NotFound} />
         </Switch>

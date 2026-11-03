@@ -4,11 +4,14 @@ import type { RequestHandler } from "express";
 import { SessionProblem } from "../lib/session-service";
 import { integrationIdentity } from "../lib/integration-identity";
 import { assertSameOriginForBridgeRequest, requiredRoleplayxScope } from "./session-owner";
+import { projectTenant, requireOwnedProject } from "../lib/developer-workspaces";
 
 // Personal, isolated tenants for now. No client-supplied tenant identifiers.
-export const assetTenant: RequestHandler = (req, res, next) => {
+export const assetTenant: RequestHandler = async (req, res, next) => {
+  const requestedProject = req.get("x-avatar-workspace-id") ?? req.query.workspaceId;
   const roleplayxIdentity = integrationIdentity(res);
   if (roleplayxIdentity) {
+    if (requestedProject !== undefined) throw new SessionProblem(403, "WORKSPACE_CONTEXT_REJECTED", "Integration credentials cannot select another workspace.");
     assertSameOriginForBridgeRequest(req);
     if (req.get("sec-fetch-site") === "cross-site") {
       throw new SessionProblem(403, "ORIGIN_REJECTED", "Cross-site requests are not allowed.");
@@ -28,6 +31,16 @@ export const assetTenant: RequestHandler = (req, res, next) => {
 
   const { userId } = getAuth(req);
   if (!userId) throw new SessionProblem(401, "AUTHENTICATION_REQUIRED", "Sign in to manage private image and avatar assets.");
+  if (requestedProject !== undefined) {
+    assertSameOriginForBridgeRequest(req);
+    if (req.get("sec-fetch-site") === "cross-site") throw new SessionProblem(403, "ORIGIN_REJECTED", "Cross-site workspace access rejected.");
+    if (typeof requestedProject !== "string") throw new SessionProblem(404, "WORKSPACE_NOT_FOUND", "Workspace not found.");
+    await requireOwnedProject(userId, requestedProject);
+    res.locals.tenantId = projectTenant(requestedProject);
+    res.set("Cache-Control", "private, no-store");
+    next();
+    return;
+  }
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     const origin = req.get("origin");
     const host = req.get("x-forwarded-host")?.split(",")[0]?.trim() ?? req.get("host");

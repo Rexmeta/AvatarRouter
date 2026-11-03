@@ -30,6 +30,7 @@ export * from './avatarPlaybackReport';
 export * from './compareRendererDiagnosticsParams';
 export * from './createDeveloperKeyInput';
 export * from './developerKey';
+export * from './getDeveloperWorkspace200';
 export * from './healthStatus';
 export * from './imageAsset';
 export * from './imageAssetConsentStatus';
