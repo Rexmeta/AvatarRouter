@@ -8,6 +8,7 @@ import AvatarAssets from './avatar-assets';
 import { WorkspaceAssetContext } from '@/lib/workspace-assets';
 import { useI18n } from '@/lib/i18n';
 import { useState } from 'react';
+import { LiveAdmissionNotice } from '@/components/live-admission-notice';
 
 function SessionEvents({ projectId, id }: {projectId:string;id:string}) {
   const [open,setOpen] = useState(false);
@@ -28,11 +29,12 @@ export default function Workspace() {
   if (q.isError || !q.data) return <div><PageHead index="WORKSPACE" title={t('Workspace unavailable','워크스페이스에 접근할 수 없습니다')} lede={t('The project may not exist or may belong to another account. No project data is shown.','존재하지 않거나 다른 계정 소유인 프로젝트일 수 있습니다. 프로젝트 데이터는 표시하지 않습니다.')}/><ErrorState onRetry={()=>q.refetch()}/><Link href="/workspaces" className="arw-button mt-5">{t('Back to account','계정으로 돌아가기')}</Link></div>;
   const w = q.data;
   const base = `/workspaces/${projectId}`;
-  if (section === 'keys') return <ApiKeys key={projectId} projectId={projectId}/>;
-  if (section === 'assets') return <WorkspaceAssetContext.Provider value={projectId}><AvatarAssets key={projectId}/></WorkspaceAssetContext.Provider>;
+  if (section === 'keys') return <><LiveAdmissionNotice limits={w.limits}/><ApiKeys key={projectId} projectId={projectId}/></>;
+  if (section === 'assets') return <WorkspaceAssetContext.Provider value={projectId}><LiveAdmissionNotice limits={w.limits}/><AvatarAssets key={projectId}/></WorkspaceAssetContext.Provider>;
   const pending = w.limits.cleanupPending;
   return <div>
     <PageHead index={`WORKSPACE / ${section.toUpperCase()}`} title={section === 'settings' ? t('Workspace settings','워크스페이스 설정') : section === 'limits' ? t('Usage & limits','사용량·한도') : section === 'sessions' ? t('Sessions & logs','세션·로그') : w.projectName} lede={`${w.projectName} · ${projectId}`}/>
+    {!pending && <LiveAdmissionNotice limits={w.limits}/>}
     {!!pending && <div role="alert" className="console-note console-warning flex items-start gap-3"><AlertTriangle size={18} className="shrink-0"/><div><strong>{t('Previous session cleanup needs confirmation','이전 세션의 생성·종료 결과 확인이 필요합니다')}</strong><p className="mt-2">{t(`${pending} unresolved session(s). An operator must verify cleanup. Viewing this screen or refreshing does not clear the paid-start block.`,`${pending}개 세션이 미확인 상태입니다. 운영자의 확인·정리가 필요하며, 화면 새로고침이나 설정 변경으로 유료 연결 차단이 해제되지 않습니다.`)}</p><span className="mono text-xs">avatar_provider_cleanup_required</span></div></div>}
     {section === 'settings' ? <Panel className="p-5"><dl className="space-y-5 text-sm"><div><dt className="eyebrow">{t('Workspace name','워크스페이스 이름')}</dt><dd className="mt-2">{w.projectName}</dd></div><div><dt className="eyebrow">Project ID</dt><dd className="mono mt-2 break-all">{w.projectId}</dd></div><div><dt className="eyebrow">{t('Access boundary','접근 범위')}</dt><dd className="mt-2">{t('Interactive project owner only. No member sharing or operator grants are implied.','로그인한 프로젝트 소유자만 관리합니다. 멤버 공유나 운영자 권한 부여 기능은 제공하지 않습니다.')}</dd></div></dl><Link className="arw-button mt-6" href={`${base}/keys`}>{t('Manage keys & permissions','키·권한 관리')}<ArrowRight size={14}/></Link><p className="mt-4 text-xs text-muted-foreground">{t('Project rename and deletion are not currently supported. Revoking a key does not terminate existing provider sessions.','프로젝트 이름 변경·삭제는 현재 지원하지 않습니다. 키 폐기는 기존 제공자 세션의 종료를 의미하지 않습니다.')}</p></Panel> : section === 'limits' ? <>
       <Panel className="p-5"><h2 className="mb-5 font-semibold">{t('Daily live admission budget','일일 라이브 연결 허용 시간')}</h2><dl className="grid gap-5 sm:grid-cols-3">

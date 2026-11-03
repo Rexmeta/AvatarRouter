@@ -7,6 +7,6 @@
  */
 
 export type CompareRendererDiagnosticsParams = {
-left: string;
-right: string;
+  left: string;
+  right: string;
 };

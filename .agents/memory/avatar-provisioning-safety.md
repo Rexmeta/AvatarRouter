@@ -36,3 +36,9 @@ Treat diagnostic collection as best-effort evidence, never as the authority for 
 **Why:** Operational comparison must remain useful even when collection drops records or a worker crashes, without turning incomplete observations into permission for another billable creation.
 
 **How to apply:** Keep the comparison read-only, show uncertainty explicitly, and preserve independent provider-cleanup and browser-validation requirements.
+
+Live admission preflight must reflect the same service-wide safety fence as creation; a project's zero cleanup count is not proof that the service can create another session.
+
+**Why:** A RoleplayX project could authenticate and report its own cleanup count as zero while an older uncertain creation in another project blocked all new paid sessions. This made otherwise healthy clients appear broken.
+
+**How to apply:** Keep project cleanup counts project-scoped, expose only safe aggregate admission reasons, and never leak another project's session/provider references. Recheck under the creation lock; preflight is not a reservation or evidence of video playback.

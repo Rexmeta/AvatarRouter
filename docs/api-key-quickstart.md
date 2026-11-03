@@ -95,6 +95,30 @@ Choose only needed scopes. A read-only key cannot create/stop sessions or write 
 
 ## 6. Provided avatar test
 
+### Read-only readiness before a paid request
+
+Servers advertising `integration.features: ["…", "live_admission_preflight"]`
+return `creationAllowed` and `blockingReasons` from `/live-limits`. Require
+`creationAllowed === true` before enabling a live-test/start button. This is
+preflight, not a reservation or proof of playback; the start endpoint atomically
+rechecks capacity and may still reject a race.
+
+`workerReady: true` and `cleanupPending: 0` alone are **not** sufficient.
+`cleanupPending` counts only this project's sessions, while unresolved creation
+elsewhere can block the whole service. `LIVE_CLEANUP_REQUIRED` requires trusted
+operator reconciliation; never rotate a key, create another workspace, clear
+client flags or automatically create another paid session to bypass it.
+
+Other safe reason codes distinguish missing server configuration, a stopped worker,
+service capacity, project/service daily budgets and the hourly attempt quota.
+No other project's IDs, provider references or operator records are returned.
+Keep the existing RoleplayX login and show the blocker instead of an indefinite
+spinner or silent image fallback. Continue allowing authorized read-only status
+checks and ending existing sessions.
+
+If the feature/field is missing, show that readiness is not fully known; do not
+claim the old server is ready merely because authentication succeeded.
+
 First read `/live-limits` and confirm `workerReady`, no cleanup warning, and at least 120 remaining project/global seconds.
 
 The validated stock selection is `providerId: "tavus"`, `avatarId: "tavus-stock-lucy"`. Paid live creation requires explicit operator cost consent and `costConfirmed: true`:

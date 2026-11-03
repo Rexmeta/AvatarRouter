@@ -548,6 +548,10 @@ export const LiveLimitsProviderCredits = {
 } as const;
 
 export interface LiveLimits {
+  /** Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field. */
+  creationAllowed?: boolean;
+  /** Safe admission reason codes. No other project's identifiers, resource references, or reconciliation records. */
+  blockingReasons?: string[];
   userDailySeconds: number;
   globalDailySeconds: number;
   userRemainingSeconds: number;
@@ -765,7 +769,7 @@ export type GetDeveloperWorkspace200 = {
 };
 
 export type CompareRendererDiagnosticsParams = {
-left: string;
-right: string;
+  left: string;
+  right: string;
 };
 

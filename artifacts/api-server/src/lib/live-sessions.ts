@@ -6,6 +6,7 @@ import { requireLiveAsset } from "./asset-live-policy";
 import { getOwnedSession, SessionProblem } from "./session-service";
 import { STOCK_AVATAR, stockConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
 import { saveRendererAudio } from "./private-images";
+import { liveCapacityFence, liveReadiness } from "./live-admission";
 
 export { LIVE_SESSION_MS } from "./stock-policy";
 
@@ -21,7 +22,27 @@ export async function liveLimits(tenant: string) {
       (${avatarSessions.status} = 'active' and (${avatarSessions.expiresAt} <= now() or (${avatarSessions.workerId} is not null and ${avatarSessions.leaseExpiresAt} <= now()))))`,
   ));
   const [worker] = await db.select({ id: rendererWorkers.id }).from(rendererWorkers).where(sql`${rendererWorkers.heartbeatAt} > now() - interval '10 seconds'`).limit(1);
+  const [capacity] = await db.select({
+    blocked: sql<number>`count(*)::int`,
+    cleanup: sql<number>`count(*) filter (where
+      ${avatarSessions.status} <> 'active' or ${avatarSessions.expiresAt} <= now()
+      or ${avatarSessions.rendererState} in ('cleanup_pending', 'reconciliation_required', 'stopping')
+      or ${avatarSessions.providerCreateState} = 'unknown'
+      or ${avatarSessions.error} in ('LIVE_CREATE_RECONCILIATION_REQUIRED', 'LIVE_CLEANUP_PENDING')
+      or (${avatarSessions.workerId} is not null and ${avatarSessions.leaseExpiresAt} <= now())
+    )::int`,
+  }).from(avatarSessions).where(liveCapacityFence());
+  const [recent] = await db.select({count:sql<number>`count(*)::int`}).from(avatarSessions).where(and(
+    eq(avatarSessions.mode,"live"),eq(avatarSessions.tenantId,tenant),sql`${avatarSessions.startedAt} > now() - interval '1 hour'`,
+  ));
+  const readiness = liveReadiness({
+    configured: stockConfigured(), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
+    userRemainingSeconds: Math.max(0, limits.user - usage!.user),
+    globalRemainingSeconds: Math.max(0, limits.global - usage!.global), cleanupPending: pending!.count,
+    serviceBusy: capacity!.blocked > 0, serviceCleanupRequired: capacity!.cleanup > 0, recentAttempts: recent!.count,
+  });
   return {
+    ...readiness,
     userDailySeconds: limits.user, globalDailySeconds: limits.global,
     userRemainingSeconds: Math.max(0, limits.user - usage!.user),
     globalRemainingSeconds: Math.max(0, limits.global - usage!.global),
@@ -53,11 +74,8 @@ export async function createStockSession(owner: string, tenant: string, costConf
     if (!limits.workerReady) throw new SessionProblem(503, "LIVE_WORKER_UNAVAILABLE", "The renderer worker is unavailable. No paid session was requested.");
     if (limits.userRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "Your daily live time budget is exhausted. It resets at 00:00 UTC.");
     if (limits.globalRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_GLOBAL_DAILY_BUDGET", "The service daily live time budget is exhausted. It resets at 00:00 UTC.");
-    const [active] = await tx.select({ id: avatarSessions.id }).from(avatarSessions).where(and(
-      eq(avatarSessions.mode, "live"),
-      sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null or ${avatarSessions.error} = 'LIVE_CREATE_RECONCILIATION_REQUIRED')`,
-    )).limit(1);
-    if (active) throw new SessionProblem(409, "LIVE_CAPACITY_REACHED", "A live session is running or cleanup is unconfirmed. Ambiguous paid creation needs operator reconciliation; do not retry it.");
+    const [active] = await tx.select({ id: avatarSessions.id }).from(avatarSessions).where(liveCapacityFence()).limit(1);
+    if (active) throw new SessionProblem(409, "LIVE_CAPACITY_REACHED", "Service-wide live capacity is blocked by a running or unconfirmed session, possibly outside this project. Check live-limits.creationAllowed and blockingReasons. An operator must reconcile uncertain creation; do not automatically retry or replace your API key.");
     const [quota] = await tx.select({ count: sql<number>`count(*)::int` }).from(avatarSessions).where(and(
       eq(avatarSessions.mode, "live"), eq(avatarSessions.tenantId, tenant), sql`${avatarSessions.startedAt} > now() - interval '1 hour'`,
     ));

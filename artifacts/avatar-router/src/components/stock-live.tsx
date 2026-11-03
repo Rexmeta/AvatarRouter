@@ -13,6 +13,7 @@ import {
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg, fmtSec } from '@/components/bits';
 import { cn } from '@/lib/utils';
+import { LiveAdmissionNotice } from '@/components/live-admission-notice';
 
 const KEY = 'ar-stock-session';
 const STOCK_ID = 'tavus-stock-lucy';
@@ -382,6 +383,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
               </div>}
               {s?.error === 'LIVE_QUOTA_OR_PLAN_REQUIRED' && <p className="text-sm text-destructive" role="alert">{L('Provider rejected usage. Check remaining credits and plan entitlement in Tavus/LiveKit. No paid retry was made.', '공급자가 사용을 거절했습니다. Tavus/LiveKit 잔여 크레딧과 요금제 권한을 확인하세요. 유료 재시도는 하지 않았습니다.')}</p>}
 
+              {!active && <LiveAdmissionNotice limits={limits.data}/>}
               {!active && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
                   <input type="checkbox" data-testid="checkbox-stock-ack" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
@@ -397,7 +399,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
 
               <div className="flex flex-wrap gap-2">
                 {!active ? (
-                  <button data-testid="button-stock-start" disabled={!supported || !ack || create.isPending || !limits.data?.workerReady || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
+                  <button data-testid="button-stock-start" disabled={!supported || !ack || create.isPending || !limits.data?.workerReady || limits.data.creationAllowed === false || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
                     <Play className="h-4 w-4" /> {create.isPending ? L('Starting…', '시작 중…') : asset ? L('Start selected avatar', '선택한 아바타 시작') : L('Start Lucy live', 'Lucy 라이브 시작')}
                   </button>

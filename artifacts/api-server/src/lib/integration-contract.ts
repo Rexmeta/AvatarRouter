@@ -5,7 +5,7 @@
 export function integrationContract() {
   return {
     apiVersion: "0.5.0",
-    features: ["project_api_key", "owned_avatar_assets", "custom_live_validation", "client_playback_report"],
+    features: ["project_api_key", "owned_avatar_assets", "custom_live_validation", "client_playback_report", "live_admission_preflight"],
     customLiveProviders: ["tavus"],
     assetNamespace: "project" as const,
     stockAvatarId: "tavus-stock-lucy",

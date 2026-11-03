@@ -893,6 +893,13 @@ components:
       type: object
       required: [userDailySeconds, globalDailySeconds, userRemainingSeconds, globalRemainingSeconds, sessionSeconds, cleanupPending, workerReady, providerCredits, resetsAt]
       properties:
+        creationAllowed:
+          type: boolean
+          description: Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.
+        blockingReasons:
+          type: array
+          description: Safe admission reason codes. No other project's identifiers, resource references, or reconciliation records.
+          items: { type: string }
         userDailySeconds: { type: integer }
         globalDailySeconds: { type: integer }
         userRemainingSeconds: { type: integer }

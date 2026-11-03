@@ -12,8 +12,8 @@ import * as zod from 'zod';
  * Interactive project owner reads lifecycle events only. No renderer diagnostics or provider resource references.
  */
 export const GetDeveloperWorkspaceEventsParams = zod.object({
-  "projectId": zod.coerce.string().uuid(),
-  "id": zod.coerce.string().uuid()
+  "projectId": zod.uuid(),
+  "id": zod.uuid()
 })
 
 export const GetDeveloperWorkspaceEventsResponseItem = zod.object({
@@ -29,15 +29,15 @@ export const GetDeveloperWorkspaceEventsResponse = zod.array(GetDeveloperWorkspa
  * Interactive owner-only project overview across all project user contexts. Read-only; never changes session cleanup or billing state.
  */
 export const GetDeveloperWorkspaceParams = zod.object({
-  "projectId": zod.coerce.string().uuid()
+  "projectId": zod.uuid()
 })
 
 export const GetDeveloperWorkspaceResponse = zod.object({
   "projectId": zod.string(),
   "projectName": zod.string(),
   "keys": zod.array(zod.object({
-  "id": zod.string().uuid(),
-  "projectId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "projectId": zod.uuid(),
   "projectName": zod.string(),
   "prefix": zod.string().describe('Public display prefix'),
   "scopes": zod.array(zod.string()),
@@ -58,19 +58,21 @@ export const GetDeveloperWorkspaceResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
 })),
   "limits": zod.object({
-  "userDailySeconds": zod.number().int(),
-  "globalDailySeconds": zod.number().int(),
-  "userRemainingSeconds": zod.number().int(),
-  "globalRemainingSeconds": zod.number().int(),
-  "sessionSeconds": zod.number().int(),
-  "cleanupPending": zod.number().int(),
+  "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
+  "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
+  "userDailySeconds": zod.int(),
+  "globalDailySeconds": zod.int(),
+  "userRemainingSeconds": zod.int(),
+  "globalRemainingSeconds": zod.int(),
+  "sessionSeconds": zod.int(),
+  "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
   "resetsAt": zod.string()
@@ -82,11 +84,11 @@ export const GetDeveloperWorkspaceResponse = zod.object({
  * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
  */
 export const ReportAvatarLiveValidationParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const ReportAvatarLiveValidationBody = zod.object({
-  "sessionId": zod.string().uuid(),
+  "sessionId": zod.uuid(),
   "videoObserved": zod.boolean(),
   "audioObserved": zod.boolean()
 })
@@ -123,8 +125,8 @@ export const ReportAvatarLiveValidationResponse = zod.object({
 
 
 export const ListDeveloperKeysResponseItem = zod.object({
-  "id": zod.string().uuid(),
-  "projectId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "projectId": zod.uuid(),
   "projectName": zod.string(),
   "prefix": zod.string().describe('Public display prefix'),
   "scopes": zod.array(zod.string()),
@@ -148,13 +150,13 @@ export const createDeveloperKeyBodyExpiresInDaysMax = 365;
 export const CreateDeveloperKeyBody = zod.object({
   "projectName": zod.string().min(1).max(createDeveloperKeyBodyProjectNameMax),
   "scopes": zod.array(zod.string()).min(1).max(createDeveloperKeyBodyScopesMax),
-  "expiresInDays": zod.number().int().min(1).max(createDeveloperKeyBodyExpiresInDaysMax).default(createDeveloperKeyBodyExpiresInDaysDefault)
+  "expiresInDays": zod.int().min(1).max(createDeveloperKeyBodyExpiresInDaysMax).default(createDeveloperKeyBodyExpiresInDaysDefault)
 })
 
 export const CreateDeveloperKeyResponse = zod.object({
   "key": zod.object({
-  "id": zod.string().uuid(),
-  "projectId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "projectId": zod.uuid(),
   "projectName": zod.string(),
   "prefix": zod.string().describe('Public display prefix'),
   "scopes": zod.array(zod.string()),
@@ -168,13 +170,13 @@ export const CreateDeveloperKeyResponse = zod.object({
 
 
 export const RotateDeveloperKeyParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const RotateDeveloperKeyResponse = zod.object({
   "key": zod.object({
-  "id": zod.string().uuid(),
-  "projectId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "projectId": zod.uuid(),
   "projectName": zod.string(),
   "prefix": zod.string().describe('Public display prefix'),
   "scopes": zod.array(zod.string()),
@@ -191,7 +193,7 @@ export const RotateDeveloperKeyResponse = zod.object({
  * Interactive owner only. Replaces scopes on an active key while preserving its secret, project, expiry and existing assets. No provider calls or session creation.
  */
 export const UpdateDeveloperKeyScopesParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const updateDeveloperKeyScopesBodyScopesMax = 9;
@@ -203,8 +205,8 @@ export const UpdateDeveloperKeyScopesBody = zod.object({
 })
 
 export const UpdateDeveloperKeyScopesResponse = zod.object({
-  "id": zod.string().uuid(),
-  "projectId": zod.string().uuid(),
+  "id": zod.uuid(),
+  "projectId": zod.uuid(),
   "projectName": zod.string(),
   "prefix": zod.string().describe('Public display prefix'),
   "scopes": zod.array(zod.string()),
@@ -216,7 +218,7 @@ export const UpdateDeveloperKeyScopesResponse = zod.object({
 
 
 export const RevokeDeveloperKeyParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const RevokeDeveloperKeyResponse = zod.void()
@@ -266,10 +268,10 @@ export const ListImageAssetsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "contentHash": zod.string(),
-  "width": zod.number().int(),
-  "height": zod.number().int(),
-  "byteLength": zod.number().int(),
-  "version": zod.number().int(),
+  "width": zod.int(),
+  "height": zod.int(),
+  "byteLength": zod.int(),
+  "version": zod.int(),
   "previousVersionId": zod.string().nullable(),
   "likeness": zod.enum(['synthetic', 'real_person']),
   "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
@@ -295,7 +297,7 @@ export const IngestImageBody = zod.object({
   "name": zod.string().min(1).max(ingestImageBodyNameMax),
   "imageBase64": zod.string().max(ingestImageBodyImageBase64Max).optional().describe('Plain base64, not a data URL. Transport only; never stored in the database.'),
   "sourceUrl": zod.string().max(ingestImageBodySourceUrlMax).optional().describe('HTTPS URL on an operator allowlisted hostname. Exactly one source required.'),
-  "previousVersionId": zod.string().uuid().optional(),
+  "previousVersionId": zod.uuid().optional(),
   "rightsConfirmed": zod.boolean(),
   "likeness": zod.enum(['synthetic', 'real_person']),
   "consentReference": zod.string().max(ingestImageBodyConsentReferenceMax).optional().describe('Application consent evidence reference, not a claim of independently verified identity.')
@@ -305,10 +307,10 @@ export const IngestImageResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "contentHash": zod.string(),
-  "width": zod.number().int(),
-  "height": zod.number().int(),
-  "byteLength": zod.number().int(),
-  "version": zod.number().int(),
+  "width": zod.int(),
+  "height": zod.int(),
+  "byteLength": zod.int(),
+  "version": zod.int(),
   "previousVersionId": zod.string().nullable(),
   "likeness": zod.enum(['synthetic', 'real_person']),
   "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
@@ -320,7 +322,7 @@ export const IngestImageResponse = zod.object({
  * Requires assets:write on a project API key or delegation JWT, or a Clerk login.
  */
 export const DeleteImageAssetParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const DeleteImageAssetResponse = zod.void()
@@ -330,7 +332,7 @@ export const DeleteImageAssetResponse = zod.void()
  * Requires assets:read on a project API key or delegation JWT, or a Clerk login; never emits a public object URL.
  */
 export const GetImageContentParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const GetImageContentResponse = zod.unknown()
@@ -379,7 +381,7 @@ export const provisionAvatarBodyVoiceNameRegExp = new RegExp('^[a-zA-Z0-9_-]{1,5
 
 
 export const ProvisionAvatarBody = zod.object({
-  "imageAssetId": zod.string().uuid(),
+  "imageAssetId": zod.uuid(),
   "providerId": zod.enum(['anam', 'tavus', 'lemonslice', 'simli']),
   "voiceName": zod.string().regex(provisionAvatarBodyVoiceNameRegExp).default(provisionAvatarBodyVoiceNameDefault),
   "costConfirmed": zod.boolean().describe('Explicit confirmation of potential provider training charges')
@@ -420,7 +422,7 @@ export const ProvisionAvatarResponse = zod.object({
  * Requires assets:read on a project API key or delegation JWT, or a Clerk login.
  */
 export const GetAvatarAssetParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const GetAvatarAssetResponse = zod.object({
@@ -458,7 +460,7 @@ export const GetAvatarAssetResponse = zod.object({
  * Requires assets:write on a project API key or delegation JWT, or a Clerk login.
  */
 export const DeleteAvatarAssetParams = zod.object({
-  "id": zod.coerce.string().uuid()
+  "id": zod.uuid()
 })
 
 export const DeleteAvatarAssetResponse = zod.object({
@@ -539,12 +541,14 @@ export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
 
 export const GetLiveLimitsResponse = zod.object({
-  "userDailySeconds": zod.number().int(),
-  "globalDailySeconds": zod.number().int(),
-  "userRemainingSeconds": zod.number().int(),
-  "globalRemainingSeconds": zod.number().int(),
-  "sessionSeconds": zod.number().int(),
-  "cleanupPending": zod.number().int(),
+  "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
+  "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
+  "userDailySeconds": zod.int(),
+  "globalDailySeconds": zod.int(),
+  "userRemainingSeconds": zod.int(),
+  "globalRemainingSeconds": zod.int(),
+  "sessionSeconds": zod.int(),
+  "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
   "resetsAt": zod.string()
@@ -563,7 +567,7 @@ export const ListSessionsResponseItem = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
@@ -583,7 +587,7 @@ export const createSessionBodyCostConfirmedDefault = false;
 export const CreateSessionBody = zod.object({
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
-  "avatarAssetId": zod.string().uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),
+  "avatarAssetId": zod.uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),
   "purpose": zod.enum(['conversation', 'validation']).default(createSessionBodyPurposeDefault).describe('Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID.'),
   "costConfirmed": zod.boolean().default(createSessionBodyCostConfirmedDefault).describe('Required for every live session including validation. Provider/LiveKit usage may consume credits.'),
   "mode": zod.enum(['mock', 'live'])
@@ -601,7 +605,7 @@ export const CreateSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
@@ -625,8 +629,8 @@ export const ListRendererDiagnosticSessionsResponse = zod.array(ListRendererDiag
  * @summary Compare safe persisted renderer evidence; never creates or unblocks a session
  */
 export const CompareRendererDiagnosticsQueryParams = zod.object({
-  "left": zod.coerce.string().uuid(),
-  "right": zod.coerce.string().uuid()
+  "left": zod.uuid(),
+  "right": zod.uuid()
 })
 
 export const CompareRendererDiagnosticsResponseItem = zod.object({
@@ -637,9 +641,9 @@ export const CompareRendererDiagnosticsResponseItem = zod.object({
   "rendererState": zod.string()
 }),
   "observedAt": zod.coerce.date(),
-  "retentionDays": zod.number().int(),
-  "recordCount": zod.number().int(),
-  "invalidRecordCount": zod.number().int(),
+  "retentionDays": zod.int(),
+  "recordCount": zod.int(),
+  "invalidRecordCount": zod.int(),
   "recordsTruncated": zod.boolean(),
   "browserPlayback": zod.enum(['not_verified_by_renderer']),
   "attempts": zod.array(zod.object({
@@ -652,26 +656,26 @@ export const CompareRendererDiagnosticsResponseItem = zod.object({
   "stageRunId": zod.string(),
   "outcome": zod.enum(['success', 'failure', 'incomplete']),
   "beginMissing": zod.boolean(),
-  "elapsedMs": zod.number().int(),
-  "durationMs": zod.number().int().nullable(),
+  "elapsedMs": zod.int(),
+  "durationMs": zod.int().nullable(),
   "errorClass": zod.string().optional(),
-  "httpStatus": zod.number().int().optional(),
+  "httpStatus": zod.int().optional(),
   "transportCode": zod.string().optional()
 })),
   "signals": zod.array(zod.object({
   "event": zod.string(),
-  "elapsedMs": zod.number().int(),
+  "elapsedMs": zod.int(),
   "reason": zod.string().optional(),
   "activeStages": zod.array(zod.string()).optional(),
   "creationAllowed": zod.boolean().optional(),
-  "queueWaitMs": zod.number().int().optional(),
-  "ttlRemainingMs": zod.number().int().optional(),
-  "leaseMs": zod.number().int().optional(),
+  "queueWaitMs": zod.int().optional(),
+  "ttlRemainingMs": zod.int().optional(),
+  "leaseMs": zod.int().optional(),
   "providerEnded": zod.boolean().optional(),
   "roomDeleted": zod.boolean().optional(),
   "creationUnknown": zod.boolean().optional(),
   "errorClass": zod.string().optional(),
-  "httpStatus": zod.number().int().optional(),
+  "httpStatus": zod.int().optional(),
   "transportCode": zod.string().optional()
 }))
 }))
@@ -692,7 +696,7 @@ export const ListLiveReconciliationResponse = zod.object({
   "providerCreateState": zod.string()
 })),
   "recentAudit": zod.array(zod.object({
-  "id": zod.string().uuid(),
+  "id": zod.uuid(),
   "sessionId": zod.string(),
   "operatorUserId": zod.string(),
   "action": zod.enum(['conversation_id_attached']),
@@ -750,7 +754,7 @@ export const GetSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
@@ -812,7 +816,7 @@ export const EndSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
@@ -839,7 +843,7 @@ export const InterruptSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
-  "interruptions": zod.number().int(),
+  "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
@@ -861,11 +865,11 @@ export const ListSessionEventsResponse = zod.array(ListSessionEventsResponseItem
 
 
 export const GetUsageResponse = zod.object({
-  "totalSessions": zod.number().int(),
-  "activeSessions": zod.number().int(),
+  "totalSessions": zod.int(),
+  "activeSessions": zod.int(),
   "durationSeconds": zod.number(),
-  "errors": zod.number().int(),
-  "mockSessions": zod.number().int(),
+  "errors": zod.int(),
+  "mockSessions": zod.int(),
   "estimatedCost": zod.number().nullable(),
   "confirmedCost": zod.number().nullable(),
   "billableSeconds": zod.number().nullable()
