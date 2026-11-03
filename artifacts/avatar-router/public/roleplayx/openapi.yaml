@@ -15,6 +15,71 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       The existing RoleplayX dialogue engine remains the owner of prompts, speech and transcripts.
 paths:
+  /v1/developer/workspaces/{projectId}/live-check:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getWorkspaceLiveCheck
+      security: [{ ClerkSessionJWT: [] }]
+      description: Recover the latest project-owner diagnostic without creating or retrying paid work. Cleanup is independent of session status.
+      responses:
+        "200":
+          description: Latest diagnostic and current service-wide admission readiness.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceLiveCheck" }
+    post:
+      operationId: startWorkspaceLiveCheck
+      security: [{ ClerkSessionJWT: [] }]
+      description: Explicitly consented single stock session in the project namespace. Never retry an ambiguous POST; recover with GET.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceLiveConsent" }
+      responses:
+        "201":
+          description: Queued diagnostic, not proof of playback.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceLiveCheck" }
+  /v1/developer/workspaces/{projectId}/live-check/{id}/connection:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getWorkspaceLiveConnection
+      security: [{ ClerkSessionJWT: [] }]
+      responses:
+        "200":
+          description: Short-lived subscribe-only room token. No server or provider keys.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveConnection" }
+  /v1/developer/workspaces/{projectId}/live-check/{id}/audio:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: sendWorkspaceLiveSample
+      security: [{ ClerkSessionJWT: [] }]
+      description: Send a one-second synthetic PCM tone once. The durable attempt marker prevents replay after timeout or reload.
+      responses:
+        "204": { description: "Renderer command completed, not browser audio evidence." }
+  /v1/developer/workspaces/{projectId}/live-check/{id}/end:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: endWorkspaceLiveCheck
+      security: [{ ClerkSessionJWT: [] }]
+      description: Idempotent stop request. Poll GET until cleanupConfirmed; never infer cleanup from HTTP success.
+      responses:
+        "200":
+          description: Session after requesting stop.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
   /v1/developer/workspaces/{projectId}/sessions/{id}/events:
     get:
       operationId: getDeveloperWorkspaceEvents
@@ -1047,6 +1112,24 @@ components:
       required: [accepted]
       properties:
         accepted: { type: boolean }
+    WorkspaceLiveConsent:
+      type: object
+      additionalProperties: false
+      required: [costConfirmed, maxSeconds]
+      properties:
+        costConfirmed: { type: boolean, enum: [true] }
+        maxSeconds: { type: integer, enum: [120] }
+    WorkspaceLiveCheck:
+      type: object
+      required: [session, cleanupConfirmed, sampleAttempted, limits]
+      properties:
+        session:
+          oneOf:
+            - { $ref: "#/components/schemas/Session" }
+            - { type: "null" }
+        cleanupConfirmed: { type: boolean }
+        sampleAttempted: { type: boolean }
+        limits: { $ref: "#/components/schemas/LiveLimits" }
     SessionEvent:
       type: object
       required: [id, type, message, createdAt]

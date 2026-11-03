@@ -721,6 +721,25 @@ export interface LiveAudioResult {
   accepted: boolean;
 }
 
+export type WorkspaceLiveConsentMaxSeconds = typeof WorkspaceLiveConsentMaxSeconds[keyof typeof WorkspaceLiveConsentMaxSeconds];
+
+
+export const WorkspaceLiveConsentMaxSeconds = {
+  NUMBER_120: 120,
+} as const;
+
+export interface WorkspaceLiveConsent {
+  costConfirmed: true;
+  maxSeconds: WorkspaceLiveConsentMaxSeconds;
+}
+
+export interface WorkspaceLiveCheck {
+  session: Session | null;
+  cleanupConfirmed: boolean;
+  sampleAttempted: boolean;
+  limits: LiveLimits;
+}
+
 export interface SessionEvent {
   id: string;
   type: string;

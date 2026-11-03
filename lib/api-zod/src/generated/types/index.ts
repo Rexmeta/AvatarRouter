@@ -78,3 +78,6 @@ export * from './setup';
 export * from './setupCheck';
 export * from './updateDeveloperKeyScopesInput';
 export * from './usage';
+export * from './workspaceLiveCheck';
+export * from './workspaceLiveConsent';
+export * from './workspaceLiveConsentMaxSeconds';

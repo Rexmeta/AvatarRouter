@@ -9,6 +9,150 @@ import * as zod from 'zod';
 
 
 /**
+ * Recover the latest project-owner diagnostic without creating or retrying paid work. Cleanup is independent of session status.
+ */
+export const GetWorkspaceLiveCheckParams = zod.object({
+  "projectId": zod.uuid()
+})
+
+export const GetWorkspaceLiveCheckResponse = zod.object({
+  "session": zod.union([zod.object({
+  "id": zod.string(),
+  "providerId": zod.string(),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
+  "mode": zod.enum(['mock', 'live']),
+  "status": zod.enum(['active', 'ended', 'expired', 'failed']),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "durationSeconds": zod.number(),
+  "interruptions": zod.int(),
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
+}),zod.null()]),
+  "cleanupConfirmed": zod.boolean(),
+  "sampleAttempted": zod.boolean(),
+  "limits": zod.object({
+  "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
+  "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
+  "userDailySeconds": zod.int(),
+  "globalDailySeconds": zod.int(),
+  "userRemainingSeconds": zod.int(),
+  "globalRemainingSeconds": zod.int(),
+  "sessionSeconds": zod.int(),
+  "cleanupPending": zod.int(),
+  "workerReady": zod.boolean(),
+  "providerCredits": zod.enum(['unknown']),
+  "resetsAt": zod.string()
+})
+})
+
+
+/**
+ * Explicitly consented single stock session in the project namespace. Never retry an ambiguous POST; recover with GET.
+ */
+export const StartWorkspaceLiveCheckParams = zod.object({
+  "projectId": zod.uuid()
+})
+
+export const StartWorkspaceLiveCheckBody = zod.object({
+  "costConfirmed": zod.literal(true),
+  "maxSeconds": zod.literal(120)
+})
+
+export const StartWorkspaceLiveCheckResponse = zod.object({
+  "session": zod.union([zod.object({
+  "id": zod.string(),
+  "providerId": zod.string(),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
+  "mode": zod.enum(['mock', 'live']),
+  "status": zod.enum(['active', 'ended', 'expired', 'failed']),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "durationSeconds": zod.number(),
+  "interruptions": zod.int(),
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
+}),zod.null()]),
+  "cleanupConfirmed": zod.boolean(),
+  "sampleAttempted": zod.boolean(),
+  "limits": zod.object({
+  "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
+  "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
+  "userDailySeconds": zod.int(),
+  "globalDailySeconds": zod.int(),
+  "userRemainingSeconds": zod.int(),
+  "globalRemainingSeconds": zod.int(),
+  "sessionSeconds": zod.int(),
+  "cleanupPending": zod.int(),
+  "workerReady": zod.boolean(),
+  "providerCredits": zod.enum(['unknown']),
+  "resetsAt": zod.string()
+})
+})
+
+
+export const GetWorkspaceLiveConnectionParams = zod.object({
+  "projectId": zod.uuid(),
+  "id": zod.uuid()
+})
+
+export const GetWorkspaceLiveConnectionResponse = zod.object({
+  "url": zod.string(),
+  "token": zod.string().describe('Short-lived subscribe-only token scoped to exactly this room; never persist.'),
+  "expiresAt": zod.string()
+})
+
+
+/**
+ * Send a one-second synthetic PCM tone once. The durable attempt marker prevents replay after timeout or reload.
+ */
+export const SendWorkspaceLiveSampleParams = zod.object({
+  "projectId": zod.uuid(),
+  "id": zod.uuid()
+})
+
+export const SendWorkspaceLiveSampleResponse = zod.void()
+
+
+/**
+ * Idempotent stop request. Poll GET until cleanupConfirmed; never infer cleanup from HTTP success.
+ */
+export const EndWorkspaceLiveCheckParams = zod.object({
+  "projectId": zod.uuid(),
+  "id": zod.uuid()
+})
+
+export const EndWorkspaceLiveCheckResponse = zod.object({
+  "id": zod.string(),
+  "providerId": zod.string(),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
+  "mode": zod.enum(['mock', 'live']),
+  "status": zod.enum(['active', 'ended', 'expired', 'failed']),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "durationSeconds": zod.number(),
+  "interruptions": zod.int(),
+  "error": zod.string().nullish(),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
+})
+
+
+/**
  * Interactive project owner reads lifecycle events only. No renderer diagnostics or provider resource references.
  */
 export const GetDeveloperWorkspaceEventsParams = zod.object({

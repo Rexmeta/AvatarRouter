@@ -56,7 +56,9 @@ import type {
   SessionInput,
   Setup,
   UpdateDeveloperKeyScopesInput,
-  Usage
+  Usage,
+  WorkspaceLiveCheck,
+  WorkspaceLiveConsent
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -85,6 +87,439 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetWorkspaceLiveCheckUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/live-check`
+}
+
+/**
+ * Recover the latest project-owner diagnostic without creating or retrying paid work. Cleanup is independent of session status.
+ */
+export const getWorkspaceLiveCheck = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceLiveCheck> => {
+
+  return customFetch<WorkspaceLiveCheck>(getGetWorkspaceLiveCheckUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceLiveCheckQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/live-check`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceLiveCheckQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError = ErrorType<unknown>>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceLiveCheckQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>> = ({ signal }) => getWorkspaceLiveCheck(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkspaceLiveCheckQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>>
+export type GetWorkspaceLiveCheckQueryError = ErrorType<unknown>
+
+
+export function useGetWorkspaceLiveCheck<TData = Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError = ErrorType<unknown>>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceLiveCheck>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceLiveCheck>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceLiveCheck<TData = Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceLiveCheck>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceLiveCheck>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceLiveCheck<TData = Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWorkspaceLiveCheck<TData = Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError = ErrorType<unknown>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveCheck>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWorkspaceLiveCheckQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartWorkspaceLiveCheckUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/live-check`
+}
+
+/**
+ * Explicitly consented single stock session in the project namespace. Never retry an ambiguous POST; recover with GET.
+ */
+export const startWorkspaceLiveCheck = async (projectId: string,
+    workspaceLiveConsent: WorkspaceLiveConsent, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceLiveCheck> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WorkspaceLiveCheck>(getStartWorkspaceLiveCheckUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(workspaceLiveConsent)
+  }
+);}
+
+
+
+
+
+export const getStartWorkspaceLiveCheckMutationKey = () => ['startWorkspaceLiveCheck'] as const;
+
+export const getStartWorkspaceLiveCheckMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startWorkspaceLiveCheck>>, TError,StartWorkspaceLiveCheckMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startWorkspaceLiveCheck>>, TError,StartWorkspaceLiveCheckMutationVariables, TContext> => {
+
+const mutationKey = getStartWorkspaceLiveCheckMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startWorkspaceLiveCheck>>, StartWorkspaceLiveCheckMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  startWorkspaceLiveCheck(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartWorkspaceLiveCheckMutationResult = NonNullable<Awaited<ReturnType<typeof startWorkspaceLiveCheck>>>
+    export type StartWorkspaceLiveCheckMutationBody = BodyType<WorkspaceLiveConsent>
+    export type StartWorkspaceLiveCheckMutationError = ErrorType<unknown>
+    export type StartWorkspaceLiveCheckMutationVariables = {projectId: string;data: BodyType<WorkspaceLiveConsent>}
+
+    export const useStartWorkspaceLiveCheck = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startWorkspaceLiveCheck>>, TError,StartWorkspaceLiveCheckMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startWorkspaceLiveCheck>>,
+        TError,
+        StartWorkspaceLiveCheckMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartWorkspaceLiveCheckMutationOptions(options), queryClient);
+    }
+
+export const getGetWorkspaceLiveConnectionUrl = (projectId: string,
+    id: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/live-check/${id}/connection`
+}
+
+export const getWorkspaceLiveConnection = async (projectId: string,
+    id: string, options?: Parameters<typeof customFetch>[1]): Promise<LiveConnection> => {
+
+  return customFetch<LiveConnection>(getGetWorkspaceLiveConnectionUrl(projectId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceLiveConnectionQueryKey = (projectId: string,
+    id: string,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/live-check/${id}/connection`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceLiveConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError = ErrorType<unknown>>(projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceLiveConnectionQueryKey(projectId,id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>> = ({ signal }) => getWorkspaceLiveConnection(projectId,id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined && id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkspaceLiveConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>>
+export type GetWorkspaceLiveConnectionQueryError = ErrorType<unknown>
+
+
+export function useGetWorkspaceLiveConnection<TData = Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceLiveConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceLiveConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceLiveConnection<TData = Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceLiveConnection>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceLiveConnection>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceLiveConnection<TData = Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWorkspaceLiveConnection<TData = Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError = ErrorType<unknown>>(
+ projectId: string,
+    id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceLiveConnection>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWorkspaceLiveConnectionQueryOptions(projectId,id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendWorkspaceLiveSampleUrl = (projectId: string,
+    id: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/live-check/${id}/audio`
+}
+
+/**
+ * Send a one-second synthetic PCM tone once. The durable attempt marker prevents replay after timeout or reload.
+ */
+export const sendWorkspaceLiveSample = async (projectId: string,
+    id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getSendWorkspaceLiveSampleUrl(projectId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendWorkspaceLiveSampleMutationKey = () => ['sendWorkspaceLiveSample'] as const;
+
+export const getSendWorkspaceLiveSampleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWorkspaceLiveSample>>, TError,SendWorkspaceLiveSampleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendWorkspaceLiveSample>>, TError,SendWorkspaceLiveSampleMutationVariables, TContext> => {
+
+const mutationKey = getSendWorkspaceLiveSampleMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendWorkspaceLiveSample>>, SendWorkspaceLiveSampleMutationVariables> = (props) => {
+          const {projectId,id} = props ?? {};
+
+          return  sendWorkspaceLiveSample(projectId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendWorkspaceLiveSampleMutationResult = NonNullable<Awaited<ReturnType<typeof sendWorkspaceLiveSample>>>
+
+    export type SendWorkspaceLiveSampleMutationError = ErrorType<unknown>
+    export type SendWorkspaceLiveSampleMutationVariables = {projectId: string;id: string}
+
+    export const useSendWorkspaceLiveSample = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWorkspaceLiveSample>>, TError,SendWorkspaceLiveSampleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendWorkspaceLiveSample>>,
+        TError,
+        SendWorkspaceLiveSampleMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendWorkspaceLiveSampleMutationOptions(options), queryClient);
+    }
+
+export const getEndWorkspaceLiveCheckUrl = (projectId: string,
+    id: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/live-check/${id}/end`
+}
+
+/**
+ * Idempotent stop request. Poll GET until cleanupConfirmed; never infer cleanup from HTTP success.
+ */
+export const endWorkspaceLiveCheck = async (projectId: string,
+    id: string, options?: Parameters<typeof customFetch>[1]): Promise<Session> => {
+
+  return customFetch<Session>(getEndWorkspaceLiveCheckUrl(projectId,id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndWorkspaceLiveCheckMutationKey = () => ['endWorkspaceLiveCheck'] as const;
+
+export const getEndWorkspaceLiveCheckMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endWorkspaceLiveCheck>>, TError,EndWorkspaceLiveCheckMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endWorkspaceLiveCheck>>, TError,EndWorkspaceLiveCheckMutationVariables, TContext> => {
+
+const mutationKey = getEndWorkspaceLiveCheckMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endWorkspaceLiveCheck>>, EndWorkspaceLiveCheckMutationVariables> = (props) => {
+          const {projectId,id} = props ?? {};
+
+          return  endWorkspaceLiveCheck(projectId,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndWorkspaceLiveCheckMutationResult = NonNullable<Awaited<ReturnType<typeof endWorkspaceLiveCheck>>>
+
+    export type EndWorkspaceLiveCheckMutationError = ErrorType<unknown>
+    export type EndWorkspaceLiveCheckMutationVariables = {projectId: string;id: string}
+
+    export const useEndWorkspaceLiveCheck = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endWorkspaceLiveCheck>>, TError,EndWorkspaceLiveCheckMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endWorkspaceLiveCheck>>,
+        TError,
+        EndWorkspaceLiveCheckMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndWorkspaceLiveCheckMutationOptions(options), queryClient);
+    }
 
 export const getGetDeveloperWorkspaceEventsUrl = (projectId: string,
     id: string,) => {

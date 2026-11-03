@@ -8,6 +8,10 @@ import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { integrationContract } from "../lib/integration-contract";
 import { developerWorkspace, developerWorkspaceEvents } from "../lib/developer-workspaces";
 import { GetDeveloperWorkspaceResponse, GetDeveloperWorkspaceEventsResponse } from "@workspace/api-zod";
+import { StartWorkspaceLiveCheckBody, GetWorkspaceLiveCheckResponse, GetWorkspaceLiveConnectionResponse, EndWorkspaceLiveCheckResponse } from "@workspace/api-zod";
+import { workspaceProbeIdentity, workspaceProbeState, startWorkspaceProbe, sendWorkspaceProbeSample } from "../lib/workspace-live-check";
+import { closeStockSession, liveConnection, ownedLiveSession } from "../lib/live-sessions";
+import { presentSession } from "../lib/session-service";
 
 const router = Router();
 const owner: RequestHandler = (req, res, next) => {
@@ -28,6 +32,30 @@ router.get("/v1/developer/keys", async (_req, res) => {
 });
 router.get("/v1/developer/workspaces/:projectId", async (req, res): Promise<void> => {
   res.json(GetDeveloperWorkspaceResponse.parse(await developerWorkspace(res.locals.developerOwner, String(req.params.projectId))));
+});
+router.get("/v1/developer/workspaces/:projectId/live-check", async (req, res) => {
+  const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
+  res.json(GetWorkspaceLiveCheckResponse.parse(await workspaceProbeState(identity)));
+});
+router.post("/v1/developer/workspaces/:projectId/live-check", async (req, res) => {
+  StartWorkspaceLiveCheckBody.strict().parse(req.body);
+  const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
+  res.status(201).json(GetWorkspaceLiveCheckResponse.parse(await startWorkspaceProbe(identity)));
+});
+router.get("/v1/developer/workspaces/:projectId/live-check/:id/connection", async (req, res) => {
+  const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
+  res.json(GetWorkspaceLiveConnectionResponse.parse(await liveConnection(identity.owner, identity.tenant, String(req.params.id))));
+});
+router.post("/v1/developer/workspaces/:projectId/live-check/:id/audio", async (req, res) => {
+  const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
+  await sendWorkspaceProbeSample(identity, String(req.params.id));
+  res.status(204).end();
+});
+router.post("/v1/developer/workspaces/:projectId/live-check/:id/end", async (req, res) => {
+  const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
+  const id = String(req.params.id);
+  await ownedLiveSession(identity.owner, identity.tenant, id);
+  res.json(EndWorkspaceLiveCheckResponse.parse(presentSession(await closeStockSession(identity.owner, id))));
 });
 router.get("/v1/developer/workspaces/:projectId/sessions/:id/events", async (req, res): Promise<void> => {
   res.json(GetDeveloperWorkspaceEventsResponse.parse(await developerWorkspaceEvents(res.locals.developerOwner, String(req.params.projectId), String(req.params.id))));

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useUser } from '@clerk/react';
 import { useListDeveloperKeys } from '@workspace/api-client-react';
-import { Activity, ArrowLeft, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
+import { Activity, ArrowLeft, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, MonitorPlay, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
 import { AuthControl } from './auth-control';
 import { useI18n } from '@/lib/i18n';
 
@@ -22,6 +22,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const navigation = inside ? [
     [projectId ? `${base}/activity` : '/usage', Activity, t('Activity', '활동')],
     [projectId ? `${base}/sessions` : '/sessions', ListTree, t('Sessions & logs', '세션·로그')],
+    ...(projectId ? [[`${base}/live-check`, MonitorPlay, t('Live media check', '라이브 미디어 점검')]] : []),
     ...(projectId ? [[`${base}/keys`, KeyRound, t('API keys', 'API 키')]] : []),
     [projectId ? `${base}/assets` : '/avatar-assets', ImageUp, t('Avatars & assets', '아바타·에셋')],
     [projectId ? `${base}/limits` : '/usage', ShieldCheck, t('Usage & limits', '사용량·한도')],

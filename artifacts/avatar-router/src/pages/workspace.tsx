@@ -9,6 +9,13 @@ import { WorkspaceAssetContext } from '@/lib/workspace-assets';
 import { useI18n } from '@/lib/i18n';
 import { useState } from 'react';
 import { LiveAdmissionNotice } from '@/components/live-admission-notice';
+import { WorkspaceLiveCheckPanel } from '@/components/workspace-live-check-panel';
+import { useWorkspaceLiveCheck } from '@/lib/use-workspace-live-check';
+
+function LiveCheckSection({ projectId }: { projectId: string }) {
+  const check = useWorkspaceLiveCheck(projectId);
+  return <WorkspaceLiveCheckPanel check={check}/>;
+}
 
 function SessionEvents({ projectId, id }: {projectId:string;id:string}) {
   const [open,setOpen] = useState(false);
@@ -31,6 +38,7 @@ export default function Workspace() {
   const base = `/workspaces/${projectId}`;
   if (section === 'keys') return <><LiveAdmissionNotice limits={w.limits}/><ApiKeys key={projectId} projectId={projectId}/></>;
   if (section === 'assets') return <WorkspaceAssetContext.Provider value={projectId}><LiveAdmissionNotice limits={w.limits}/><AvatarAssets key={projectId}/></WorkspaceAssetContext.Provider>;
+  if (section === 'live-check') return <LiveCheckSection key={`${projectId}:${user.id}`} projectId={projectId}/>;
   const pending = w.limits.cleanupPending;
   return <div>
     <PageHead index={`WORKSPACE / ${section.toUpperCase()}`} title={section === 'settings' ? t('Workspace settings','워크스페이스 설정') : section === 'limits' ? t('Usage & limits','사용량·한도') : section === 'sessions' ? t('Sessions & logs','세션·로그') : w.projectName} lede={`${w.projectName} · ${projectId}`}/>
@@ -54,7 +62,7 @@ export default function Workspace() {
       </Panel>
       {section === 'sessions' && w.sessions.length>0 && <Panel title={t('Session lifecycle logs','세션 생명주기 로그')} className="mt-6"><div className="divide-y">{w.sessions.map(s=><div key={s.id} className="p-4"><div className="mono break-all text-xs">{s.id}</div><SessionEvents projectId={projectId} id={s.id}/></div>)}</div></Panel>}
       <div className="console-note">{t('Includes all user contexts within this project. Read-only session history; raw operator diagnostics are not exposed. End requests and user-specific event logs remain available through the authorized integration API.','이 프로젝트의 사용자 컨텍스트별 세션을 함께 표시합니다. 세션 이력은 조회 전용이며 운영자 전용 진단은 노출하지 않습니다. 종료 요청과 사용자별 이벤트 로그는 권한을 검증하는 연동 API에서 처리합니다.')}</div>
-      <div className="flex flex-wrap gap-3"><Link className="arw-button" href={`${base}/keys`}>{t('API keys','API 키')}</Link><Link className="arw-button" href={`${base}/assets`}>{t('Avatars & assets','아바타·에셋')}</Link><Link className="arw-button" href="/docs">{t('Integration guide','연동 가이드')}</Link></div>
+      <div className="flex flex-wrap gap-3"><Link className="arw-button" data-testid="link-live-check" href={`${base}/live-check`}>{t('Live media check','라이브 미디어 점검')}</Link><Link className="arw-button" href={`${base}/keys`}>{t('API keys','API 키')}</Link><Link className="arw-button" href={`${base}/assets`}>{t('Avatars & assets','아바타·에셋')}</Link><Link className="arw-button" href="/docs">{t('Integration guide','연동 가이드')}</Link></div>
     </>}
   </div>;
 }
