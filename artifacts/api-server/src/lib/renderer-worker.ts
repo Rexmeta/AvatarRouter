@@ -82,7 +82,7 @@ export class RendererWorker {
         const [row] = await tx.select().from(avatarSessions).where(and(
           eq(avatarSessions.mode, "live"),
           sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null
-            or ${avatarSessions.rendererState} = 'cleanup_pending')`,
+            or ${avatarSessions.rendererState} in ('cleanup_pending', 'maintenance_pending', 'stopping'))`,
           sql`(${avatarSessions.leaseExpiresAt} is null or ${avatarSessions.leaseExpiresAt} <= now())`,
           sql`(${avatarSessions.cleanupRetryAt} is null or ${avatarSessions.cleanupRetryAt} <= now())`,
         )).orderBy(avatarSessions.startedAt).limit(1).for("update", { skipLocked: true });
@@ -93,7 +93,7 @@ export class RendererWorker {
           row.error !== "LIVE_CREATE_RECONCILIATION_REQUIRED";
         const [updated] = await tx.update(avatarSessions).set({
           workerId: this.id, heartbeatAt: sql`now()`, leaseExpiresAt: sql`now() + interval '20 seconds'`,
-          rendererState: canStart ? "starting" : "stopping",
+          rendererState: canStart ? "starting" : row.rendererState === "maintenance_pending" ? "maintenance_pending" : "stopping",
         }).where(eq(avatarSessions.id, row.id)).returning();
         return { row: updated!, canStart };
       });
@@ -193,7 +193,10 @@ export class RendererWorker {
   }
 
   private async finishResources(initial: AvatarSessionRecord, local: Local) {
-    await db.update(avatarSessions).set({ rendererState: "stopping" }).where(this.owns(initial.id));
+    // Non-billable persona maintenance must not re-enter the paid-session fence.
+    await db.update(avatarSessions).set({
+      rendererState: initial.rendererState === "maintenance_pending" ? "maintenance_pending" : "stopping",
+    }).where(this.owns(initial.id));
     // stop waits for an in-flight paid POST so late conversation IDs can be persisted.
     const runtimeResult = local.runtime ? await local.diagnostics.stage("runtime_stop", () => local.runtime!.stop()) : undefined;
     const [row] = await db.select().from(avatarSessions).where(this.owns(initial.id));
@@ -204,25 +207,37 @@ export class RendererWorker {
     const unknown = (!row.providerConversationId && ["submitted", "unknown"].includes(row.providerCreateState)) ||
       (!row.providerConversationId && row.error === "LIVE_CREATE_RECONCILIATION_REQUIRED") ||
       (!result.providerEnded && !row.providerConversationId);
-    const confirmed = !unknown && result.providerEnded && result.roomDeleted && (!("palDeleted" in result) || result.palDeleted === true);
+    const callClosed = !unknown && result.providerEnded && result.roomDeleted;
+    const maintenancePending = row.pipeline === "tavus_full" && callClosed &&
+      "palDeleted" in result && result.palDeleted !== true;
+    const confirmed = callClosed && !maintenancePending;
     local.diagnostics.cleanupResult(result.providerEnded, result.roomDeleted, unknown);
+    if ("palDeleted" in result) logger.info({
+      sessionId: row.id, providerEnded: result.providerEnded, roomDeleted: result.roomDeleted,
+      palDeleted: result.palDeleted, maintenancePending,
+    }, "Tavus full cleanup resource results");
     const status = row.stopStatus ?? (row.expiresAt.getTime() <= Date.now() ? "expired" : "failed");
     const attempts = row.cleanupAttempts + 1;
     const [updated] = await local.diagnostics.stage("cleanup_persist", () => db.update(avatarSessions).set({
       status: row.status === "active" ? status : row.status, endedAt: row.endedAt ?? new Date(),
-      rendererState: unknown ? "reconciliation_required" : confirmed ? "closed" : "cleanup_pending",
+      rendererState: unknown ? "reconciliation_required" : maintenancePending ? "maintenance_pending" : confirmed ? "closed" : "cleanup_pending",
       providerCreateState: unknown ? "unknown" : row.providerCreateState,
-      error: unknown ? "LIVE_CREATE_RECONCILIATION_REQUIRED" : confirmed ? row.stopError : "LIVE_CLEANUP_PENDING",
+      error: unknown ? "LIVE_CREATE_RECONCILIATION_REQUIRED" : maintenancePending ? "LIVE_PAL_CLEANUP_PENDING" : confirmed ? row.stopError : "LIVE_CLEANUP_PENDING",
       roomName: result.roomDeleted ? null : row.roomName,
       providerConversationId: result.providerEnded && !unknown ? null : row.providerConversationId,
-      ...(row.pipeline === "tavus_full" && confirmed ? { fullPipeline: null } : {}),
+      ...(row.pipeline === "tavus_full" && callClosed ? {
+        fullPipeline: maintenancePending ? { systemPrompt: "", palId: row.fullPipeline?.palId } : null,
+      } : {}),
       cleanupAttempts: attempts, cleanupRetryAt: new Date(Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))),
       workerId: null, leaseExpiresAt: null,
     }).where(and(this.owns(row.id), sql`${avatarSessions.providerConversationId} is not distinct from ${row.providerConversationId}`)).returning());
     this.locals.delete(row.id);
     if (!updated) return; // a late ID changed the cleanup snapshot; another sweep will clean it.
-    if (!confirmed) logger.warn({ sessionId: row.id, attempts, reconciliationRequired: unknown }, "Paid session cleanup unconfirmed; billing may continue");
-    await this.event(row.id, confirmed ? status : "cleanup_pending", confirmed
+    if (!callClosed) logger.warn({ sessionId: row.id, attempts, reconciliationRequired: unknown }, "Paid session cleanup unconfirmed; billing may continue");
+    else if (maintenancePending) logger.warn({ sessionId: row.id, attempts }, "Call ended; temporary PAL deletion pending, not a paid-start blocker");
+    await this.event(row.id, maintenancePending ? "maintenance_pending" : confirmed ? status : "cleanup_pending", maintenancePending
+      ? "Provider call termination and room cleanup confirmed. Temporary PAL deletion will retry separately; this does not block new paid calls."
+      : confirmed
       ? "Provider termination and LiveKit room absence confirmed."
       : unknown ? "Paid creation outcome unknown. Automatic creation retries blocked; operator reconciliation required."
         : "Remote cleanup unconfirmed. Provider termination and room deletion will retry; billing may continue.");

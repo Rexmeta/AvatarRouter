@@ -11,4 +11,5 @@ export type LiveConversationReconciliationResultRendererState = typeof LiveConve
 
 export const LiveConversationReconciliationResultRendererState = {
   cleanup_pending: 'cleanup_pending',
+  maintenance_pending: 'maintenance_pending',
 } as const;

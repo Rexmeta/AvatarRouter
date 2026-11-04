@@ -895,7 +895,7 @@ export const RetryLiveCleanupBody = zod.object({
 
 export const RetryLiveCleanupResponse = zod.object({
   "sessionId": zod.string(),
-  "rendererState": zod.enum(['cleanup_pending']),
+  "rendererState": zod.enum(['cleanup_pending', 'maintenance_pending']),
   "cleanupRequested": zod.literal(true).describe('Worker still must confirm provider termination and room absence.')
 })
 
@@ -924,7 +924,7 @@ export const AttachLiveConversationIdBody = zod.object({
 
 export const AttachLiveConversationIdResponse = zod.object({
   "sessionId": zod.string(),
-  "rendererState": zod.enum(['cleanup_pending']),
+  "rendererState": zod.enum(['cleanup_pending', 'maintenance_pending']),
   "cleanupRequested": zod.literal(true).describe('Worker still must confirm provider termination and room absence.')
 })
 

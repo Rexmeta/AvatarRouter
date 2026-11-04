@@ -185,8 +185,9 @@ test("provider and room cleanup failures keep references and retry independently
   const row = await fixture({ rendererState: "running", providerCreateState: "known", providerConversationId: "fake-conversation", workerId: "dead", leaseExpiresAt: new Date(0) });
   for (let n = 1; n <= 3; n++) {
     await db.update(avatarSessions).set({ cleanupRetryAt: null }).where(eq(avatarSessions.id, row.id));
-    await w.tick();
-    await eventually(async () => (await get(row.id)).cleanupAttempts === n);
+    // The persisted result can become visible before the previous local task
+    // finishes releasing its in-memory ownership. Keep sweeping as production does.
+    await eventually(async () => { await w.tick(); return (await get(row.id)).cleanupAttempts === n; });
     const current = await get(row.id);
     if (n < 3) {
       assert.equal(current.rendererState, "cleanup_pending");
@@ -309,6 +310,84 @@ test("operator cannot force-clear unknown creation or reopen closed sessions", a
   const closed = await fixture({ status: "ended", rendererState: "closed", roomName: null });
   await assert.rejects(retryLiveCleanup(closed.id, "trusted-operator"), { code: "LIVE_SESSION_NOT_CLEANABLE" });
   assert.equal((await db.select().from(avatarSessionReconciliationAudit)).length, 0);
+});
+
+test("ended full calls release capacity while isolated PAL deletion retries without private credentials", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  let deleteWorks = false;
+  let checkMaintenance: (() => Promise<void>) | undefined;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    assert.ok(url.startsWith("https://tavusapi.com/v2/"));
+    requests.push(`${init?.method ?? "GET"} ${url}`);
+    if (init?.method === "DELETE") {
+      await checkMaintenance?.();
+      return new Response("{}", { status: deleteWorks ? 200 : 500 });
+    }
+    return new Response(JSON.stringify({ status: "ended" }), { status: 200 });
+  };
+  try {
+    const row = await fixture({
+      status: "expired", rendererState: "stopping", pipeline: "tavus_full",
+      providerCreateState: "known", roomName: null, providerConversationId: "ended-call",
+      error: "LIVE_CLEANUP_PENDING",
+      fullPipeline: { systemPrompt: "private prompt", context: "private context",
+        token: "private-token", url: "https://example.daily.co/private", palId: "temporary-pal" },
+    });
+    const { w, stats } = worker();
+    await w.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "maintenance_pending");
+    const saved = await get(row.id);
+    assert.equal(saved.providerConversationId, null);
+    assert.equal(saved.roomName, null);
+    assert.equal(saved.error, "LIVE_PAL_CLEANUP_PENDING");
+    assert.deepEqual(saved.fullPipeline, { systemPrompt: "", palId: "temporary-pal" });
+    assert.equal((await apiA.liveLimits(row.tenantId!)).creationAllowed, true);
+    assert.equal((await apiA.liveLimits(row.tenantId!)).cleanupPending, 0);
+    assert.ok((await listLiveReconciliation()).pending.some(x => x.id === row.id));
+    checkMaintenance = async () => {
+      assert.equal((await get(row.id)).rendererState, "maintenance_pending");
+      assert.equal((await apiA.liveLimits(row.tenantId!)).creationAllowed, true);
+    };
+    // Retrying maintenance must not briefly re-enter the paid-session fence.
+    await retryLiveCleanup(row.id, "trusted-operator");
+    assert.equal((await get(row.id)).rendererState, "maintenance_pending");
+    await w.tick();
+    await eventually(async () => (await get(row.id)).cleanupAttempts === 2);
+    assert.equal((await apiA.liveLimits(row.tenantId!)).creationAllowed, true);
+    deleteWorks = true;
+    await retryLiveCleanup(row.id, "trusted-operator");
+    await w.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    assert.equal((await get(row.id)).fullPipeline, null);
+    assert.equal(stats.starts, 0);
+    assert.equal(requests.filter(x => x.endsWith("/end")).length, 1);
+    assert.ok(!requests.some(x => x === "POST https://tavusapi.com/v2/conversations"));
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("unconfirmed full call termination stays blocking and never deletes its PAL", async () => {
+  const originalFetch = globalThis.fetch;
+  let deletes = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "DELETE") deletes++;
+    return new Response(JSON.stringify({ status: "active" }), { status: 200 });
+  };
+  try {
+    const row = await fixture({
+      status: "expired", rendererState: "cleanup_pending", pipeline: "tavus_full",
+      providerCreateState: "known", roomName: null, providerConversationId: "still-active-call",
+      error: "LIVE_CLEANUP_PENDING", fullPipeline: { systemPrompt: "test", palId: "keep-pal" },
+    });
+    const { w } = worker();
+    await w.tick();
+    await eventually(async () => (await get(row.id)).cleanupAttempts === 1);
+    assert.equal((await get(row.id)).rendererState, "cleanup_pending");
+    assert.equal((await get(row.id)).providerConversationId, "still-active-call");
+    assert.equal((await apiA.liveLimits(row.tenantId!)).creationAllowed, false);
+    assert.equal(deletes, 0);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("worker can finish resource-free cleanup_pending without starting a paid call", async () => {

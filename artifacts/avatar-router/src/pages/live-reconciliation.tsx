@@ -93,11 +93,13 @@ function PendingSession({ session }: { session: LiveReconciliationSession }) {
 
         {!needsId ? (
           <div className="rounded border border-border bg-background/70 p-3.5">
-            <p className="text-sm font-semibold">종료·정리 재시도</p>
-            <p className="mt-2 text-xs text-muted-foreground">기존 외부 통화를 종료하고 리소스 정리를 다시 확인합니다. 새 세션은 생성하지 않으며, 완료 확인 전에는 차단이 유지됩니다. 워커가 실행 중이어야 합니다.</p>
+            <p className="text-sm font-semibold">{rendererState === 'maintenance_pending' ? '임시 PAL 정리 재시도 · 새 연결 차단 없음' : '종료·정리 재시도'}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{rendererState === 'maintenance_pending'
+              ? '통화 종료는 확인되었습니다. 남은 임시 설정 삭제만 재시도하며, 새 라이브 연결을 차단하지 않습니다.'
+              : '기존 외부 통화를 종료하고 리소스 정리를 다시 확인합니다. 새 세션은 생성하지 않으며, 완료 확인 전에는 차단이 유지됩니다.'} 워커가 실행 중이어야 합니다.</p>
             <label className="mt-3 flex items-start gap-2 text-xs">
               <input type="checkbox" checked={form.watch('confirmedFromProvider')} onChange={e => form.setValue('confirmedFromProvider', e.target.checked)} disabled={cleanup.isPending} />
-              이 세션의 외부 통화를 종료하는 데 동의합니다.
+              {rendererState === 'maintenance_pending' ? '남은 임시 설정을 삭제하는 데 동의합니다.' : '이 세션의 외부 통화를 종료하는 데 동의합니다.'}
             </label>
             <button data-testid={`button-retry-cleanup-${sessionId}`} className="mt-3 rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-40"
               disabled={!form.watch('confirmedFromProvider') || cleanup.isPending}

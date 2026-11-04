@@ -1148,7 +1148,7 @@ components:
       required: [sessionId, rendererState, cleanupRequested]
       properties:
         sessionId: { type: string }
-        rendererState: { type: string, enum: [cleanup_pending] }
+        rendererState: { type: string, enum: [cleanup_pending, maintenance_pending] }
         cleanupRequested: { type: boolean, const: true, description: "Worker still must confirm provider termination and room absence." }
     TavusFullOptions:
       type: object

@@ -19,6 +19,12 @@ Session status is not cleanup evidence: a worker may mark an ambiguous session f
 
 **How to apply:** When adding operator reconciliation or changing live-session admission, preserve the existing warning and resource references until the worker confirms both cleanup checks. Never treat a terminal-looking status alone as permission to start paid work.
 
+Separate confirmed call termination from non-billable temporary PAL maintenance. A failed deletion of an isolated PAL must remain visible and retryable, but must not hold the service-wide paid-call fence after conversation termination and room absence are confirmed.
+
+**Why:** Production repeatedly reported successful provider and room cleanup while the remaining full-pipeline PAL deletion kept every new live connection blocked. The generic cleanup warning hid this distinction.
+
+**How to apply:** Preserve the strict fence for unknown creation or unconfirmed conversations/rooms. For PAL-only maintenance, retain only the deletion reference, remove private connection/context data, and keep maintenance retries out of the paid-stop state even during worker claims.
+
 Rights confirmation and a consent-reference string are attestations, not verified identity or provider approval.
 
 **Why:** A caller's checkbox cannot establish whether a real person consented or whether a provider's identity requirements were met.

@@ -19,7 +19,7 @@ export async function listLiveReconciliation() {
     error: avatarSessions.error,
   }).from(avatarSessions).where(and(
     eq(avatarSessions.mode, "live"),
-    sql`(${avatarSessions.rendererState} in ('reconciliation_required', 'cleanup_pending', 'stopping')
+    sql`(${avatarSessions.rendererState} in ('reconciliation_required', 'cleanup_pending', 'stopping', 'maintenance_pending')
       or ${avatarSessions.error} in ('LIVE_CLEANUP_PENDING', 'LIVE_CREATE_RECONCILIATION_REQUIRED'))`,
   )).orderBy(avatarSessions.startedAt).limit(100);
 
@@ -41,7 +41,7 @@ export async function retryLiveCleanup(sessionId: string, operatorUserId: string
     const [row] = await tx.select().from(avatarSessions)
       .where(eq(avatarSessions.id, sessionId)).for("update");
     if (!row || row.mode !== "live" ||
-        !["cleanup_pending", "stopping", "reconciliation_required"].includes(row.rendererState)) {
+        !["cleanup_pending", "stopping", "reconciliation_required", "maintenance_pending"].includes(row.rendererState)) {
       throw new SessionProblem(409, "LIVE_SESSION_NOT_CLEANABLE", "This session is not awaiting cleanup.");
     }
     if (!row.providerConversationId && (["submitted", "unknown"].includes(row.providerCreateState) ||
@@ -50,7 +50,7 @@ export async function retryLiveCleanup(sessionId: string, operatorUserId: string
     }
     // Never steal the live worker's lease, discard remote IDs or reset paid-create state.
     await tx.update(avatarSessions).set({
-      rendererState: row.rendererState === "stopping" ? "stopping" : "cleanup_pending",
+      rendererState: row.rendererState === "maintenance_pending" ? "maintenance_pending" : row.rendererState === "stopping" ? "stopping" : "cleanup_pending",
       cleanupRetryAt: null,
       stopRequestedAt: sql`coalesce(${avatarSessions.stopRequestedAt}, now())`,
       stopStatus: sql`coalesce(${avatarSessions.stopStatus}, 'ended')`,
@@ -65,7 +65,7 @@ export async function retryLiveCleanup(sessionId: string, operatorUserId: string
       message: "Operator requested existing resource termination and cleanup verification. Safety blocks remain until remote cleanup is confirmed.",
       createdAt,
     });
-    return { sessionId, rendererState: "cleanup_pending" as const, cleanupRequested: true as const };
+    return { sessionId, rendererState: row.rendererState === "maintenance_pending" ? "maintenance_pending" as const : "cleanup_pending" as const, cleanupRequested: true as const };
   });
 }
 
