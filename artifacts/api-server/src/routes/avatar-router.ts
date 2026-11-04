@@ -4,13 +4,14 @@ import {
   ListProvidersResponse, ListAvatarsResponse, ListSessionsResponse,
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
   SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
+  GetTavusFullConnectionResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundLimit } from "../middlewares/playground-owner";
 import { sessionOwner } from "../middlewares/session-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
-import { createStockSession, closeStockSession, liveConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
+import { createStockSession, closeStockSession, liveConnection, fullConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { integrationIdentity } from "../lib/integration-identity";
 import { SessionProblem } from "../lib/session-service";
@@ -37,9 +38,14 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
   const { providerId, avatarId, avatarAssetId, mode, costConfirmed, purpose } = parsed.data;
+  const { pipeline, fullPipeline } = parsed.data;
+  if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || purpose === "validation" || !fullPipeline)) ||
+      (pipeline !== "tavus_full" && fullPipeline)) {
+    res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live conversation mode and fullPipeline options. Existing validation remains external_audio." }); return;
+  }
   if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
     assetTenant(req, res, () => {});
-    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed);
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }
@@ -57,7 +63,7 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     if (purpose === "validation" && identity && !identity.scopes.includes("assets:write")) {
       throw new SessionProblem(403, "ASSET_VALIDATION_FORBIDDEN", "Validation sessions require assets:write in addition to sessions:create.");
     }
-    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, avatarAssetId, purpose);
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, avatarAssetId, purpose, fullPipeline);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }
@@ -77,6 +83,11 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
 router.get("/v1/sessions/:id", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.json(GetSessionResponse.parse(presentSession(await getOwnedSession(res.locals.ownerHash, id))));
+});
+router.get("/v1/sessions/:id/full-connection", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
+  res.json(GetTavusFullConnectionResponse.parse(await fullConnection(res.locals.ownerHash, res.locals.tenantId, id)));
 });
 router.get("/v1/sessions/:id/connection", assetTenant, async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);

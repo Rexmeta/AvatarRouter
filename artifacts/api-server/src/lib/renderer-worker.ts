@@ -7,6 +7,7 @@ import { readRendererAudio, removeRendererAudio } from "./private-images";
 import { logger } from "./logger";
 import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
 import { storeRendererDiagnostic, pruneRendererDiagnostics } from "./renderer-diagnostic-store";
+import { TavusFullRuntime, terminateFullResources } from "./tavus-full-runtime";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -24,6 +25,9 @@ export class RendererWorker {
 
   constructor(
     private factory: Factory = (row, onId, before, rejected, diagnostics) => {
+      if (row.pipeline === "tavus_full") return new TavusFullRuntime(row, onId, before, rejected, async options => {
+        await db.update(avatarSessions).set({ fullPipeline: options }).where(eq(avatarSessions.id, row.id));
+      });
       const runtime = new StockRuntime(row.roomName!, onId, before, rejected, terminateResources, runtimeFace(row), diagnostics);
       return Object.assign(runtime, { connected: () => runtime.room.isConnected });
     },
@@ -77,7 +81,8 @@ export class RendererWorker {
       const claimed = await db.transaction(async tx => {
         const [row] = await tx.select().from(avatarSessions).where(and(
           eq(avatarSessions.mode, "live"),
-          sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null)`,
+          sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null
+            or (${avatarSessions.pipeline} = 'tavus_full' and ${avatarSessions.rendererState} = 'cleanup_pending'))`,
           sql`(${avatarSessions.leaseExpiresAt} is null or ${avatarSessions.leaseExpiresAt} <= now())`,
           sql`(${avatarSessions.cleanupRetryAt} is null or ${avatarSessions.cleanupRetryAt} <= now())`,
         )).orderBy(avatarSessions.startedAt).limit(1).for("update", { skipLocked: true });
@@ -158,7 +163,9 @@ export class RendererWorker {
         local.closing = true;
         await this.finish(row, local);
       } else {
-        await this.event(row.id, "started", "Renderer worker connected the selected real avatar. Playback validation is separate; no AI dialogue or custom training.");
+        await this.event(row.id, "started", row.pipeline === "tavus_full"
+          ? "Private Tavus full-pipeline connection ready. Tavus owns dialogue, voice and rendering; Daily client playback is not yet verified."
+          : "Renderer worker connected the selected real avatar. Playback validation is separate; no AI dialogue or custom training.");
       }
     } catch (error) {
       local.diagnostics.failure("initialize_failed", error);
@@ -191,11 +198,13 @@ export class RendererWorker {
     const runtimeResult = local.runtime ? await local.diagnostics.stage("runtime_stop", () => local.runtime!.stop()) : undefined;
     const [row] = await db.select().from(avatarSessions).where(this.owns(initial.id));
     if (!row) { this.locals.delete(initial.id); return; }
-    const result = runtimeResult ?? await local.diagnostics.stage("remote_cleanup", () => this.terminate(row.roomName, row.providerConversationId, local.diagnostics));
+    const result = runtimeResult ?? await local.diagnostics.stage("remote_cleanup", () => row.pipeline === "tavus_full"
+      ? terminateFullResources(row.providerConversationId, row.fullPipeline?.palId)
+      : this.terminate(row.roomName, row.providerConversationId, local.diagnostics));
     const unknown = (!row.providerConversationId && ["submitted", "unknown"].includes(row.providerCreateState)) ||
       (!row.providerConversationId && row.error === "LIVE_CREATE_RECONCILIATION_REQUIRED") ||
       (!result.providerEnded && !row.providerConversationId);
-    const confirmed = !unknown && result.providerEnded && result.roomDeleted;
+    const confirmed = !unknown && result.providerEnded && result.roomDeleted && (!("palDeleted" in result) || result.palDeleted === true);
     local.diagnostics.cleanupResult(result.providerEnded, result.roomDeleted, unknown);
     const status = row.stopStatus ?? (row.expiresAt.getTime() <= Date.now() ? "expired" : "failed");
     const attempts = row.cleanupAttempts + 1;
@@ -206,6 +215,7 @@ export class RendererWorker {
       error: unknown ? "LIVE_CREATE_RECONCILIATION_REQUIRED" : confirmed ? row.stopError : "LIVE_CLEANUP_PENDING",
       roomName: result.roomDeleted ? null : row.roomName,
       providerConversationId: result.providerEnded && !unknown ? null : row.providerConversationId,
+      ...(row.pipeline === "tavus_full" && confirmed ? { fullPipeline: null } : {}),
       cleanupAttempts: attempts, cleanupRetryAt: new Date(Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))),
       workerId: null, leaseExpiresAt: null,
     }).where(and(this.owns(row.id), sql`${avatarSessions.providerConversationId} is not distinct from ${row.providerConversationId}`)).returning());

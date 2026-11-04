@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 export const avatarSessions = pgTable("avatar_sessions", {
@@ -8,6 +8,11 @@ export const avatarSessions = pgTable("avatar_sessions", {
   tenantId: text("tenant_id"),
   roomName: text("room_name"),
   providerConversationId: text("provider_conversation_id"),
+  pipeline: text("pipeline", { enum: ["external_audio", "tavus_full"] }).notNull().default("external_audio"),
+  fullPipeline: jsonb("full_pipeline").$type<{
+    systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
+    palId?: string; url?: string; token?: string;
+  }>(),
   rendererState: text("renderer_state").notNull().default("queued"),
   workerId: text("worker_id"),
   leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),

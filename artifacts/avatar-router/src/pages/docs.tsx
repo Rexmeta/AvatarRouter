@@ -55,6 +55,7 @@ export default function Docs() {
               The provided Tavus stock avatar has been verified in a real LiveKit browser session. The machine-readable OpenAPI specification and upload-ready integration guide describe the current endpoints and state the identity and audio-bridge requirements.
             </p>
             <div className="mb-4 flex flex-wrap gap-3">
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/tavus-full-pipeline.md`} download="tavus-full-pipeline.md">Tavus full pipeline · API 0.6</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>

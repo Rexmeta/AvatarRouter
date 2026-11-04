@@ -7,7 +7,13 @@ The persona editor owns the image/video/live choice. Existing scenario persona s
 
 **Why:** The user supplied and approved the persona-management integration direction while choosing AvatarRouter implementation in this workspace.
 
-**How to apply:** Keep AvatarRouter responsible for authorized assets and rendering supplied audio; RoleplayX implements its own persona UI, permissions and existing dialogue integration.
+**How to apply:** Keep the default external-audio path responsible for authorized assets and rendering supplied audio; RoleplayX implements its own persona UI, permissions and existing dialogue integration.
+
+Tavus full pipeline is an explicit alternate conversation engine, never an automatic replacement for Gemini Live.
+
+**Why:** The user requested API access to Tavus full pipeline after identifying Gemini Live as the existing voice engine and raising duplicate-response concerns.
+
+**How to apply:** Keep existing personas on external audio unless explicitly opted in. Full pipeline uses Tavus dialogue/voice over Daily, not Gemini PCM over LiveKit. Do not run both response engines or mutate a shared PAL. RoleplayX must separately adapt transcripts/evaluation.
 
 RoleplayX scenario conversations already use Gemini Live voice.
 

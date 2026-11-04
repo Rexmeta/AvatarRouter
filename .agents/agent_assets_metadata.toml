@@ -84,3 +84,17 @@ mtime_ms = 1793614194424
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/af9daf48-da53-4d1c-9e96-3fa957fc2f1a/1691684f-b0ab-4307-87ea-002b3d561145"
 storage_version_token = "1793614195985752"
 content_type = "text/plain"
+
+[[outputs]]
+id = "K0GHyO53ju9s_qoQQCBUi"
+uri = "file://artifacts/avatar-router/public/roleplayx/tavus-full-pipeline.md"
+type = "text"
+title = "RoleplayX Tavus full pipeline 연동 가이드"
+description = "API 0.6 요청 예시, Daily 접속, Gemini 중복 응답 방지, 종료 및 운영 반영 절차입니다."
+logical_id = "42fabaa5-8380-46bd-9f11-7803ccc240a2"
+content_hash = "sha256:7d869d453eeeb1d36991c1eca0fd3f5906cbed8daa3c20d9e8fd4ff4a999f1c3"
+size = 8255
+mtime_ms = 1793778969039
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/42fabaa5-8380-46bd-9f11-7803ccc240a2/38b16a14-df1b-4ca0-994c-7ccc3107d25b"
+storage_version_token = "1793779001445467"
+content_type = "text/markdown"

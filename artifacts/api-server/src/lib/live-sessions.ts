@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { AccessToken } from "livekit-server-sdk";
-import { db, avatarAssets, imageAssets, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql } from "@workspace/db";
+import { db, avatarAssets, imageAssets, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql, type AvatarSessionRecord } from "@workspace/db";
 import { requireLiveAsset } from "./asset-live-policy";
 import { getOwnedSession, SessionProblem } from "./session-service";
 import { STOCK_AVATAR, stockConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
@@ -54,7 +54,8 @@ export async function liveLimits(tenant: string) {
   };
 }
 
-export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation") {
+export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation",
+  fullPipeline?: AvatarSessionRecord["fullPipeline"]) {
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   if (!stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", "LiveKit and Tavus server credentials must be configured.");
   const row = await db.transaction(async tx => {
@@ -85,7 +86,8 @@ export async function createStockSession(owner: string, tenant: string, costConf
     const id = randomUUID();
     const [created] = await tx.insert(avatarSessions).values({
       id, ownerHash: owner, tenantId: tenant, providerId: "tavus", avatarId, avatarAssetId: assetId, purpose,
-      mode: "live", status: "active", roomName: `ar-stock-${id}`,
+      mode: "live", status: "active", roomName: fullPipeline ? null : `ar-stock-${id}`,
+      pipeline: fullPipeline ? "tavus_full" : "external_audio", fullPipeline,
       rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
       expiresAt: new Date(Date.now() + LIVE_SESSION_MS),
     }).returning();
@@ -114,6 +116,7 @@ function requireRunning(row: Awaited<ReturnType<typeof ownedLiveSession>>) {
 export async function liveConnection(owner: string, tenant: string, id: string) {
   const row = await ownedLiveSession(owner, tenant, id);
   requireRunning(row);
+  if (row.pipeline === "tavus_full") throw new SessionProblem(409, "FULL_PIPELINE_DAILY_REQUIRED", "Use /full-connection and the Daily SDK for Tavus full pipeline.");
   const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
     identity: `viewer-${id}`, ttl: Math.max(1, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000)),
   });
@@ -121,8 +124,21 @@ export async function liveConnection(owner: string, tenant: string, id: string) 
   return { url: process.env.LIVEKIT_URL!, token: await token.toJwt(), expiresAt: row.expiresAt.toISOString() };
 }
 
+export async function fullConnection(owner: string, tenant: string, id: string) {
+  const row = await ownedLiveSession(owner, tenant, id);
+  requireRunning(row);
+  if (row.pipeline !== "tavus_full" || !row.fullPipeline?.url || !row.fullPipeline.token) {
+    throw new SessionProblem(409, "NOT_FULL_PIPELINE", "This session has no private Tavus full-pipeline connection.");
+  }
+  return { transport: "daily", pipeline: "tavus_full", url: row.fullPipeline.url,
+    token: row.fullPipeline.token, expiresAt: row.expiresAt.toISOString() };
+}
+
 async function command(owner: string, tenant: string, id: string, type: "audio" | "interrupt", bytes?: Buffer) {
-  requireRunning(await ownedLiveSession(owner, tenant, id));
+  const session = await ownedLiveSession(owner, tenant, id);
+  requireRunning(session);
+  if (session.pipeline === "tavus_full") throw new SessionProblem(409, "FULL_PIPELINE_DIRECT_MEDIA",
+    "Use the private Daily connection for microphone and conversational interruption. Do not upload Gemini PCM or end the session for barge-in.");
   const commandId = randomUUID();
   // Insert the reference BEFORE storage IO: even a crashing uploader leaves a GC record.
   const objectPath = bytes ? `${process.env.PRIVATE_OBJECT_DIR?.replace(/\/$/, "")}/renderer-audio/${commandId}.pcm` : null;

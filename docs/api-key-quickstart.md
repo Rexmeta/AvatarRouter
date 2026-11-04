@@ -13,7 +13,9 @@
 “새 키 생성”은 별도 프로젝트를 만들므로 기존 프로젝트를 유지하기 위한 대체 수단이 아닙니다. 키 “교체”도 기존 권한을 보존하므로 누락 권한을 추가하지 않습니다.
 
 No issuer, JWKS endpoint, signing-key exchange, Clerk migration or shared user session is required.
-RoleplayX keeps its existing login, membership checks, conversation engine, prompts, scoring and voice pipeline.
+RoleplayX keeps its existing login and membership checks. Existing `external_audio` sessions keep its conversation engine, prompts, scoring and voice pipeline.
+API 0.6 adds an explicit alternative: [Tavus full pipeline](./tavus-full-pipeline.md), where Tavus owns dialogue and voice over a private Daily connection.
+Do not run Gemini responses simultaneously in this mode. RoleplayX must adapt its client and transcript/evaluation integration separately.
 This is OpenRouter-style credential setup, not compatibility with OpenAI chat/completions.
 
 ## 1. Create a project key

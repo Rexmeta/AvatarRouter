@@ -99,6 +99,27 @@ test("unexpected RTC loss retains a safe failure reason after confirmed cleanup"
   assert.equal(closed.providerConversationId, null);
 });
 
+test("full-pipeline private connection is owner/tenant scoped and rejects external audio controls", async () => {
+  const { w } = worker();
+  const row = await fixture({ pipeline: "tavus_full", roomName: null,
+    fullPipeline: { systemPrompt: "roleplay", url: "https://tavus.daily.co/test", token: "private-meeting" } });
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "running");
+  const connection = await apiA.fullConnection(row.ownerHash, row.tenantId!, row.id);
+  assert.equal(connection.transport, "daily");
+  assert.equal(connection.token, "private-meeting");
+  await assert.rejects(apiA.fullConnection("other", row.tenantId!, row.id), { code: "SESSION_NOT_FOUND" });
+  await assert.rejects(apiA.fullConnection(row.ownerHash, "other", row.id), { code: "SESSION_NOT_FOUND" });
+  await assert.rejects(apiA.liveConnection(row.ownerHash, row.tenantId!, row.id), { code: "FULL_PIPELINE_DAILY_REQUIRED" });
+  await assert.rejects(apiA.sendStockAudio(row.ownerHash, row.tenantId!, row.id, Buffer.alloc(960)), { code: "FULL_PIPELINE_DIRECT_MEDIA" });
+  await assert.rejects(apiA.interruptStockSession(row.ownerHash, row.tenantId!, row.id), { code: "FULL_PIPELINE_DIRECT_MEDIA" });
+  await apiA.closeStockSession(row.ownerHash, row.id);
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  assert.equal((await get(row.id)).fullPipeline, null);
+  await assert.rejects(apiA.fullConnection(row.ownerHash, row.tenantId!, row.id), { code: "LIVE_NOT_ACTIVE" });
+});
+
 test("two API admissions and two workers reserve once and create exactly once", async () => {
   const { w: first, stats: s1 } = worker();
   const { w: second, stats: s2 } = worker();

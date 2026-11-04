@@ -1,6 +1,8 @@
 -- Additive and idempotent. Run before starting any renderer worker.
 BEGIN;
 ALTER TABLE avatar_sessions
+  ADD COLUMN IF NOT EXISTS pipeline text NOT NULL DEFAULT 'external_audio',
+  ADD COLUMN IF NOT EXISTS full_pipeline jsonb,
   ADD COLUMN IF NOT EXISTS renderer_state text NOT NULL DEFAULT 'queued',
   ADD COLUMN IF NOT EXISTS worker_id text,
   ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz,
