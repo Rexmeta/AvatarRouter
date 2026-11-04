@@ -9,6 +9,12 @@ The persona editor owns the image/video/live choice. Existing scenario persona s
 
 **How to apply:** Keep AvatarRouter responsible for authorized assets and rendering supplied audio; RoleplayX implements its own persona UI, permissions and existing dialogue integration.
 
+RoleplayX scenario conversations already use Gemini Live voice.
+
+**Why:** The user explicitly identified Gemini Live voice as the existing scenario voice engine when asking how to integrate live avatars without duplicate responses.
+
+**How to apply:** Treat the existing Gemini voice path as the baseline when evaluating avatar integration. Distinguish generating a second AI response from playing the same generated audio through two outputs.
+
 Provisioning readiness is not playback success. A playback report is a trusted administrator/client attestation with server-side session evidence, not independent proof that a human saw or heard media.
 
 **Why:** The renderer can establish provider connection and command completion, but cannot independently observe a remote browser or listener. Treating these as equivalent would publish untested avatars.
