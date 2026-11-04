@@ -82,7 +82,7 @@ export class RendererWorker {
         const [row] = await tx.select().from(avatarSessions).where(and(
           eq(avatarSessions.mode, "live"),
           sql`(${avatarSessions.status} = 'active' or ${avatarSessions.roomName} is not null or ${avatarSessions.providerConversationId} is not null
-            or (${avatarSessions.pipeline} = 'tavus_full' and ${avatarSessions.rendererState} = 'cleanup_pending'))`,
+            or ${avatarSessions.rendererState} = 'cleanup_pending')`,
           sql`(${avatarSessions.leaseExpiresAt} is null or ${avatarSessions.leaseExpiresAt} <= now())`,
           sql`(${avatarSessions.cleanupRetryAt} is null or ${avatarSessions.cleanupRetryAt} <= now())`,
         )).orderBy(avatarSessions.startedAt).limit(1).for("update", { skipLocked: true });

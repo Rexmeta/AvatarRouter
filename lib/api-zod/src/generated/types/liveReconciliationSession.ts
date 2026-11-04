@@ -14,4 +14,11 @@ export interface LiveReconciliationSession {
   expiresAt: Date;
   rendererState: string;
   providerCreateState: string;
+  /** @nullable */
+  providerConversationId: string | null;
+  cleanupAttempts: number;
+  /** @nullable */
+  cleanupRetryAt: Date | null;
+  /** @nullable */
+  error: string | null;
 }

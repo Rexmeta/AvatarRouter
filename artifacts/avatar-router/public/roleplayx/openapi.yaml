@@ -497,7 +497,7 @@ paths:
       operationId: listLiveReconciliation
       description: >-
         Trusted operator only. Requires a signed-in Clerk user ID listed in
-        LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a
+        LIVE_SESSION_OPERATOR_IDS. Lists ambiguous and cleanup-pending live sessions and a
         recent append-only audit history. API keys and delegated identities are rejected.
       security: [{ ClerkSessionJWT: [] }]
       responses:
@@ -507,6 +507,27 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LiveReconciliationList" }
         "403": { description: "Signed-in user is not on the trusted operator allowlist." }
+  /v1/operator/live-reconciliation/{id}/cleanup:
+    post:
+      operationId: retryLiveCleanup
+      description: Trusted operator only. Requests termination and verified cleanup of existing resources without creating a new conversation or overriding a worker lease. Does not clear safety blocks.
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LiveCleanupInput" }
+      responses:
+        "202":
+          description: Cleanup queued; remote termination is not yet confirmed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveConversationReconciliationResult" }
+        "400": { description: Explicit termination confirmation required }
+        "403": { description: Trusted operator required }
+        "409": { description: Session cannot be cleaned without provider reconciliation }
   /v1/operator/live-reconciliation/{id}:
     post:
       operationId: attachLiveConversationId
@@ -1085,7 +1106,7 @@ components:
     LiveReconciliationSession:
       type: object
       additionalProperties: false
-      required: [id, roomName, startedAt, expiresAt, rendererState, providerCreateState]
+      required: [id, roomName, startedAt, expiresAt, rendererState, providerCreateState, providerConversationId, cleanupAttempts, cleanupRetryAt, error]
       properties:
         id: { type: string }
         roomName: { type: [string, "null"] }
@@ -1093,6 +1114,10 @@ components:
         expiresAt: { type: string, format: date-time }
         rendererState: { type: string }
         providerCreateState: { type: string }
+        providerConversationId: { type: [string, "null"] }
+        cleanupAttempts: { type: integer }
+        cleanupRetryAt: { type: [string, "null"], format: date-time }
+        error: { type: [string, "null"] }
     LiveReconciliationAudit:
       type: object
       additionalProperties: false
@@ -1101,9 +1126,15 @@ components:
         id: { type: string, format: uuid }
         sessionId: { type: string }
         operatorUserId: { type: string }
-        action: { type: string, enum: [conversation_id_attached] }
+        action: { type: string, enum: [conversation_id_attached, cleanup_requested] }
         providerConversationId: { type: string }
         createdAt: { type: string, format: date-time }
+    LiveCleanupInput:
+      type: object
+      additionalProperties: false
+      required: [confirmed]
+      properties:
+        confirmed: { type: boolean, const: true, description: Acknowledge this will terminate the existing remote call, not merely hide the warning. }
     LiveConversationReconciliationInput:
       type: object
       additionalProperties: false

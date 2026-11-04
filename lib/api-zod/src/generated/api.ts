@@ -856,7 +856,7 @@ export const CompareRendererDiagnosticsResponse = zod.array(CompareRendererDiagn
 
 
 /**
- * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
+ * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous and cleanup-pending live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
  */
 export const ListLiveReconciliationResponse = zod.object({
   "pending": zod.array(zod.object({
@@ -865,16 +865,38 @@ export const ListLiveReconciliationResponse = zod.object({
   "startedAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date(),
   "rendererState": zod.string(),
-  "providerCreateState": zod.string()
+  "providerCreateState": zod.string(),
+  "providerConversationId": zod.string().nullable(),
+  "cleanupAttempts": zod.int(),
+  "cleanupRetryAt": zod.coerce.date().nullable(),
+  "error": zod.string().nullable()
 })),
   "recentAudit": zod.array(zod.object({
   "id": zod.uuid(),
   "sessionId": zod.string(),
   "operatorUserId": zod.string(),
-  "action": zod.enum(['conversation_id_attached']),
+  "action": zod.enum(['conversation_id_attached', 'cleanup_requested']),
   "providerConversationId": zod.string(),
   "createdAt": zod.coerce.date()
 }))
+})
+
+
+/**
+ * Trusted operator only. Requests termination and verified cleanup of existing resources without creating a new conversation or overriding a worker lease. Does not clear safety blocks.
+ */
+export const RetryLiveCleanupParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const RetryLiveCleanupBody = zod.object({
+  "confirmed": zod.literal(true).describe('Acknowledge this will terminate the existing remote call')
+})
+
+export const RetryLiveCleanupResponse = zod.object({
+  "sessionId": zod.string(),
+  "rendererState": zod.enum(['cleanup_pending']),
+  "cleanupRequested": zod.literal(true).describe('Worker still must confirm provider termination and room absence.')
 })
 
 

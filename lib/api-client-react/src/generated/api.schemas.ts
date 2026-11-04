@@ -700,6 +700,13 @@ export interface LiveReconciliationSession {
   expiresAt: string;
   rendererState: string;
   providerCreateState: string;
+  /** @nullable */
+  providerConversationId: string | null;
+  cleanupAttempts: number;
+  /** @nullable */
+  cleanupRetryAt: string | null;
+  /** @nullable */
+  error: string | null;
 }
 
 export type LiveReconciliationAuditAction = typeof LiveReconciliationAuditAction[keyof typeof LiveReconciliationAuditAction];
@@ -707,6 +714,7 @@ export type LiveReconciliationAuditAction = typeof LiveReconciliationAuditAction
 
 export const LiveReconciliationAuditAction = {
   conversation_id_attached: 'conversation_id_attached',
+  cleanup_requested: 'cleanup_requested',
 } as const;
 
 export interface LiveReconciliationAudit {
@@ -722,6 +730,12 @@ export interface LiveReconciliationList {
   pending: LiveReconciliationSession[];
   recentAudit: LiveReconciliationAudit[];
 }
+
+export const LiveCleanupInputValue = {
+  /** Acknowledge this will terminate the existing remote call */
+  confirmed: true,
+} as const;
+export type LiveCleanupInput = typeof LiveCleanupInputValue;
 
 export interface LiveConversationReconciliationInput {
   /**

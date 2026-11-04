@@ -11,4 +11,5 @@ export type LiveReconciliationAuditAction = typeof LiveReconciliationAuditAction
 
 export const LiveReconciliationAuditAction = {
   conversation_id_attached: 'conversation_id_attached',
+  cleanup_requested: 'cleanup_requested',
 } as const;

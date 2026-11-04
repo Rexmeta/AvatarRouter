@@ -41,6 +41,7 @@ export * from './integrationContract';
 export * from './issuedDeveloperKey';
 export * from './liveAudioInput';
 export * from './liveAudioResult';
+export * from './liveCleanupInput';
 export * from './liveConnection';
 export * from './liveConversationReconciliationInput';
 export * from './liveConversationReconciliationResult';

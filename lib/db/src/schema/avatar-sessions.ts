@@ -59,7 +59,7 @@ export const avatarSessionReconciliationAudit = pgTable("avatar_session_reconcil
   id: text("id").primaryKey(),
   sessionId: text("session_id").notNull().references(() => avatarSessions.id),
   operatorUserId: text("operator_user_id").notNull(),
-  action: text("action", { enum: ["conversation_id_attached"] }).notNull(),
+  action: text("action", { enum: ["conversation_id_attached", "cleanup_requested"] }).notNull(),
   providerConversationId: text("provider_conversation_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("avatar_reconciliation_audit_session_idx").on(t.sessionId, t.createdAt)]);

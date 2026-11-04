@@ -7,6 +7,8 @@ import {
   getListLiveReconciliationQueryKey,
   useAttachLiveConversationId,
   useListLiveReconciliation,
+  useRetryLiveCleanup,
+  type LiveReconciliationSession,
 } from '@workspace/api-client-react';
 import { ErrorState, PageHead, Panel, Pill, Skel, fmtTime } from '@/components/bits';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -47,14 +49,8 @@ function SignInInvitation() {
   );
 }
 
-function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererState, providerCreateState }: {
-  sessionId: string;
-  roomName: string | null;
-  startedAt: string;
-  expiresAt: string;
-  rendererState: string;
-  providerCreateState: string;
-}) {
+function PendingSession({ session }: { session: LiveReconciliationSession }) {
+  const { id: sessionId, roomName, startedAt, expiresAt, rendererState, providerCreateState } = session;
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const form = useForm<{ providerConversationId: string; confirmedFromProvider: boolean }>({
@@ -62,6 +58,9 @@ function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererSta
     mode: 'onChange',
   });
   const attach = useAttachLiveConversationId({ mutation: { gcTime: 0 } });
+  const cleanup = useRetryLiveCleanup({ mutation: { gcTime: 0 } });
+  const needsId = !session.providerConversationId &&
+    (['unknown', 'submitted'].includes(providerCreateState) || session.error === 'LIVE_CREATE_RECONCILIATION_REQUIRED');
 
   const submit = (values: { providerConversationId: string; confirmedFromProvider: boolean }) => {
     attach.mutate(
@@ -76,7 +75,7 @@ function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererSta
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="mono break-all text-[12px] font-medium" data-testid={`text-session-id-${sessionId}`}>{sessionId}</span>
-            <Pill value="reconciliation_required" label="unresolved" />
+            <Pill value={rendererState} />
           </div>
           <div className="mt-2 text-sm font-semibold" data-testid={`text-room-name-${sessionId}`}>{roomName ?? 'Room name unavailable'}</div>
           <dl className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 text-xs sm:grid-cols-4">
@@ -85,9 +84,35 @@ function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererSta
             <div><dt className="eyebrow">{t('recon.renderer')}</dt><dd className="mt-1" data-testid={`status-renderer-${sessionId}`}><Pill value={rendererState} /></dd></div>
             <div><dt className="eyebrow">{t('recon.provider')}</dt><dd className="mt-1" data-testid={`status-provider-create-${sessionId}`}><Pill value={providerCreateState} /></dd></div>
           </dl>
+          <div className="mt-3 space-y-1 break-all text-xs text-muted-foreground">
+            <p>Provider conversation: <span className="mono">{session.providerConversationId || '—'}</span></p>
+            <p>Cleanup attempts: {session.cleanupAttempts} · Next retry: {session.cleanupRetryAt ? fmtTime(session.cleanupRetryAt) : 'Queued / worker controlled'}</p>
+            {session.error && <p className="text-destructive">{session.error}</p>}
+          </div>
         </div>
 
-        <Form {...form}>
+        {!needsId ? (
+          <div className="rounded border border-border bg-background/70 p-3.5">
+            <p className="text-sm font-semibold">종료·정리 재시도</p>
+            <p className="mt-2 text-xs text-muted-foreground">기존 외부 통화를 종료하고 리소스 정리를 다시 확인합니다. 새 세션은 생성하지 않으며, 완료 확인 전에는 차단이 유지됩니다. 워커가 실행 중이어야 합니다.</p>
+            <label className="mt-3 flex items-start gap-2 text-xs">
+              <input type="checkbox" checked={form.watch('confirmedFromProvider')} onChange={e => form.setValue('confirmedFromProvider', e.target.checked)} disabled={cleanup.isPending} />
+              이 세션의 외부 통화를 종료하는 데 동의합니다.
+            </label>
+            <button data-testid={`button-retry-cleanup-${sessionId}`} className="mt-3 rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-40"
+              disabled={!form.watch('confirmedFromProvider') || cleanup.isPending}
+              onClick={() => cleanup.mutate({ id: sessionId, data: { confirmed: true } }, {
+                onSuccess: () => {
+                  form.setValue('confirmedFromProvider', false);
+                  void queryClient.invalidateQueries();
+                },
+              })}>
+              {cleanup.isPending ? '요청 중…' : '종료·정리 재시도'}
+            </button>
+            {cleanup.isSuccess && <p role="status" className="mt-2 text-xs">정리 요청이 접수되었습니다. 종료 완료 여부는 자동 갱신됩니다.</p>}
+            {cleanup.isError && <p role="alert" className="mt-2 text-xs text-destructive">{cleanup.error.message}</p>}
+          </div>
+        ) : <Form {...form}>
           <form onSubmit={form.handleSubmit(submit)} className="rounded border border-border bg-background/70 p-3.5" data-testid={`form-attach-conversation-${sessionId}`}>
             <FormField
               control={form.control}
@@ -163,7 +188,7 @@ function PendingSession({ sessionId, roomName, startedAt, expiresAt, rendererSta
             </div>
           )}
           </form>
-        </Form>
+        </Form>}
       </div>
     </article>
   );
@@ -220,7 +245,7 @@ export default function LiveReconciliation() {
         <div>
           <div className="eyebrow text-[hsl(var(--warn))]">{t('recon.boundary')}</div>
           <p className="mt-1 text-sm font-semibold leading-relaxed" data-testid="text-cleanup-boundary">{t('recon.boundaryNote')}</p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Attaching an ID only queues existing worker cleanup. It does not force-close the provider session or clear its warning.</p>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">생성 결과 불명 세션은 확인된 제공자 ID를 먼저 연결하세요. 정리 대기 세션은 아래에서 종료·정리를 재요청할 수 있습니다. 실제 종료 확인 없이 경고만 지우거나 차단을 해제하지 않습니다.</p>
         </div>
       </section>
 
@@ -235,7 +260,7 @@ export default function LiveReconciliation() {
         <Panel title={<span>{t('recon.pending')} <span className="mono ml-1 text-muted-foreground" data-testid="text-pending-count">{query.data?.pending.length ?? 0}</span></span>} aside={<span className="mono text-[10px] text-muted-foreground">SERVER AUTHORITY</span>}>
           {query.data?.pending.length ? (
             <div data-testid="list-pending-reconciliation">
-              {query.data.pending.map((session) => <PendingSession key={session.id} sessionId={session.id} roomName={session.roomName} startedAt={session.startedAt} expiresAt={session.expiresAt} rendererState={session.rendererState} providerCreateState={session.providerCreateState} />)}
+              {query.data.pending.map((session) => <PendingSession key={session.id} session={session} />)}
             </div>
           ) : !query.isError ? (
             <div className="flex items-center gap-3 px-5 py-8" data-testid="state-pending-empty">

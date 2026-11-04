@@ -9,7 +9,7 @@ const dict = {
   'nav.sessions': ['Sessions', '세션'],
   'nav.reconciliation': ['Live reconciliation', '라이브 세션 확인'],
   'recon.title': ['Live-session reconciliation', '라이브 세션 조정'],
-  'recon.lede': ['Resolve an ambiguous paid session only with a provider-confirmed conversation ID. This queues worker cleanup; it does not certify termination.', '프로바이더에서 확인한 대화 ID로만 불명확한 유료 세션을 처리합니다. 워커 정리를 대기열에 등록할 뿐, 종료를 확정하지 않습니다.'],
+  'recon.lede': ['Manage uncertain creation and pending termination. Retry existing resource cleanup without bypassing provider verification.', '생성 결과 불명·종료 대기 세션을 관리하고 기존 외부 세션의 종료·정리를 재시도합니다. 실제 종료 확인 없이 차단을 해제하지 않습니다.'],
   'recon.boundary': ['Cleanup boundary', '정리 경계'],
   'recon.boundaryNote': ['The unresolved warning and paid-start block remain until the worker confirms provider termination and room absence.', '워커가 프로바이더 종료와 룸 부재를 확인할 때까지 미해결 경고와 유료 시작 차단이 유지됩니다.'],
   'recon.pending': ['Pending sessions', '대기 중인 세션'],

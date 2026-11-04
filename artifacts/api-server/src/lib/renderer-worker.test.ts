@@ -8,7 +8,7 @@ import { db, pool, avatarSessions, avatarSessionEvents, avatarSessionReconciliat
 import { RendererWorker } from "./renderer-worker";
 import * as apiA from "./live-sessions";
 import { safeLiveError } from "./stock-policy";
-import { attachLiveConversationId, listLiveReconciliation } from "./live-session-operator";
+import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } from "./live-session-operator";
 import { isTrustedLiveOperator } from "../routes/live-reconciliation";
 import { flushRendererDiagnostics } from "./renderer-diagnostic-store";
 
@@ -230,7 +230,7 @@ test("operator reconciliation audits the provider ID and releases capacity only 
   assert.equal(linked.error, "LIVE_CREATE_RECONCILIATION_REQUIRED");
   assert.equal(linked.status, "failed");
   assert.ok(linked.stopRequestedAt);
-  assert.equal((await listLiveReconciliation()).pending.length, 0);
+  assert.equal((await listLiveReconciliation()).pending.length, 1);
   const audit = await db.select().from(avatarSessionReconciliationAudit).where(eq(avatarSessionReconciliationAudit.sessionId, row.id));
   assert.equal(audit.length, 1);
   assert.equal(audit[0]!.operatorUserId, "clerk-operator-1");
@@ -258,6 +258,69 @@ test("operator reconciliation audits the provider ID and releases capacity only 
   assert.equal(closed.error, null);
   assert.equal(stats.starts, 1);
   await assert.rejects(attachLiveConversationId(row.id, "another-id", "clerk-operator-1"), { code: "LIVE_SESSION_NOT_RECONCILABLE" });
+});
+
+test("operator cleanup lists pending sessions, preserves leases and blocks admission until confirmed", async () => {
+  let ended = false;
+  const { w, stats } = worker({ cleanup: async () => ({ providerEnded: ended, roomDeleted: true }) });
+  const lease = new Date(Date.now() + 30_000);
+  const row = await fixture({
+    status: "failed", rendererState: "cleanup_pending", providerCreateState: "known",
+    providerConversationId: "existing-conversation", error: "LIVE_CLEANUP_PENDING",
+    workerId: "other-worker", leaseExpiresAt: lease,
+    cleanupRetryAt: new Date(Date.now() + 60_000),
+  });
+  const pending = (await listLiveReconciliation()).pending.find(x => x.id === row.id)!;
+  assert.equal(pending.providerConversationId, "existing-conversation");
+  await retryLiveCleanup(row.id, "trusted-operator");
+  const queued = await get(row.id);
+  assert.equal(queued.cleanupRetryAt, null);
+  assert.equal(queued.workerId, "other-worker");
+  assert.equal(queued.leaseExpiresAt?.getTime(), lease.getTime());
+  assert.equal(queued.providerConversationId, "existing-conversation");
+  assert.equal(queued.error, "LIVE_CLEANUP_PENDING");
+  await w.tick(); // register worker availability without stealing the valid lease
+  await assert.rejects(apiA.createStockSession("other-owner", "other-tenant", true), { code: "LIVE_CAPACITY_REACHED" });
+  await w.tick(); // operator must not steal a valid lease
+  assert.equal((await get(row.id)).workerId, "other-worker");
+  await db.update(avatarSessions).set({ leaseExpiresAt: new Date(0) }).where(eq(avatarSessions.id, row.id));
+  await w.tick();
+  await eventually(async () => (await get(row.id)).cleanupAttempts > 0);
+  assert.equal((await get(row.id)).rendererState, "cleanup_pending");
+  ended = true;
+  await retryLiveCleanup(row.id, "trusted-operator");
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  assert.equal(stats.starts, 0);
+  assert.equal((await get(row.id)).error, null);
+  assert.equal((await listLiveReconciliation()).pending.length, 0);
+  const audits = await db.select().from(avatarSessionReconciliationAudit);
+  assert.equal(audits.length, 2);
+  assert.ok(audits.every(a => a.action === "cleanup_requested"));
+});
+
+test("operator cannot force-clear unknown creation or reopen closed sessions", async () => {
+  const unknown = await fixture({
+    status: "failed", rendererState: "reconciliation_required",
+    providerCreateState: "unknown", error: "LIVE_CREATE_RECONCILIATION_REQUIRED",
+  });
+  await assert.rejects(retryLiveCleanup(unknown.id, "trusted-operator"), { code: "LIVE_RECONCILIATION_REQUIRED" });
+  assert.equal((await get(unknown.id)).providerCreateState, "unknown");
+  const closed = await fixture({ status: "ended", rendererState: "closed", roomName: null });
+  await assert.rejects(retryLiveCleanup(closed.id, "trusted-operator"), { code: "LIVE_SESSION_NOT_CLEANABLE" });
+  assert.equal((await db.select().from(avatarSessionReconciliationAudit)).length, 0);
+});
+
+test("worker can finish resource-free cleanup_pending without starting a paid call", async () => {
+  const row = await fixture({
+    status: "failed", rendererState: "cleanup_pending", providerCreateState: "rejected",
+    roomName: null, providerConversationId: null, error: "LIVE_CLEANUP_PENDING",
+  });
+  const { w, stats } = worker();
+  await retryLiveCleanup(row.id, "trusted-operator");
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  assert.equal(stats.starts, 0);
 });
 
 test("operator allowlist matches exact Clerk user IDs and denies empty configuration", () => {

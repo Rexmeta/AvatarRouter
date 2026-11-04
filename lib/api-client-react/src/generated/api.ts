@@ -40,6 +40,7 @@ import type {
   IssuedDeveloperKey,
   LiveAudioInput,
   LiveAudioResult,
+  LiveCleanupInput,
   LiveConnection,
   LiveConversationReconciliationInput,
   LiveConversationReconciliationResult,
@@ -3073,7 +3074,7 @@ export const getListLiveReconciliationUrl = () => {
 }
 
 /**
- * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous paid live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
+ * Trusted operator only. Requires a signed-in Clerk user ID listed in LIVE_SESSION_OPERATOR_IDS. Lists ambiguous and cleanup-pending live sessions and a recent append-only audit history. API keys and delegated identities are rejected.
  */
 export const listLiveReconciliation = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveReconciliationList> => {
 
@@ -3161,6 +3162,92 @@ export function useListLiveReconciliation<TData = Awaited<ReturnType<typeof list
 
 
 
+
+export const getRetryLiveCleanupUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/operator/live-reconciliation/${id}/cleanup`
+}
+
+/**
+ * Trusted operator only. Requests termination and verified cleanup of existing resources without creating a new conversation or overriding a worker lease. Does not clear safety blocks.
+ */
+export const retryLiveCleanup = async (id: string,
+    liveCleanupInput: LiveCleanupInput, options?: Parameters<typeof customFetch>[1]): Promise<LiveConversationReconciliationResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LiveConversationReconciliationResult>(getRetryLiveCleanupUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(liveCleanupInput)
+  }
+);}
+
+
+
+
+
+export const getRetryLiveCleanupMutationKey = () => ['retryLiveCleanup'] as const;
+
+export const getRetryLiveCleanupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryLiveCleanup>>, TError,RetryLiveCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryLiveCleanup>>, TError,RetryLiveCleanupMutationVariables, TContext> => {
+
+const mutationKey = getRetryLiveCleanupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryLiveCleanup>>, RetryLiveCleanupMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  retryLiveCleanup(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryLiveCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof retryLiveCleanup>>>
+    export type RetryLiveCleanupMutationBody = BodyType<LiveCleanupInput>
+    export type RetryLiveCleanupMutationError = ErrorType<void>
+    export type RetryLiveCleanupMutationVariables = {id: string;data: BodyType<LiveCleanupInput>}
+
+    export const useRetryLiveCleanup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryLiveCleanup>>, TError,RetryLiveCleanupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retryLiveCleanup>>,
+        TError,
+        RetryLiveCleanupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRetryLiveCleanupMutationOptions(options), queryClient);
+    }
 
 export const getAttachLiveConversationIdUrl = (id: string,) => {
 

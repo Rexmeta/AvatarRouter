@@ -5,9 +5,10 @@ import {
   AttachLiveConversationIdResponse, ListLiveReconciliationResponse,
   CompareRendererDiagnosticsQueryParams, CompareRendererDiagnosticsResponse,
   ListRendererDiagnosticSessionsResponse,
+  RetryLiveCleanupBody, RetryLiveCleanupParams, RetryLiveCleanupResponse,
 } from "@workspace/api-zod";
 import { SessionProblem } from "../lib/session-service";
-import { attachLiveConversationId, listLiveReconciliation } from "../lib/live-session-operator";
+import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } from "../lib/live-session-operator";
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { compareRendererDiagnostics, listRendererDiagnosticSessions } from "../lib/renderer-diagnostic-query";
 import { liveOperatorBootstrap } from "../lib/live-operator-bootstrap";
@@ -49,6 +50,17 @@ router.get("/v1/operator/live-reconciliation/diagnostics/compare", async (req, r
 
 router.get("/v1/operator/live-reconciliation", async (_req, res): Promise<void> => {
   res.json(ListLiveReconciliationResponse.parse(await listLiveReconciliation()));
+});
+
+router.post("/v1/operator/live-reconciliation/:id/cleanup", async (req, res): Promise<void> => {
+  const params = RetryLiveCleanupParams.safeParse(req.params);
+  const body = RetryLiveCleanupBody.safeParse(req.body);
+  if (!params.success || !body.success || body.data.confirmed !== true) {
+    throw new SessionProblem(400, "INVALID_CLEANUP_INPUT", "Confirm termination of this existing session.");
+  }
+  const { userId } = getAuth(req);
+  if (!userId) throw new SessionProblem(401, "AUTHENTICATION_REQUIRED", "Sign in as an operator.");
+  res.status(202).json(RetryLiveCleanupResponse.parse(await retryLiveCleanup(params.data.id, userId)));
 });
 
 router.post("/v1/operator/live-reconciliation/:id", async (req, res): Promise<void> => {
