@@ -124,6 +124,29 @@ Tavus가 대화 엔진이므로 기존 Gemini 실시간 이벤트/대화 기록�
 변환해야 합니다. 이 API 추가만으로 평가/자막 연동 완료라고 표시하지 마세요.
 Tavus 전용 transcript나 webhook의 원문/서명 검증 없이 외부 콜백을 신뢰하면 안 됩니다.
 
+### 확정 대화록 확장
+
+`GET /auth/check`의 `integration.features`에 `tavus_final_transcript_v1`이
+광고된 서버만 `GET /sessions/{id}/transcript`를 지원합니다.
+권한은 `sessions:read`이며 owner와 tenant를 모두 검사합니다.
+응답은 `Cache-Control: private, no-store`입니다.
+
+- `status: pending`: 대화 종료·정리 또는 제공자 확정 대화록을 기다립니다.
+- `status: unavailable`: 제공자 대화가 없거나 조회할 수 있는 기록이 없습니다.
+- `status: ready`: `final: true`, `sessionId`, `source: tavus`,
+  `messages: [{ role: user|assistant, text, timestamp: ISO8601 }]`,
+  `revision: SHA256(JSON.stringify(messages))`를 반환합니다.
+
+라우터 서버가 기존 Tavus 인증으로 `GET /v2/conversations/{id}?verbose=true`를
+조회하여 `status: ended`와 `application.transcription_ready`를 함께 확인합니다.
+system/tool 내용, 제공자 conversation ID, PAL, 방 주소·토큰은 반환하지 않습니다.
+Daily의 실시간 app-message나 전체 LLM 응답은 평가용 확정 기록으로 승격하지 않습니다.
+제공자 확정 대화록은 독립적인 음성 인식 정확성이나 실제 재생 인증을 뜻하지 않습니다.
+
+RoleplayX는 동일 revision을 멱등 import하고 기존 대화 원장/기록과 피드백
+작업 큐에 연결해야 합니다. 기능 광고가 없는 구버전 라우터에서는 해당 API를
+호출하거나 평가 완료를 표시하지 마세요. 새 코드 검토·배포 뒤에 기능이 활성화됩니다.
+
 ## 검증 범위
 
 외부 서비스 호출 없는 자동 테스트와 타입 검사를 제공합니다.

@@ -671,6 +671,46 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/transcript:
+    get:
+      operationId: getTavusFinalTranscript
+      tags: [RoleplayX LiveKit]
+      description: Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+      security:
+        - RoleplayXDelegationJWT: []
+        - ServiceApiKey: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Pending, unavailable, or immutable final dialogue. Ready does not certify independent STT accuracy or browser playback.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["private, no-store"] }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessionId, source, status]
+                properties:
+                  sessionId: { type: string }
+                  source: { type: string, enum: [tavus] }
+                  status: { type: string, enum: [pending, unavailable, ready] }
+                  final: { type: boolean, enum: [true], description: Present only when ready. }
+                  revision: { type: string, pattern: "^[a-f0-9]{64}$", description: "SHA256 of JSON.stringify(messages), present only when ready." }
+                  messages:
+                    type: array
+                    maxItems: 1000
+                    items:
+                      type: object
+                      required: [role, text, timestamp]
+                      properties:
+                        role: { type: string, enum: [user, assistant] }
+                        text: { type: string, maxLength: 10000 }
+                        timestamp: { type: string, format: date-time }
+        "404": { description: Session not found or not owned by the current user and tenant. }
+        "409": { description: Not a Tavus full-pipeline session. }
+        "502": { description: Provider transcript could not be verified or read. }
   /v1/sessions/{id}/events:
     get:
       operationId: listSessionEvents

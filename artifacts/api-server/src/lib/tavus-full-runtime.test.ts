@@ -38,6 +38,8 @@ test("contract preserves external audio by default and validates full options", 
   assert.equal(CreateSessionBody.safeParse({ ...input, pipeline: "tavus_full", fullPipeline: { systemPrompt: "" } }).success, false);
   assert.equal(CreateSessionBody.safeParse({ ...input, pipeline: "tavus_full", fullPipeline: options }).success, true);
   assert.equal(requiredRoleplayxScope("GET", "/api/v1/sessions/test/full-connection"), "sessions:connect");
+  assert.equal(requiredRoleplayxScope("GET", "/api/v1/sessions/test/transcript"), "sessions:read");
+  assert.equal(requiredRoleplayxScope("POST", "/api/v1/sessions/test/transcript"), "unrecognized:route");
 });
 test("PAL is full, isolated, voice scoped; conversation is private, capped and correlated", () => {
   const pal = fullPalBody("a", "face", options);
