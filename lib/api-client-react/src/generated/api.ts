@@ -34,6 +34,7 @@ import type {
   CreateDeveloperKeyInput,
   DeveloperKey,
   GetDeveloperWorkspace200,
+  GetTavusFinalTranscript200,
   HealthStatus,
   ImageAsset,
   ImageInput,
@@ -3859,6 +3860,104 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getInterruptSessionMutationOptions(options), queryClient);
     }
+
+export const getGetTavusFinalTranscriptUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/transcript`
+}
+
+/**
+ * Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+ */
+export const getTavusFinalTranscript = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<GetTavusFinalTranscript200> => {
+
+  return customFetch<GetTavusFinalTranscript200>(getGetTavusFinalTranscriptUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTavusFinalTranscriptQueryKey = (id: string,) => {
+    return [
+    `/api/v1/sessions/${id}/transcript`
+    ] as const;
+    }
+
+
+export const getGetTavusFinalTranscriptQueryOptions = <TData = Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError = ErrorType<void>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTavusFinalTranscriptQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTavusFinalTranscript>>> = ({ signal }) => getTavusFinalTranscript(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTavusFinalTranscriptQueryResult = NonNullable<Awaited<ReturnType<typeof getTavusFinalTranscript>>>
+export type GetTavusFinalTranscriptQueryError = ErrorType<void>
+
+
+export function useGetTavusFinalTranscript<TData = Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError = ErrorType<void>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTavusFinalTranscript>>,
+          TError,
+          Awaited<ReturnType<typeof getTavusFinalTranscript>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTavusFinalTranscript<TData = Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTavusFinalTranscript>>,
+          TError,
+          Awaited<ReturnType<typeof getTavusFinalTranscript>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTavusFinalTranscript<TData = Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetTavusFinalTranscript<TData = Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTavusFinalTranscript>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTavusFinalTranscriptQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListSessionEventsUrl = (id: string,) => {
 

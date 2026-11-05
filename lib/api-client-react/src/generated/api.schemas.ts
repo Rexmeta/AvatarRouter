@@ -878,3 +878,49 @@ export type CompareRendererDiagnosticsParams = {
   right: string;
 };
 
+export type GetTavusFinalTranscript200Source = typeof GetTavusFinalTranscript200Source[keyof typeof GetTavusFinalTranscript200Source];
+
+
+export const GetTavusFinalTranscript200Source = {
+  tavus: 'tavus',
+} as const;
+
+export type GetTavusFinalTranscript200Status = typeof GetTavusFinalTranscript200Status[keyof typeof GetTavusFinalTranscript200Status];
+
+
+export const GetTavusFinalTranscript200Status = {
+  pending: 'pending',
+  unavailable: 'unavailable',
+  ready: 'ready',
+} as const;
+
+export type GetTavusFinalTranscript200MessagesItemRole = typeof GetTavusFinalTranscript200MessagesItemRole[keyof typeof GetTavusFinalTranscript200MessagesItemRole];
+
+
+export const GetTavusFinalTranscript200MessagesItemRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export type GetTavusFinalTranscript200MessagesItem = {
+  role: GetTavusFinalTranscript200MessagesItemRole;
+  /** @maxLength 10000 */
+  text: string;
+  timestamp: string;
+};
+
+export type GetTavusFinalTranscript200 = {
+  sessionId: string;
+  source: GetTavusFinalTranscript200Source;
+  status: GetTavusFinalTranscript200Status;
+  /** Present only when ready. */
+  final?: true;
+  /**
+     * SHA256 of JSON.stringify(messages), present only when ready.
+     * @pattern ^[a-f0-9]{64}$
+     */
+  revision?: string;
+  /** @maxItems 1000 */
+  messages?: GetTavusFinalTranscript200MessagesItem[];
+};
+

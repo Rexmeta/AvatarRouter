@@ -1064,6 +1064,34 @@ export const InterruptSessionResponse = zod.object({
 })
 
 
+/**
+ * Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+ */
+export const GetTavusFinalTranscriptParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const getTavusFinalTranscriptResponseRevisionRegExp = new RegExp('^[a-f0-9]{64}$');
+export const getTavusFinalTranscriptResponseMessagesItemTextMax = 10000;
+
+export const getTavusFinalTranscriptResponseMessagesMax = 1000;
+
+
+
+export const GetTavusFinalTranscriptResponse = zod.object({
+  "sessionId": zod.string(),
+  "source": zod.enum(['tavus']),
+  "status": zod.enum(['pending', 'unavailable', 'ready']),
+  "final": zod.literal(true).optional().describe('Present only when ready.'),
+  "revision": zod.string().regex(getTavusFinalTranscriptResponseRevisionRegExp).optional().describe('SHA256 of JSON.stringify(messages), present only when ready.'),
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "text": zod.string().max(getTavusFinalTranscriptResponseMessagesItemTextMax),
+  "timestamp": zod.coerce.date()
+})).max(getTavusFinalTranscriptResponseMessagesMax).optional()
+})
+
+
 export const ListSessionEventsParams = zod.object({
   "id": zod.coerce.string()
 })

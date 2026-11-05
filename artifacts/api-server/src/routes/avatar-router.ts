@@ -15,6 +15,7 @@ import { createStockSession, closeStockSession, liveConnection, fullConnection, 
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { integrationIdentity } from "../lib/integration-identity";
 import { SessionProblem } from "../lib/session-service";
+import { FinalTranscriptProblem, readTavusFinalTranscript } from "../lib/tavus-final-transcript";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -88,6 +89,17 @@ router.get("/v1/sessions/:id/full-connection", assetTenant, async (req, res): Pr
   const { id } = GetSessionParams.parse(req.params);
   res.set("Cache-Control", "private, no-store");
   res.json(GetTavusFullConnectionResponse.parse(await fullConnection(res.locals.ownerHash, res.locals.tenantId, id)));
+});
+router.get("/v1/sessions/:id/transcript", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
+  const row = await getOwnedSession(res.locals.ownerHash, id);
+  try {
+    res.json(await readTavusFinalTranscript(row, res.locals.ownerHash, res.locals.tenantId));
+  } catch (error) {
+    if (error instanceof FinalTranscriptProblem) throw new SessionProblem(error.status, error.code, error.code);
+    throw error;
+  }
 });
 router.get("/v1/sessions/:id/connection", assetTenant, async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
