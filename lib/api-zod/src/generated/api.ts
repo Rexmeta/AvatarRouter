@@ -748,6 +748,15 @@ export const createSessionBodyFullPipelineLanguagesMax = 5;
 
 export const createSessionBodyFullPipelineVoiceIdMax = 160;
 
+export const createSessionBodyRoleplayPersonaMax = 8000;
+
+export const createSessionBodyRoleplayScenarioMax = 16000;
+
+export const createSessionBodyRoleplayLanguageMin = 2;
+export const createSessionBodyRoleplayLanguageMax = 80;
+
+export const createSessionBodyRoleplayGreetingMax = 1000;
+
 export const createSessionBodyAvatarIdMax = 160;
 
 export const createSessionBodyPurposeDefault = `conversation`;
@@ -762,6 +771,12 @@ export const CreateSessionBody = zod.object({
   "languages": zod.array(zod.string().min(createSessionBodyFullPipelineLanguagesItemMin).max(createSessionBodyFullPipelineLanguagesItemMax)).min(1).max(createSessionBodyFullPipelineLanguagesMax).optional(),
   "voiceId": zod.string().min(1).max(createSessionBodyFullPipelineVoiceIdMax).optional().describe('Tavus-managed voice ID; not an external provider API key.')
 }).optional(),
+  "roleplay": zod.object({
+  "persona": zod.string().min(1).max(createSessionBodyRoleplayPersonaMax).describe('Character identity, personality, speaking style, goals and behavioral constraints.'),
+  "scenario": zod.string().min(1).max(createSessionBodyRoleplayScenarioMax).describe('Current setting, roles, objectives, approved facts and optional conversation summary.'),
+  "language": zod.string().min(createSessionBodyRoleplayLanguageMin).max(createSessionBodyRoleplayLanguageMax).optional().describe('Desired spoken language, e.g. Korean.'),
+  "greeting": zod.string().min(1).max(createSessionBodyRoleplayGreetingMax).optional().describe('Optional exact opening line.')
+}).optional().describe('Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited.'),
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
   "avatarAssetId": zod.uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),

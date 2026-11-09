@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AvatarSessionRecord } from "@workspace/db";
-import { AnamRuntime, anamLabel, anamTokenBody, terminateAnamResources, ANAM_PERSONA_ID } from "./anam-runtime";
+import { AnamRuntime, anamLabel, anamTokenBody, anamRoleplayPersona, terminateAnamResources, ANAM_PERSONA_ID } from "./anam-runtime";
+import { CreateSessionBody } from "@workspace/api-zod";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { presentSession } from "./session-service";
 import { getProviders } from "./provider-registry";
@@ -19,6 +20,74 @@ const sampleRow = {
   rendererState: "running", fullPipeline: options,
 } as AvatarSessionRecord;
 const list = (data: unknown[]) => reply({ data, meta: { next: null, lastPage: 1 } });
+
+const template = {
+  avatar: { id }, voice: { id: remoteId }, llmId: id, avatarModel: "cara-4",
+  tools: [{ name: "private-webhook" }], knowledge: [{ id: "private-folder" }],
+  brain: { systemPrompt: "shared-private-prompt" },
+};
+const roleplay = { persona: "까다로운 구매 담당자", scenario: "가격 협상 연습. 예산 100만원.", language: "Korean", greeting: "가격을 설명해 주세요." };
+
+test("roleplay contract enforces required fields and bounded inputs", () => {
+  const input = { providerId: "anam", avatarId: "anam-persona-default", mode: "live", pipeline: "anam_full", roleplay };
+  assert.deepEqual(CreateSessionBody.parse(input).roleplay, roleplay);
+  for (const invalid of [{ persona: "x" }, { ...roleplay, scenario: "" }, { ...roleplay, persona: "x".repeat(8001) }, { ...roleplay, scenario: "x".repeat(16001) }]) {
+    assert.equal(CreateSessionBody.safeParse({ ...input, roleplay: invalid }).success, false);
+  }
+});
+
+test("ephemeral roleplay uses template media only, isolated prompts and no shared knowledge or tools", () => {
+  const config = anamRoleplayPersona(template, roleplay);
+  assert.equal(config.avatarId, id);
+  assert.equal(config.voiceId, remoteId);
+  assert.equal(config.initialMessage, roleplay.greeting);
+  assert.equal(config.maxSessionLengthSeconds, 120);
+  assert.ok(config.systemPrompt.includes(roleplay.persona));
+  assert.ok(config.systemPrompt.includes(roleplay.scenario));
+  assert.ok(config.systemPrompt.includes("Korean"));
+  for (const secret of ["private-webhook", "private-folder", "shared-private-prompt"]) {
+    assert.ok(!JSON.stringify(config).includes(secret));
+  }
+  assert.ok(!("personaId" in config));
+  const second = anamRoleplayPersona(template, { persona: "다른 역할", scenario: "별도 대화" });
+  assert.ok(!second.systemPrompt.includes(roleplay.persona));
+  assert.throws(() => anamRoleplayPersona({ ...template, voice: null }, roleplay), { code: "ANAM_TEMPLATE_INVALID" });
+});
+
+test("roleplay reads a fixed template once then mints one token and discards context", async () => {
+  const calls: string[] = [];
+  let saved: unknown;
+  const row = { ...sampleRow, fullPipeline: { systemPrompt: "", roleplay } };
+  const runtime = new AnamRuntime(row, async () => {}, async () => {}, async value => { saved = value; },
+    async (input, init) => {
+      calls.push(String(input));
+      if (calls.length === 1) {
+        assert.equal(String(input), `https://api.anam.ai/v1/personas/${ANAM_PERSONA_ID}`);
+        assert.equal(init?.method, "GET");
+        return reply(template);
+      }
+      const body = JSON.parse(init?.body as string);
+      assert.deepEqual(body.personaConfig, anamRoleplayPersona(template, roleplay));
+      assert.equal(body.maxSessions, 1);
+      return reply({ sessionToken: "private-test-roleplay-token" });
+    });
+  await Promise.all([runtime.start(), runtime.start()]);
+  assert.equal(calls.length, 2);
+  assert.ok(!JSON.stringify(saved).includes(roleplay.persona));
+  assert.ok(!JSON.stringify(presentSession({ ...row, fullPipeline: saved as AvatarSessionRecord["fullPipeline"] })).includes(roleplay.scenario));
+});
+
+test("missing or invalid template never falls back to shared persona or issues a token", async () => {
+  for (const response of [() => reply({}, 403), () => reply({ avatar: null })]) {
+    let calls = 0, rejected = 0;
+    const runtime = new AnamRuntime({ ...sampleRow, fullPipeline: { systemPrompt: "", roleplay } },
+      async () => {}, async () => { rejected++; }, async () => { assert.fail("must not persist token"); },
+      async () => { calls++; return response(); });
+    await assert.rejects(runtime.start(), (e: { code?: string }) => ["ANAM_TEMPLATE_UNAVAILABLE", "ANAM_TEMPLATE_INVALID"].includes(e.code!));
+    assert.equal(calls, 1);
+    assert.equal(rejected, 1);
+  }
+});
 
 test("Anam uses server-selected persona, single-start short token and explicit scope", () => {
   assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${id}/client-connection`), "sessions:connect");

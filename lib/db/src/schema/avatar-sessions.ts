@@ -13,6 +13,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
     systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
     palId?: string; url?: string; token?: string;
     personaId?: string; tokenExpiresAt?: string; connectionIssuedAt?: string;
+    roleplay?: { persona: string; scenario: string; language?: string; greeting?: string };
   }>(),
   rendererState: text("renderer_state").notNull().default("queued"),
   workerId: text("worker_id"),

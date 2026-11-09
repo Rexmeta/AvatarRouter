@@ -2,6 +2,10 @@
 
 **API:** 0.8 · **Recommended connection:** base URL + project API key.
 
+Anam per-session character and scenario input: see [Roleplay context](./roleplay-context.md).
+Send `roleplay` with `pipeline: "anam_full"`; discover support via
+`GET /auth/check` → `integration.features` → `anam_roleplay_context`.
+
 ## 권장: AvatarRouter 관리형 클라이언트
 
 RoleplayX에는 제공자별 키나 Anam/Tavus SDK를 설치하지 않습니다.

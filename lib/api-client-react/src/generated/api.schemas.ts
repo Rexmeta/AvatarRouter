@@ -448,6 +448,36 @@ export interface Avatar {
 }
 
 /**
+ * Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited.
+ */
+export interface RoleplayContext {
+  /**
+     * Character identity, personality, speaking style, goals and behavioral constraints.
+     * @minLength 1
+     * @maxLength 8000
+     */
+  persona: string;
+  /**
+     * Current setting, roles, objectives, approved facts and optional conversation summary.
+     * @minLength 1
+     * @maxLength 16000
+     */
+  scenario: string;
+  /**
+     * Desired spoken language, e.g. Korean.
+     * @minLength 2
+     * @maxLength 80
+     */
+  language?: string;
+  /**
+     * Optional exact opening line.
+     * @minLength 1
+     * @maxLength 1000
+     */
+  greeting?: string;
+}
+
+/**
  * Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently.
  */
 export type SessionInputPipeline = typeof SessionInputPipeline[keyof typeof SessionInputPipeline];
@@ -516,6 +546,7 @@ export interface SessionInput {
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
   fullPipeline?: TavusFullOptions;
+  roleplay?: RoleplayContext;
   providerId: SessionInputProviderId;
   /**
      * @minLength 1

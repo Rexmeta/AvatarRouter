@@ -140,3 +140,17 @@ mtime_ms = 1794211257189
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/6a4b0fcc-0446-4646-94e5-303e5a0778d7/8a1402dc-c59d-4509-a086-62923c2bb35e"
 storage_version_token = "1794211311307882"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "qT2i9gLp4dJ_QBTQyqxO2"
+uri = "file://artifacts/avatar-router/public/roleplayx/roleplay-context.md"
+type = "text"
+title = "RoleplayX 페르소나·시나리오 연동 가이드"
+description = "세션 생성 요청 예시, 입력 제한, Anam 임시 페르소나 처리, 보안 및 검증 범위"
+logical_id = "805f215d-f0e4-48fc-9faa-9863d5940161"
+content_hash = "sha256:181522748904141389072dbb919bd8a88df6aaf47ac4169b301eee94316c6fde"
+size = 5244
+mtime_ms = 1794214412036
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/805f215d-f0e4-48fc-9faa-9863d5940161/0392724b-0371-4265-8199-84cfce2992b2"
+storage_version_token = "1794214561943068"
+content_type = "text/markdown"

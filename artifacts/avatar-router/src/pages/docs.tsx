@@ -56,6 +56,7 @@ export default function Docs() {
             </p>
             <div className="mb-4 flex flex-wrap gap-3">
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/managed-client-integration.md`} download="avatarrouter-managed-client.md">Managed client · API 0.8</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/roleplay-context.md`} download="avatarrouter-roleplay-context.md">Roleplay persona &amp; scenario</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/anam-integration.md`} download="anam-integration.md">Anam native · API 0.7</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/tavus-full-pipeline.md`} download="tavus-full-pipeline.md">Tavus full pipeline · API 0.6</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>

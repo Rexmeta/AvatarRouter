@@ -42,13 +42,19 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
   const { providerId, avatarId, avatarAssetId, mode, costConfirmed, purpose } = parsed.data;
-  const { pipeline, fullPipeline } = parsed.data;
+  const { pipeline, fullPipeline, roleplay } = parsed.data;
+  if (roleplay && pipeline !== "anam_full") {
+    throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay is currently supported only with anam_full.");
+  }
+  if (roleplay && (!roleplay.persona.trim() || !roleplay.scenario.trim() || (roleplay.language !== undefined && !roleplay.language.trim()) || (roleplay.greeting !== undefined && !roleplay.greeting.trim()))) {
+    throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "Roleplay fields must not be blank.");
+  }
   if (pipeline === "anam_full") {
     if (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || fullPipeline || purpose !== "conversation") {
       throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam persona, live conversation mode, and no Tavus options or custom asset.");
     }
     assetTenant(req, res, () => {});
-    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, undefined, true);
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, undefined, true, roleplay);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }

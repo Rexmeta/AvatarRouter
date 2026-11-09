@@ -56,7 +56,9 @@ export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = 
 }
 
 export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation",
-  fullPipeline?: AvatarSessionRecord["fullPipeline"], nativeAnam = false) {
+  fullPipeline?: AvatarSessionRecord["fullPipeline"], nativeAnam = false,
+  roleplay?: NonNullable<AvatarSessionRecord["fullPipeline"]>["roleplay"]) {
+  if (roleplay && !nativeAnam) throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires anam_full.");
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   if (nativeAnam ? !process.env.ANAM_API_KEY : !stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", nativeAnam ? "Configure the Anam server API key." : "LiveKit and Tavus server credentials must be configured.");
   if (nativeAnam && (assetId || fullPipeline || purpose !== "conversation")) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam uses the server-registered saved persona, not a custom asset or Tavus config.");
@@ -90,7 +92,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
       id, ownerHash: owner, tenantId: tenant, providerId: nativeAnam ? "anam" : "tavus", avatarId, avatarAssetId: assetId, purpose,
       mode: "live", status: "active", roomName: nativeAnam || fullPipeline ? null : `ar-stock-${id}`,
       pipeline: nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio",
-      fullPipeline: nativeAnam ? { systemPrompt: "", personaId: ANAM_PERSONA_ID } : fullPipeline,
+      fullPipeline: nativeAnam ? { systemPrompt: "", personaId: ANAM_PERSONA_ID, roleplay } : fullPipeline,
       rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
       expiresAt: new Date(Date.now() + LIVE_SESSION_MS),
     }).returning();

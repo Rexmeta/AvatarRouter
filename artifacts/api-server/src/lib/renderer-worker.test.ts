@@ -107,13 +107,19 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
   const calls: string[] = [];
   const row = await fixture({
     providerId: "anam", avatarId: ANAM_AVATAR, pipeline: "anam_full", roomName: null,
-    fullPipeline: { systemPrompt: "" },
+    fullPipeline: { systemPrompt: "", roleplay: { persona: "buyer", scenario: "negotiation" } },
   });
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     calls.push(`${init?.method} ${url}`);
     assert.ok(url.startsWith("https://api.anam.ai/v1/"));
-    if (url.endsWith("/auth/session-token")) return new Response(JSON.stringify({ sessionToken: "private-test-anam-token" }));
+    if (url.includes("/personas/")) return new Response(JSON.stringify({ avatar: { id: remoteId }, voice: { id: remoteId }, llmId: remoteId }));
+    if (url.endsWith("/auth/session-token")) {
+      const body = JSON.parse(init?.body as string);
+      assert.ok(body.personaConfig.systemPrompt.includes("negotiation"));
+      assert.equal(body.personaConfig.personaId, undefined);
+      return new Response(JSON.stringify({ sessionToken: "private-test-anam-token" }));
+    }
     if (url.includes("?search=")) return new Response(JSON.stringify({
       data: [{ id: remoteId, clientLabel: anamLabel(row.id), endTime: nativeEnded ? new Date().toISOString() : null }],
       meta: { next: null },
@@ -126,6 +132,7 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
     workers.push(w);
     await w.tick();
     await eventually(async () => (await get(row.id)).rendererState === "running");
+    assert.equal((await get(row.id)).fullPipeline?.roleplay, undefined);
     await assert.rejects(apiA.clientConnection("other-owner", row.tenantId!, row.id), { code: "SESSION_NOT_FOUND" });
     await assert.rejects(apiA.clientConnection(row.ownerHash, "other-tenant", row.id), { code: "SESSION_NOT_FOUND" });
     const attempts = await Promise.allSettled([

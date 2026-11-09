@@ -81,6 +81,7 @@ export * from './rendererDiagnosticSession';
 export * from './rendererDiagnosticSignal';
 export * from './rendererDiagnosticStage';
 export * from './rendererDiagnosticStageOutcome';
+export * from './roleplayContext';
 export * from './roleplayXDelegationClaims';
 export * from './serviceKeyCheck';
 export * from './session';

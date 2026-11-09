@@ -1050,6 +1050,16 @@ components:
         kind: { type: string, enum: [mock, configured] }
         configured: { type: boolean }
         languages: { type: array, items: { type: string } }
+    RoleplayContext:
+      type: object
+      additionalProperties: false
+      required: [persona, scenario]
+      description: "Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited."
+      properties:
+        persona: { type: string, minLength: 1, maxLength: 8000, description: "Character identity, personality, speaking style, goals and behavioral constraints." }
+        scenario: { type: string, minLength: 1, maxLength: 16000, description: "Current setting, roles, objectives, approved facts and optional conversation summary." }
+        language: { type: string, minLength: 2, maxLength: 80, description: "Desired spoken language, e.g. Korean." }
+        greeting: { type: string, minLength: 1, maxLength: 1000, description: "Optional exact opening line." }
     SessionInput:
       type: object
       additionalProperties: false
@@ -1057,6 +1067,7 @@ components:
       properties:
         pipeline: { type: string, enum: [external_audio, tavus_full, anam_full], default: external_audio, description: "Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently." }
         fullPipeline: { $ref: "#/components/schemas/TavusFullOptions" }
+        roleplay: { $ref: "#/components/schemas/RoleplayContext" }
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
         avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable." }
