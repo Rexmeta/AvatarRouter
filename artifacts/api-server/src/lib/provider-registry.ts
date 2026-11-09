@@ -33,7 +33,7 @@ export function getProviders(environment: NodeJS.ProcessEnv = process.env) {
     const missing = [...(p.id === "anam" ? [] : transportKeys), ...p.keys].filter((key) => !environment[key]);
     return {
       id: p.id, name: p.name, description: p.description,
-      status: missing.length ? "unconfigured" as const : p.id === "tavus" ? "available" as const : p.id === "anam" ? "degraded" as const : "unavailable" as const,
+      status: missing.length ? "unconfigured" as const : p.implemented ? "available" as const : "unavailable" as const,
       runtime: p.runtime, modes: p.id === "anam" ? ["full_pipeline"] : ["renderer"], externalAudio: p.id !== "anam",
       sourceUrl: p.id === "anam" ? "https://anam.ai/docs/javascript-sdk/authentication" : `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
       validation: p.id === "tavus"

@@ -31,7 +31,7 @@ test("Anam uses server-selected persona, single-start short token and explicit s
   const anam = getProviders({ ANAM_API_KEY: "test-only" }).find(p => p.id === "anam")!;
   assert.deepEqual(anam.missing, []);
   assert.equal(anam.externalAudio, false);
-  assert.equal(anam.status, "degraded"); // implemented, not live playback verified
+  assert.equal(anam.status, "available"); // configured + implemented, not a playback-validation claim
 });
 
 test("token creation persists privately once; does not start a provider engine", async () => {

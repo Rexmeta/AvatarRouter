@@ -5,11 +5,12 @@ import { ErrorState, PageHead, Panel, Pill, Skel } from '@/components/bits';
 
 export default function Providers() {
   const { t } = useI18n();
-  const q = useListProviders();
+  const q = useListProviders({ query: { staleTime: 0, refetchOnMount: 'always' } });
   const setup = useGetSetup();
   return (
     <div>
       <PageHead index="03 / providers" title={t('prov.title')} lede={t('prov.lede')} />
+      <p className="mb-6 rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground" data-testid="provider-status-note">{t('prov.statusNote')}</p>
       {q.isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skel key={i} className="h-56" />)}</div>
       ) : q.isError ? (
