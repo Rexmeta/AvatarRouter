@@ -50,7 +50,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
   const { user, isLoaded } = useUser();
   const qc = useQueryClient();
   const uid = user?.id ?? null;
-  const limits = useGetLiveLimits({ query: { queryKey: [...getGetLiveLimitsQueryKey(), uid], enabled: !!uid, refetchInterval: 5000, staleTime: 0 } });
+  const limits = useGetLiveLimits(undefined, { query: { queryKey: [...getGetLiveLimitsQueryKey(), uid], enabled: !!uid, refetchInterval: 5000, staleTime: 0 } });
 
   const [sid, setSid] = useState<string>(() => sessionStorage.getItem(KEY) ?? '');
   const [ack, setAck] = useState(false);

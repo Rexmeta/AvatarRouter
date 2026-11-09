@@ -11,6 +11,7 @@ import { safeLiveError } from "./stock-policy";
 import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } from "./live-session-operator";
 import { isTrustedLiveOperator } from "../routes/live-reconciliation";
 import { flushRendererDiagnostics } from "./renderer-diagnostic-store";
+import { anamLabel, ANAM_AVATAR } from "./anam-runtime";
 
 // Real PostgreSQL locking/leases, isolated schema. Never call a provider or touch
 // application sessions, even if workflows are concurrently running.
@@ -97,6 +98,54 @@ test("unexpected RTC loss retains a safe failure reason after confirmed cleanup"
   assert.equal(closed.error, "LIVE_RTC_DISCONNECTED");
   assert.equal(closed.roomName, null);
   assert.equal(closed.providerConversationId, null);
+});
+
+test("native Anam handoff is single-use, scoped and cleaned from authoritative provider records", async () => {
+  const originalFetch = globalThis.fetch;
+  const remoteId = randomUUID();
+  let nativeEnded = false;
+  const calls: string[] = [];
+  const row = await fixture({
+    providerId: "anam", avatarId: ANAM_AVATAR, pipeline: "anam_full", roomName: null,
+    fullPipeline: { systemPrompt: "" },
+  });
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push(`${init?.method} ${url}`);
+    assert.ok(url.startsWith("https://api.anam.ai/v1/"));
+    if (url.endsWith("/auth/session-token")) return new Response(JSON.stringify({ sessionToken: "private-test-anam-token" }));
+    if (url.includes("?search=")) return new Response(JSON.stringify({
+      data: [{ id: remoteId, clientLabel: anamLabel(row.id), endTime: nativeEnded ? new Date().toISOString() : null }],
+      meta: { next: null },
+    }));
+    if (url.endsWith("/stop")) { nativeEnded = true; return new Response("{}"); }
+    return new Response(JSON.stringify({ id: remoteId, clientLabel: anamLabel(row.id), endTime: nativeEnded ? new Date().toISOString() : null }));
+  };
+  try {
+    const w = new RendererWorker();
+    workers.push(w);
+    await w.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "running");
+    await assert.rejects(apiA.anamConnection("other-owner", row.tenantId!, row.id), { code: "SESSION_NOT_FOUND" });
+    await assert.rejects(apiA.anamConnection(row.ownerHash, "other-tenant", row.id), { code: "SESSION_NOT_FOUND" });
+    const attempts = await Promise.allSettled([
+      apiA.anamConnection(row.ownerHash, row.tenantId!, row.id),
+      apiA.anamConnection(row.ownerHash, row.tenantId!, row.id),
+    ]);
+    assert.equal(attempts.filter(x => x.status === "fulfilled").length, 1);
+    const denied = attempts.find(x => x.status === "rejected") as PromiseRejectedResult;
+    assert.equal(denied.reason.code, "ANAM_CONNECTION_ALREADY_ISSUED");
+    assert.equal((await get(row.id)).fullPipeline?.token, undefined);
+    await assert.rejects(apiA.liveConnection(row.ownerHash, row.tenantId!, row.id), { code: "ANAM_NATIVE_REQUIRED" });
+    await assert.rejects(apiA.sendStockAudio(row.ownerHash, row.tenantId!, row.id, Buffer.alloc(960)), { code: "FULL_PIPELINE_DIRECT_MEDIA" });
+    await apiA.closeStockSession(row.ownerHash, row.id);
+    await w.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    assert.equal((await get(row.id)).providerCreateState, "known");
+    assert.equal((await get(row.id)).fullPipeline, null);
+    assert.equal(calls.filter(x => x.endsWith("/auth/session-token")).length, 1);
+    assert.ok(!calls.some(x => x.includes("/engine/")));
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("full-pipeline private connection is owner/tenant scoped and rejects external audio controls", async () => {

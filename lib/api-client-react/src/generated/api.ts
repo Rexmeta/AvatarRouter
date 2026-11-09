@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 import {
   useMutation,
@@ -25,6 +25,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AnamConnection,
   ApiFailure,
   Avatar,
   AvatarAsset,
@@ -34,6 +35,7 @@ import type {
   CreateDeveloperKeyInput,
   DeveloperKey,
   GetDeveloperWorkspace200,
+  GetLiveLimitsParams,
   GetTavusFinalTranscript200,
   HealthStatus,
   ImageAsset,
@@ -2582,17 +2584,24 @@ export function useListAvatars<TData = Awaited<ReturnType<typeof listAvatars>>, 
 
 
 
-export const getGetLiveLimitsUrl = () => {
+export const getGetLiveLimitsUrl = (params?: GetLiveLimitsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/live-limits`
+  return stringifiedParams.length > 0 ? `/api/v1/live-limits?${stringifiedParams}` : `/api/v1/live-limits`
 }
 
-export const getLiveLimits = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveLimits> => {
+export const getLiveLimits = async (params?: GetLiveLimitsParams, options?: Parameters<typeof customFetch>[1]): Promise<LiveLimits> => {
 
-  return customFetch<LiveLimits>(getGetLiveLimitsUrl(),
+  return customFetch<LiveLimits>(getGetLiveLimitsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2605,23 +2614,23 @@ export const getLiveLimits = async ( options?: Parameters<typeof customFetch>[1]
 
 
 
-export const getGetLiveLimitsQueryKey = () => {
+export const getGetLiveLimitsQueryKey = (params?: GetLiveLimitsParams,) => {
     return [
-    `/api/v1/live-limits`
+    `/api/v1/live-limits`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetLiveLimitsQueryOptions = <TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getGetLiveLimitsQueryOptions = <TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(params?: GetLiveLimitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetLiveLimitsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveLimitsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveLimits>>> = ({ signal }) => getLiveLimits({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveLimits>>> = ({ signal }) => getLiveLimits(params, { signal, ...requestOptions });
 
 
 
@@ -2635,7 +2644,7 @@ export type GetLiveLimitsQueryError = ErrorType<unknown>
 
 
 export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
+ params: undefined |  GetLiveLimitsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getLiveLimits>>,
           TError,
@@ -2645,7 +2654,7 @@ export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
+ params?: GetLiveLimitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getLiveLimits>>,
           TError,
@@ -2655,16 +2664,16 @@ export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetLiveLimitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetLiveLimits<TData = Awaited<ReturnType<typeof getLiveLimits>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: GetLiveLimitsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLiveLimits>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetLiveLimitsQueryOptions(options)
+  const queryOptions = getGetLiveLimitsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -3433,6 +3442,77 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getCreateAnamConnectionUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/anam-connection`
+}
+
+/**
+ * One-time native Anam token handoff for an owned running anam_full session. Requires sessions:connect. Never log or persist the token in the browser. Disable SDK startup retries.
+ */
+export const createAnamConnection = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AnamConnection> => {
+
+  return customFetch<AnamConnection>(getCreateAnamConnectionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateAnamConnectionMutationKey = () => ['createAnamConnection'] as const;
+
+export const getCreateAnamConnectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAnamConnection>>, TError,CreateAnamConnectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAnamConnection>>, TError,CreateAnamConnectionMutationVariables, TContext> => {
+
+const mutationKey = getCreateAnamConnectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAnamConnection>>, CreateAnamConnectionMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  createAnamConnection(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAnamConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof createAnamConnection>>>
+
+    export type CreateAnamConnectionMutationError = ErrorType<void>
+    export type CreateAnamConnectionMutationVariables = {id: string}
+
+    export const useCreateAnamConnection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAnamConnection>>, TError,CreateAnamConnectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAnamConnection>>,
+        TError,
+        CreateAnamConnectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAnamConnectionMutationOptions(options), queryClient);
+    }
 
 export const getGetTavusFullConnectionUrl = (id: string,) => {
 

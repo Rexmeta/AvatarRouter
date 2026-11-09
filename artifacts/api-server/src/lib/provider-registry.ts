@@ -1,3 +1,5 @@
+import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
+
 /**
  * Catalog metadata is grounded in official LiveKit documentation.
  * Presence of credentials never means a provider has passed a live test.
@@ -6,8 +8,8 @@ const transportKeys = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"];
 const definitions = [
   {
     id: "anam", name: "Anam", runtime: "Node.js",
-    description: "Realistic avatar rendering through the official LiveKit Anam plugin.",
-    keys: ["ANAM_API_KEY", "ANAM_AVATAR_ID"], implemented: true,
+    description: "Saved-persona conversation and voice through native Anam WebRTC. No LiveKit credentials required.",
+    keys: ["ANAM_API_KEY"], implemented: true,
   },
   {
     id: "tavus", name: "Tavus", runtime: "Node.js",
@@ -28,14 +30,15 @@ const definitions = [
 
 export function getProviders(environment: NodeJS.ProcessEnv = process.env) {
   return definitions.map((p) => {
-    const missing = [...transportKeys, ...p.keys].filter((key) => !environment[key]);
+    const missing = [...(p.id === "anam" ? [] : transportKeys), ...p.keys].filter((key) => !environment[key]);
     return {
       id: p.id, name: p.name, description: p.description,
-      status: missing.length ? "unconfigured" as const : p.id === "tavus" ? "available" as const : "unavailable" as const,
-      runtime: p.runtime, modes: ["renderer"], externalAudio: true,
-      sourceUrl: `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
+      status: missing.length ? "unconfigured" as const : p.id === "tavus" ? "available" as const : p.id === "anam" ? "degraded" as const : "unavailable" as const,
+      runtime: p.runtime, modes: p.id === "anam" ? ["full_pipeline"] : ["renderer"], externalAudio: p.id !== "anam",
+      sourceUrl: p.id === "anam" ? "https://anam.ai/docs/javascript-sdk/authentication" : `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
       validation: p.id === "tavus"
         ? "Stock Lucy - Home LiveKit echo test enabled; sign-in and credit confirmation required. Custom image avatars and Gemini bridge remain unverified."
+        : p.id === "anam" ? "Native single-start token adapter implemented; real microphone/video playback validation pending. Custom Anam assets are not enabled."
         : p.implemented
         ? "Official plugin installed; live provider and Gemini bridge validation pending."
         : "Official plugin documented; AvatarRouter adapter not implemented.",
@@ -54,6 +57,11 @@ export function getAvatars() {
     id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy - Home (Tavus stock)",
     description: "Official plugin stock face r4067604db72. No upload or training; bounded LiveKit echo session.",
     kind: "configured", configured: Boolean(process.env.TAVUS_API_KEY && transportKeys.every(key => process.env[key])), languages: [],
+  });
+  avatars.push({
+    id: ANAM_AVATAR, providerId: "anam", name: "Anam saved persona",
+    description: `Server-registered persona ${ANAM_PERSONA_ID}. Native dialogue and voice; not a custom-avatar asset. Playback not yet verified.`,
+    kind: "configured", configured: Boolean(process.env.ANAM_API_KEY), languages: [],
   });
   // These are user-configured references, not a fabricated provider gallery.
   if (process.env.ANAM_AVATAR_ID) avatars.push({

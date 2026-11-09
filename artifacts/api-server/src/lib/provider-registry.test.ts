@@ -7,9 +7,9 @@ test("providers start unconfigured without paid credentials", () => {
   assert.equal(providers.length, 4);
   for (const p of providers) {
     assert.equal(p.status, "unconfigured");
-    assert.ok(p.missing.length >= 4);
-    assert.equal(p.modes[0], "renderer");
-    assert.match(p.sourceUrl, /^https:\/\/docs.livekit.io\//);
+    assert.ok(p.missing.length >= (p.id === "anam" ? 1 : 4));
+    assert.equal(p.modes[0], p.id === "anam" ? "full_pipeline" : "renderer");
+    assert.match(p.sourceUrl, p.id === "anam" ? /^https:\/\/anam.ai\// : /^https:\/\/docs.livekit.io\//);
   }
 });
 test("credential presence does not fabricate live validation", () => {
@@ -17,7 +17,7 @@ test("credential presence does not fabricate live validation", () => {
     LIVEKIT_URL: "wss://test.invalid", LIVEKIT_API_KEY: "test-only",
     LIVEKIT_API_SECRET: "test-only", ANAM_API_KEY: "test-only", ANAM_AVATAR_ID: "test-only",
   });
-  assert.equal(anam!.status, "unavailable");
+  assert.equal(anam!.status, "degraded");
   assert.deepEqual(anam!.missing, []);
   assert.match(anam!.validation, /pending/);
 });

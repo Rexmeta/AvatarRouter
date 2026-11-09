@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AvatarRouter Live Avatar API
-  version: 0.6.0
+  version: 0.7.0
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready.
@@ -397,6 +397,8 @@ paths:
   /v1/live-limits:
     get:
       operationId: getLiveLimits
+      parameters:
+        - { name: providerId, in: query, schema: { type: string, enum: [tavus, anam], default: tavus } }
       tags: [RoleplayX LiveKit]
       security:
         - ClerkSessionJWT: []
@@ -569,6 +571,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/anam-connection:
+    post:
+      operationId: createAnamConnection
+      description: One-time native Anam token handoff for an owned running anam_full session. Requires sessions:connect. Never log or persist the token in the browser. Disable SDK startup retries.
+      security: [{ ClerkSessionJWT: [] }, { ServiceApiKey: [] }, { RoleplayXDelegationJWT: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Short-lived single-start Anam connection credential.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnamConnection" }
+        "401": { description: Authentication required }
+        "403": { description: Connection permission required }
+        "404": { description: Owned session not found }
+        "409": { description: "Session not ready, stopped or connection already issued" }
   /v1/sessions/{id}/full-connection:
     get:
       operationId: getTavusFullConnection
@@ -1011,7 +1030,7 @@ components:
       additionalProperties: false
       required: [providerId, avatarId, mode]
       properties:
-        pipeline: { type: string, enum: [external_audio, tavus_full], default: external_audio, description: "tavus_full uses Tavus STT/LLM/TTS over Daily, not Gemini or LiveKit audio upload." }
+        pipeline: { type: string, enum: [external_audio, tavus_full, anam_full], default: external_audio, description: "Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently." }
         fullPipeline: { $ref: "#/components/schemas/TavusFullOptions" }
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
@@ -1023,7 +1042,7 @@ components:
       type: object
       required: [id, providerId, avatarId, mode, status, startedAt, expiresAt, durationSeconds, interruptions]
       properties:
-        pipeline: { type: string, enum: [external_audio, tavus_full] }
+        pipeline: { type: string, enum: [external_audio, tavus_full, anam_full] }
         id: { type: string }
         providerId: { type: string }
         avatarId: { type: string }
@@ -1146,7 +1165,7 @@ components:
     LiveReconciliationSession:
       type: object
       additionalProperties: false
-      required: [id, roomName, startedAt, expiresAt, rendererState, providerCreateState, providerConversationId, cleanupAttempts, cleanupRetryAt, error]
+      required: [id, roomName, startedAt, expiresAt, rendererState, providerCreateState, providerConversationId, cleanupAttempts, cleanupRetryAt, error, pipeline]
       properties:
         id: { type: string }
         roomName: { type: [string, "null"] }
@@ -1154,6 +1173,7 @@ components:
         expiresAt: { type: string, format: date-time }
         rendererState: { type: string }
         providerCreateState: { type: string }
+        pipeline: { type: string }
         providerConversationId: { type: [string, "null"] }
         cleanupAttempts: { type: integer }
         cleanupRetryAt: { type: [string, "null"], format: date-time }
@@ -1190,6 +1210,17 @@ components:
         sessionId: { type: string }
         rendererState: { type: string, enum: [cleanup_pending, maintenance_pending] }
         cleanupRequested: { type: boolean, const: true, description: "Worker still must confirm provider termination and room absence." }
+    AnamConnection:
+      type: object
+      additionalProperties: false
+      required: [transport, pipeline, sessionToken, tokenExpiresAt, expiresAt, maxSessions]
+      properties:
+        transport: { type: string, enum: [anam] }
+        pipeline: { type: string, enum: [anam_full] }
+        sessionToken: { type: string, description: Single-start secret; keep only in memory. Never expose the provider API key. }
+        tokenExpiresAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, description: Router stop deadline, not a provider-enforced duration limit. }
+        maxSessions: { type: integer, enum: [1] }
     TavusFullOptions:
       type: object
       additionalProperties: false

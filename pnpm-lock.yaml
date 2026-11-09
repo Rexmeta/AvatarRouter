@@ -189,10 +189,10 @@ importers:
         version: 8.4.0
       '@livekit/agents':
         specifier: 1.9.4
-        version: 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7)
+        version: 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7)
       '@livekit/agents-plugin-tavus':
         specifier: 1.9.4
-        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
+        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
       '@livekit/rtc-node':
         specifier: 1.2.1
         version: 1.2.1
@@ -266,6 +266,9 @@ importers:
 
   artifacts/avatar-router:
     dependencies:
+      '@anam-ai/js-sdk':
+        specifier: ^4.29.1
+        version: 4.29.1
       livekit-client:
         specifier: ^2.23.0
         version: 2.23.0
@@ -696,13 +699,13 @@ importers:
     dependencies:
       '@livekit/agents':
         specifier: ^1.9.4
-        version: 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7)
+        version: 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7)
       '@livekit/agents-plugin-anam':
         specifier: ^1.9.4
-        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
+        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
       '@livekit/agents-plugin-tavus':
         specifier: ^1.9.4
-        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
+        version: 1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)
       '@livekit/rtc-node':
         specifier: ^1.2.1
         version: 1.2.1
@@ -721,6 +724,9 @@ importers:
         version: 4.23.15
 
 packages:
+
+  '@anam-ai/js-sdk@4.29.1':
+    resolution: {integrity: sha512-cj1oUVUQCdbpEb0w18RMoxaaP9zQ74GuaP31rgAFHmKfywzMsHGgb5PTf4BZbtQb5yLhcKaelwng89ZGLNwlBA==}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -4215,6 +4221,10 @@ packages:
 
 snapshots:
 
+  '@anam-ai/js-sdk@4.29.1':
+    dependencies:
+      buffer: 6.0.3
+
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -4580,9 +4590,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@livekit/agents-plugin-anam@1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)':
+  '@livekit/agents-plugin-anam@1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)':
     dependencies:
-      '@livekit/agents': 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7)
+      '@livekit/agents': 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.1
       livekit-server-sdk: 2.19.2
       ws: 8.22.0
@@ -4590,13 +4600,13 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents-plugin-tavus@1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)':
+  '@livekit/agents-plugin-tavus@1.9.4(@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7))(@livekit/rtc-node@1.2.1)':
     dependencies:
-      '@livekit/agents': 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7)
+      '@livekit/agents': 1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.1
       livekit-server-sdk: 2.19.2
 
-  '@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@6.0.3)(zod@4.6.7)':
+  '@livekit/agents@1.9.4(@livekit/rtc-node@1.2.1)(@types/node@25.9.9)(typescript@5.9.3)(zod@4.6.7)':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
       '@livekit/av': 10.1.0
@@ -4605,7 +4615,7 @@ snapshots:
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.53.0
       '@livekit/rtc-node': 1.2.1
-      '@livekit/throws-transformer': 0.1.8(typescript@6.0.3)
+      '@livekit/throws-transformer': 0.1.8(typescript@5.9.3)
       '@livekit/typed-emitter': 3.0.0
       '@opentelemetry/api': 1.10.0
       '@opentelemetry/api-logs': 0.220.0
@@ -4777,10 +4787,10 @@ snapshots:
       pino: 9.14.0
       pino-pretty: 13.2.0
 
-  '@livekit/throws-transformer@0.1.8(typescript@6.0.3)':
+  '@livekit/throws-transformer@0.1.8(typescript@5.9.3)':
     dependencies:
       glob: 14.0.3
-      typescript: 6.0.3
+      typescript: 5.9.3
 
   '@livekit/typed-emitter@3.0.0': {}
 

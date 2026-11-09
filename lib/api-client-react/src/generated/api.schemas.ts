@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 export interface CreateDeveloperKeyInput {
   /**
@@ -448,7 +448,7 @@ export interface Avatar {
 }
 
 /**
- * tavus_full uses Tavus STT/LLM/TTS over Daily, not Gemini or LiveKit audio upload.
+ * Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently.
  */
 export type SessionInputPipeline = typeof SessionInputPipeline[keyof typeof SessionInputPipeline];
 
@@ -456,6 +456,7 @@ export type SessionInputPipeline = typeof SessionInputPipeline[keyof typeof Sess
 export const SessionInputPipeline = {
   external_audio: 'external_audio',
   tavus_full: 'tavus_full',
+  anam_full: 'anam_full',
 } as const;
 
 export type SessionInputProviderId = typeof SessionInputProviderId[keyof typeof SessionInputProviderId];
@@ -512,7 +513,7 @@ export interface TavusFullOptions {
 }
 
 export interface SessionInput {
-  /** tavus_full uses Tavus STT/LLM/TTS over Daily, not Gemini or LiveKit audio upload. */
+  /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
   fullPipeline?: TavusFullOptions;
   providerId: SessionInputProviderId;
@@ -536,6 +537,7 @@ export type SessionPipeline = typeof SessionPipeline[keyof typeof SessionPipelin
 export const SessionPipeline = {
   external_audio: 'external_audio',
   tavus_full: 'tavus_full',
+  anam_full: 'anam_full',
 } as const;
 
 export type SessionPurpose = typeof SessionPurpose[keyof typeof SessionPurpose];
@@ -700,6 +702,7 @@ export interface LiveReconciliationSession {
   expiresAt: string;
   rendererState: string;
   providerCreateState: string;
+  pipeline: string;
   /** @nullable */
   providerConversationId: string | null;
   cleanupAttempts: number;
@@ -761,6 +764,38 @@ export interface LiveConversationReconciliationResult {
   rendererState: LiveConversationReconciliationResultRendererState;
   /** Worker still must confirm provider termination and room absence. */
   cleanupRequested: true;
+}
+
+export type AnamConnectionTransport = typeof AnamConnectionTransport[keyof typeof AnamConnectionTransport];
+
+
+export const AnamConnectionTransport = {
+  anam: 'anam',
+} as const;
+
+export type AnamConnectionPipeline = typeof AnamConnectionPipeline[keyof typeof AnamConnectionPipeline];
+
+
+export const AnamConnectionPipeline = {
+  anam_full: 'anam_full',
+} as const;
+
+export type AnamConnectionMaxSessions = typeof AnamConnectionMaxSessions[keyof typeof AnamConnectionMaxSessions];
+
+
+export const AnamConnectionMaxSessions = {
+  NUMBER_1: 1,
+} as const;
+
+export interface AnamConnection {
+  transport: AnamConnectionTransport;
+  pipeline: AnamConnectionPipeline;
+  /** Single-start secret; keep only in memory. Never expose the provider API key. */
+  sessionToken: string;
+  tokenExpiresAt: string;
+  /** Router stop deadline */
+  expiresAt: string;
+  maxSessions: AnamConnectionMaxSessions;
 }
 
 export type TavusFullConnectionTransport = typeof TavusFullConnectionTransport[keyof typeof TavusFullConnectionTransport];
@@ -872,6 +907,18 @@ export type GetDeveloperWorkspace200 = {
   sessions: Session[];
   limits: LiveLimits;
 };
+
+export type GetLiveLimitsParams = {
+  providerId?: GetLiveLimitsProviderId;
+};
+
+export type GetLiveLimitsProviderId = typeof GetLiveLimitsProviderId[keyof typeof GetLiveLimitsProviderId];
+
+
+export const GetLiveLimitsProviderId = {
+  tavus: 'tavus',
+  anam: 'anam',
+} as const;
 
 export type CompareRendererDiagnosticsParams = {
   left: string;

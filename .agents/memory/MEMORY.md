@@ -5,3 +5,4 @@
 - [RoleplayX authentication](roleplayx-auth-boundary.md) — preserve login; project API keys by default, JWKS optional; no shared user tokens or signing secrets.
 - [Persona live boundaries](persona-live-boundaries.md) — persona owns image/video/live choice; provisioning and trusted-client playback validation are separate.
 - [AvatarRouter UX direction](avatar-router-ux-direction.md) — user wants OpenRouter's information architecture rather than asset-provisioning-first navigation.
+- [Native SDK safety](native-sdk-session-safety.md) — Anam token lifetime is not call duration; disable start retries and reconcile exact server-owned labels.

@@ -98,3 +98,17 @@ mtime_ms = 1793778969039
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/42fabaa5-8380-46bd-9f11-7803ccc240a2/38b16a14-df1b-4ca0-994c-7ccc3107d25b"
 storage_version_token = "1793779001445467"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "M969ooZ18DdZoVqjKorq-"
+uri = "file://artifacts/avatar-router/public/roleplayx/anam-integration.md"
+type = "text"
+title = "RoleplayX Anam 연동 가이드"
+description = "API 0.7: 프로젝트 키 인증, 저장 페르소나, 일회성 토큰, 네이티브 SDK 연결과 안전한 종료 절차입니다."
+logical_id = "14028238-285b-4c6e-a80f-e2ed0615732c"
+content_hash = "sha256:9e93ff81a44845cb99376eeef1802bf6bbb49e3320fe731f0d084666cc23c11a"
+size = 7937
+mtime_ms = 1794209536138
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/14028238-285b-4c6e-a80f-e2ed0615732c/51d8efa5-6123-487c-b978-0febbb21204d"
+storage_version_token = "1794209726328338"
+content_type = "text/markdown"

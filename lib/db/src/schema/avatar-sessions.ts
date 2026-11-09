@@ -8,10 +8,11 @@ export const avatarSessions = pgTable("avatar_sessions", {
   tenantId: text("tenant_id"),
   roomName: text("room_name"),
   providerConversationId: text("provider_conversation_id"),
-  pipeline: text("pipeline", { enum: ["external_audio", "tavus_full"] }).notNull().default("external_audio"),
+  pipeline: text("pipeline", { enum: ["external_audio", "tavus_full", "anam_full"] }).notNull().default("external_audio"),
   fullPipeline: jsonb("full_pipeline").$type<{
     systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
     palId?: string; url?: string; token?: string;
+    personaId?: string; tokenExpiresAt?: string; connectionIssuedAt?: string;
   }>(),
   rendererState: text("renderer_state").notNull().default("queued"),
   workerId: text("worker_id"),

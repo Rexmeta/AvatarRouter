@@ -59,7 +59,7 @@ function PendingSession({ session }: { session: LiveReconciliationSession }) {
   });
   const attach = useAttachLiveConversationId({ mutation: { gcTime: 0 } });
   const cleanup = useRetryLiveCleanup({ mutation: { gcTime: 0 } });
-  const needsId = !session.providerConversationId &&
+  const needsId = session.pipeline !== 'anam_full' && !session.providerConversationId &&
     (['unknown', 'submitted'].includes(providerCreateState) || session.error === 'LIVE_CREATE_RECONCILIATION_REQUIRED');
 
   const submit = (values: { providerConversationId: string; confirmedFromProvider: boolean }) => {

@@ -8,6 +8,7 @@ import { logger } from "./logger";
 import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
 import { storeRendererDiagnostic, pruneRendererDiagnostics } from "./renderer-diagnostic-store";
 import { TavusFullRuntime, terminateFullResources } from "./tavus-full-runtime";
+import { AnamRuntime, terminateAnamResources } from "./anam-runtime";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -25,6 +26,12 @@ export class RendererWorker {
 
   constructor(
     private factory: Factory = (row, onId, before, rejected, diagnostics) => {
+      if (row.pipeline === "anam_full") return new AnamRuntime(row, before, rejected, async options => {
+        const [saved] = await db.update(avatarSessions).set({
+          fullPipeline: options, providerCreateState: "token_issued",
+        }).where(and(this.owns(row.id), sql`${avatarSessions.stopRequestedAt} is null`)).returning();
+        if (!saved) throw new SessionProblem(409, "LIVE_LEASE_LOST", "Lease lost before native token persistence.");
+      });
       if (row.pipeline === "tavus_full") return new TavusFullRuntime(row, onId, before, rejected, async options => {
         await db.update(avatarSessions).set({ fullPipeline: options }).where(eq(avatarSessions.id, row.id));
       });
@@ -163,7 +170,9 @@ export class RendererWorker {
         local.closing = true;
         await this.finish(row, local);
       } else {
-        await this.event(row.id, "started", row.pipeline === "tavus_full"
+        await this.event(row.id, "started", row.pipeline === "anam_full"
+          ? "Anam single-start token ready for authorized SDK handoff. No browser connection, speech or video playback has been verified."
+          : row.pipeline === "tavus_full"
           ? "Private Tavus full-pipeline connection ready. Tavus owns dialogue, voice and rendering; Daily client playback is not yet verified."
           : "Renderer worker connected the selected real avatar. Playback validation is separate; no AI dialogue or custom training.");
       }
@@ -201,12 +210,14 @@ export class RendererWorker {
     const runtimeResult = local.runtime ? await local.diagnostics.stage("runtime_stop", () => local.runtime!.stop()) : undefined;
     const [row] = await db.select().from(avatarSessions).where(this.owns(initial.id));
     if (!row) { this.locals.delete(initial.id); return; }
-    const result = runtimeResult ?? await local.diagnostics.stage("remote_cleanup", () => row.pipeline === "tavus_full"
+    const result = row.pipeline === "anam_full"
+      ? await local.diagnostics.stage("remote_cleanup", () => terminateAnamResources(row.id, row.fullPipeline))
+      : runtimeResult ?? await local.diagnostics.stage("remote_cleanup", () => row.pipeline === "tavus_full"
       ? terminateFullResources(row.providerConversationId, row.fullPipeline?.palId)
       : this.terminate(row.roomName, row.providerConversationId, local.diagnostics));
-    const unknown = (!row.providerConversationId && ["submitted", "unknown"].includes(row.providerCreateState)) ||
+    const unknown = row.pipeline !== "anam_full" && ((!row.providerConversationId && ["submitted", "unknown"].includes(row.providerCreateState)) ||
       (!row.providerConversationId && row.error === "LIVE_CREATE_RECONCILIATION_REQUIRED") ||
-      (!result.providerEnded && !row.providerConversationId);
+      (!result.providerEnded && !row.providerConversationId));
     const callClosed = !unknown && result.providerEnded && result.roomDeleted;
     const maintenancePending = row.pipeline === "tavus_full" && callClosed &&
       "palDeleted" in result && result.palDeleted !== true;
@@ -221,11 +232,11 @@ export class RendererWorker {
     const [updated] = await local.diagnostics.stage("cleanup_persist", () => db.update(avatarSessions).set({
       status: row.status === "active" ? status : row.status, endedAt: row.endedAt ?? new Date(),
       rendererState: unknown ? "reconciliation_required" : maintenancePending ? "maintenance_pending" : confirmed ? "closed" : "cleanup_pending",
-      providerCreateState: unknown ? "unknown" : row.providerCreateState,
+      providerCreateState: row.pipeline === "anam_full" && callClosed ? "known" : unknown ? "unknown" : row.providerCreateState,
       error: unknown ? "LIVE_CREATE_RECONCILIATION_REQUIRED" : maintenancePending ? "LIVE_PAL_CLEANUP_PENDING" : confirmed ? row.stopError : "LIVE_CLEANUP_PENDING",
       roomName: result.roomDeleted ? null : row.roomName,
       providerConversationId: result.providerEnded && !unknown ? null : row.providerConversationId,
-      ...(row.pipeline === "tavus_full" && callClosed ? {
+      ...(["tavus_full", "anam_full"].includes(row.pipeline) && callClosed ? {
         fullPipeline: maintenancePending ? { systemPrompt: "", palId: row.fullPipeline?.palId } : null,
       } : {}),
       cleanupAttempts: attempts, cleanupRetryAt: new Date(Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))),

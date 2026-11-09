@@ -10,6 +10,7 @@ import { ErrorState, MicCheck, Orb, PageHead, Panel, Pill, Skel, errMsg, fmtSec 
 import { SelectedAssetPanel, useValidatedSelectedAsset } from '@/components/selected-asset';
 import type { AvatarAsset } from '@workspace/api-client-react';
 import { StockLivePanel } from '@/components/stock-live';
+import { AnamLivePanel } from '@/components/anam-live';
 import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -21,7 +22,7 @@ export default function Playground() {
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [target, setTarget] = useState<Target>('mock');
+  const [target, setTarget] = useState<Target>(() => new URLSearchParams(window.location.search).get('provider') === 'anam' ? 'anam' : 'mock');
   const [sid, setSid] = useState<string>(() => sessionStorage.getItem(KEY) ?? '');
   const [pulse, setPulse] = useState(0);
   const [liveError, setLiveError] = useState<string | null>(null);
@@ -70,7 +71,7 @@ export default function Playground() {
   const liveWithAsset = (r: AvatarAsset) => {
     setAssetLiveError(null);
     if (r.status !== 'ready' || !r.providerAvatarId || r.providerId !== 'tavus') {
-      setAssetLiveError('Select a ready Tavus asset. Anam live runtime remains unavailable.');
+      setAssetLiveError('Select a ready Tavus custom asset. Native Anam uses its separately registered saved persona; Anam custom assets are not enabled.');
       return;
     }
     document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
@@ -88,14 +89,10 @@ export default function Playground() {
       document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
-    const av = avatars.data?.find((a) => a.providerId === pid);
-    create.mutate(
-      { data: { providerId: pid, avatarId: av?.id ?? `${pid}-unconfigured`, mode: 'live' } },
-      {
-        onSuccess: (ns) => { setSid(ns.id); invalidate(ns.id); },
-        onError: (e) => { setLiveError(errMsg(e)); qc.invalidateQueries({ queryKey: getGetUsageQueryKey() }); },
-      },
-    );
+    if (pid === 'anam') {
+      document.getElementById('anam')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
   };
 
   const doInterrupt = () =>
@@ -110,7 +107,7 @@ export default function Playground() {
     });
 
   const prov = providers.data?.find((p) => p.id === target);
-  const relevantChecks = (setup.data?.checks ?? []).filter((c) => target === 'mock' || c.key.toLowerCase().includes(target) || c.key.toLowerCase().includes('livekit'));
+  const relevantChecks = (setup.data?.checks ?? []).filter((c) => target === 'anam' ? c.key === 'ANAM_API_KEY' : target === 'mock' || c.key.toLowerCase().includes(target) || c.key.toLowerCase().includes('livekit'));
 
   return (
     <div>
@@ -140,6 +137,8 @@ export default function Playground() {
           );
         })}
       </div>
+
+      {target === 'anam' && <AnamLivePanel />}
 
       {target === 'mock' ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
@@ -202,10 +201,11 @@ export default function Playground() {
                   </div>
                   <div className="border-t pt-4">
                     {target === 'tavus' && <p className="mb-3 text-sm text-muted-foreground" data-testid="note-tavus-stock"><a href="#stock" className="font-semibold text-primary underline-offset-2 hover:underline">Stock Lucy - Home</a> live test is at the top of this page.</p>}
-                    <button data-testid="button-request-live" disabled={create.isPending} onClick={() => requestLive(target as 'anam' | 'tavus')}
+                    {target === 'anam' && <p className="mb-3 text-sm text-muted-foreground" data-testid="note-anam-native"><a href="#anam" className="font-semibold text-primary underline-offset-2 hover:underline">Native Anam live</a> panel is above.</p>}
+                    {target !== 'anam' && <button data-testid="button-request-live" disabled={create.isPending} onClick={() => requestLive(target as 'anam' | 'tavus')}
                       className="inline-flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium transition hover:bg-muted active:scale-[.97] disabled:opacity-40">
                       <Play className="h-4 w-4" /> {create.isPending ? '…' : t('pg.tryLive')}
-                    </button>
+                    </button>}
                     {liveError && (
                       <div className="rise mt-3 rounded border border-[hsl(var(--warn))]/40 bg-[hsl(var(--warn))]/5 p-3" data-testid="text-live-error">
                         <div className="mono text-[11px] uppercase tracking-wider text-[hsl(var(--warn))]">server response</div>

@@ -11,7 +11,9 @@ import { playgroundLimit } from "../middlewares/playground-owner";
 import { sessionOwner } from "../middlewares/session-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
-import { createStockSession, closeStockSession, liveConnection, fullConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
+import { createStockSession, closeStockSession, liveConnection, fullConnection, anamConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
+import { CreateAnamConnectionParams, CreateAnamConnectionResponse, GetLiveLimitsQueryParams } from "@workspace/api-zod";
+import { ANAM_AVATAR } from "../lib/anam-runtime";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { integrationIdentity } from "../lib/integration-identity";
 import { SessionProblem } from "../lib/session-service";
@@ -26,8 +28,9 @@ router.use("/v1", sessionOwner, playgroundLimit);
 router.get("/v1/providers", (_req, res) => { res.json(ListProvidersResponse.parse(getProviders())); });
 router.get("/v1/avatars", (_req, res) => { res.json(ListAvatarsResponse.parse(getAvatars())); });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
-router.get("/v1/live-limits", assetTenant, async (_req, res): Promise<void> => {
-  res.json(GetLiveLimitsResponse.parse(await liveLimits(res.locals.tenantId)));
+router.get("/v1/live-limits", assetTenant, async (req, res): Promise<void> => {
+  const { providerId } = GetLiveLimitsQueryParams.parse(req.query);
+  res.json(GetLiveLimitsResponse.parse(await liveLimits(res.locals.tenantId, providerId)));
 });
 router.get("/v1/sessions", async (_req, res): Promise<void> => {
   const rows = await listOwnedSessions(res.locals.ownerHash);
@@ -40,6 +43,15 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   }
   const { providerId, avatarId, avatarAssetId, mode, costConfirmed, purpose } = parsed.data;
   const { pipeline, fullPipeline } = parsed.data;
+  if (pipeline === "anam_full") {
+    if (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || fullPipeline || purpose !== "conversation") {
+      throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam persona, live conversation mode, and no Tavus options or custom asset.");
+    }
+    assetTenant(req, res, () => {});
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, undefined, true);
+    res.status(201).json(GetSessionResponse.parse(presentSession(row)));
+    return;
+  }
   if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || purpose === "validation" || !fullPipeline)) ||
       (pipeline !== "tavus_full" && fullPipeline)) {
     res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live conversation mode and fullPipeline options. Existing validation remains external_audio." }); return;
@@ -85,6 +97,12 @@ router.get("/v1/sessions/:id", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.json(GetSessionResponse.parse(presentSession(await getOwnedSession(res.locals.ownerHash, id))));
 });
+router.post("/v1/sessions/:id/anam-connection", assetTenant, async (req, res): Promise<void> => {
+  const { id } = CreateAnamConnectionParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
+  res.json(CreateAnamConnectionResponse.parse(await anamConnection(res.locals.ownerHash, res.locals.tenantId, id)));
+});
+
 router.get("/v1/sessions/:id/full-connection", assetTenant, async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.set("Cache-Control", "private, no-store");

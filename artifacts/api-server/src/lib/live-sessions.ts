@@ -7,10 +7,11 @@ import { getOwnedSession, SessionProblem } from "./session-service";
 import { STOCK_AVATAR, stockConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
 import { saveRendererAudio } from "./private-images";
 import { liveCapacityFence, liveReadiness } from "./live-admission";
+import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
 
 export { LIVE_SESSION_MS } from "./stock-policy";
 
-export async function liveLimits(tenant: string) {
+export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = "tavus") {
   const limits = dailyLimits();
   const [usage] = await db.select({
     user: sql<number>`coalesce(sum(${avatarSessions.reservedSeconds}) filter (where ${avatarSessions.tenantId} = ${tenant}), 0)::int`,
@@ -36,7 +37,7 @@ export async function liveLimits(tenant: string) {
     eq(avatarSessions.mode,"live"),eq(avatarSessions.tenantId,tenant),sql`${avatarSessions.startedAt} > now() - interval '1 hour'`,
   ));
   const readiness = liveReadiness({
-    configured: stockConfigured(), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
+    configured: providerId === "anam" ? !!process.env.ANAM_API_KEY : stockConfigured(), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
     userRemainingSeconds: Math.max(0, limits.user - usage!.user),
     globalRemainingSeconds: Math.max(0, limits.global - usage!.global), cleanupPending: pending!.count,
     serviceBusy: capacity!.blocked > 0, serviceCleanupRequired: capacity!.cleanup > 0, recentAttempts: recent!.count,
@@ -55,13 +56,14 @@ export async function liveLimits(tenant: string) {
 }
 
 export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation",
-  fullPipeline?: AvatarSessionRecord["fullPipeline"]) {
+  fullPipeline?: AvatarSessionRecord["fullPipeline"], nativeAnam = false) {
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
-  if (!stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", "LiveKit and Tavus server credentials must be configured.");
+  if (nativeAnam ? !process.env.ANAM_API_KEY : !stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", nativeAnam ? "Configure the Anam server API key." : "LiveKit and Tavus server credentials must be configured.");
+  if (nativeAnam && (assetId || fullPipeline || purpose !== "conversation")) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam uses the server-registered saved persona, not a custom asset or Tavus config.");
   const row = await db.transaction(async tx => {
     // Admission, reservation and capacity are serialized across ALL API processes.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('avatar-router:stock-live'))`);
-    let avatarId = STOCK_AVATAR;
+    let avatarId = nativeAnam ? ANAM_AVATAR : STOCK_AVATAR;
     if (assetId) {
       const [asset] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, assetId), eq(avatarAssets.tenantId, tenant))).for("update");
       if (!asset) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");
@@ -71,7 +73,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
         throw new SessionProblem(409, "CONSENT_REVIEW_REQUIRED", "Source consent must remain verified before live transmission.");
       }
     }
-    const limits = await liveLimits(tenant);
+    const limits = await liveLimits(tenant, nativeAnam ? "anam" : "tavus");
     if (!limits.workerReady) throw new SessionProblem(503, "LIVE_WORKER_UNAVAILABLE", "The renderer worker is unavailable. No paid session was requested.");
     if (limits.userRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "Your daily live time budget is exhausted. It resets at 00:00 UTC.");
     if (limits.globalRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_GLOBAL_DAILY_BUDGET", "The service daily live time budget is exhausted. It resets at 00:00 UTC.");
@@ -85,9 +87,10 @@ export async function createStockSession(owner: string, tenant: string, costConf
     if (owned) throw new SessionProblem(409, "ACTIVE_SESSION_EXISTS", "End your existing session first.");
     const id = randomUUID();
     const [created] = await tx.insert(avatarSessions).values({
-      id, ownerHash: owner, tenantId: tenant, providerId: "tavus", avatarId, avatarAssetId: assetId, purpose,
-      mode: "live", status: "active", roomName: fullPipeline ? null : `ar-stock-${id}`,
-      pipeline: fullPipeline ? "tavus_full" : "external_audio", fullPipeline,
+      id, ownerHash: owner, tenantId: tenant, providerId: nativeAnam ? "anam" : "tavus", avatarId, avatarAssetId: assetId, purpose,
+      mode: "live", status: "active", roomName: nativeAnam || fullPipeline ? null : `ar-stock-${id}`,
+      pipeline: nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio",
+      fullPipeline: nativeAnam ? { systemPrompt: "", personaId: ANAM_PERSONA_ID } : fullPipeline,
       rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
       expiresAt: new Date(Date.now() + LIVE_SESSION_MS),
     }).returning();
@@ -116,12 +119,36 @@ function requireRunning(row: Awaited<ReturnType<typeof ownedLiveSession>>) {
 export async function liveConnection(owner: string, tenant: string, id: string) {
   const row = await ownedLiveSession(owner, tenant, id);
   requireRunning(row);
-  if (row.pipeline === "tavus_full") throw new SessionProblem(409, "FULL_PIPELINE_DAILY_REQUIRED", "Use /full-connection and the Daily SDK for Tavus full pipeline.");
+  if (row.pipeline !== "external_audio") throw new SessionProblem(409, row.pipeline === "tavus_full" ? "FULL_PIPELINE_DAILY_REQUIRED" : "ANAM_NATIVE_REQUIRED", "Use the pipeline-specific native connection endpoint, not LiveKit.");
   const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
     identity: `viewer-${id}`, ttl: Math.max(1, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000)),
   });
   token.addGrant({ roomJoin: true, room: row.roomName!, canSubscribe: true, canPublish: false, canPublishData: false, canUpdateOwnMetadata: false });
   return { url: process.env.LIVEKIT_URL!, token: await token.toJwt(), expiresAt: row.expiresAt.toISOString() };
+}
+
+export async function anamConnection(owner: string, tenant: string, id: string) {
+  return db.transaction(async tx => {
+    const [row] = await tx.select().from(avatarSessions).where(and(
+      eq(avatarSessions.id, id), eq(avatarSessions.ownerHash, owner), eq(avatarSessions.tenantId, tenant),
+    )).for("update");
+    if (!row || row.mode !== "live") throw new SessionProblem(404, "SESSION_NOT_FOUND", "Session not found.");
+    requireRunning(row);
+    const config = row.fullPipeline;
+    if (row.pipeline !== "anam_full") throw new SessionProblem(409, "NOT_ANAM_PIPELINE", "Use the selected pipeline's connection endpoint.");
+    if (config?.connectionIssuedAt) throw new SessionProblem(409, "ANAM_CONNECTION_ALREADY_ISSUED", "This connection was issued once. End this attempt; do not automatically create or reconnect another paid session.");
+    if (!config?.token || !config.tokenExpiresAt || Date.parse(config.tokenExpiresAt) <= Date.now()) {
+      throw new SessionProblem(409, "ANAM_CONNECTION_NOT_READY", "The native token is not ready or has expired.");
+    }
+    await tx.update(avatarSessions).set({
+      fullPipeline: { ...config, token: undefined, connectionIssuedAt: new Date().toISOString() },
+      providerCreateState: "submitted",
+    }).where(eq(avatarSessions.id, id));
+    return {
+      transport: "anam" as const, pipeline: "anam_full" as const, sessionToken: config.token,
+      tokenExpiresAt: config.tokenExpiresAt, expiresAt: row.expiresAt.toISOString(), maxSessions: 1 as const,
+    };
+  });
 }
 
 export async function fullConnection(owner: string, tenant: string, id: string) {
@@ -137,7 +164,7 @@ export async function fullConnection(owner: string, tenant: string, id: string) 
 async function command(owner: string, tenant: string, id: string, type: "audio" | "interrupt", bytes?: Buffer) {
   const session = await ownedLiveSession(owner, tenant, id);
   requireRunning(session);
-  if (session.pipeline === "tavus_full") throw new SessionProblem(409, "FULL_PIPELINE_DIRECT_MEDIA",
+  if (session.pipeline !== "external_audio") throw new SessionProblem(409, "FULL_PIPELINE_DIRECT_MEDIA",
     "Use the private Daily connection for microphone and conversational interruption. Do not upload Gemini PCM or end the session for barge-in.");
   const commandId = randomUUID();
   // Insert the reference BEFORE storage IO: even a crashing uploader leaves a GC record.

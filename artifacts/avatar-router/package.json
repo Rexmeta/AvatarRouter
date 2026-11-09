@@ -78,6 +78,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@anam-ai/js-sdk": "^4.29.1",
     "livekit-client": "^2.23.0"
   }
 }

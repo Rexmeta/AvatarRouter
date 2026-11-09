@@ -17,6 +17,7 @@ export async function listLiveReconciliation() {
     cleanupAttempts: avatarSessions.cleanupAttempts,
     cleanupRetryAt: avatarSessions.cleanupRetryAt,
     error: avatarSessions.error,
+    pipeline: avatarSessions.pipeline,
   }).from(avatarSessions).where(and(
     eq(avatarSessions.mode, "live"),
     sql`(${avatarSessions.rendererState} in ('reconciliation_required', 'cleanup_pending', 'stopping', 'maintenance_pending')
@@ -44,7 +45,7 @@ export async function retryLiveCleanup(sessionId: string, operatorUserId: string
         !["cleanup_pending", "stopping", "reconciliation_required", "maintenance_pending"].includes(row.rendererState)) {
       throw new SessionProblem(409, "LIVE_SESSION_NOT_CLEANABLE", "This session is not awaiting cleanup.");
     }
-    if (!row.providerConversationId && (["submitted", "unknown"].includes(row.providerCreateState) ||
+    if (row.pipeline !== "anam_full" && !row.providerConversationId && (["submitted", "unknown"].includes(row.providerCreateState) ||
         row.error === "LIVE_CREATE_RECONCILIATION_REQUIRED")) {
       throw new SessionProblem(409, "LIVE_RECONCILIATION_REQUIRED", "Verify and attach the provider conversation ID first. Unknown paid creation cannot be force-cleared.");
     }
@@ -80,7 +81,7 @@ export async function attachLiveConversationId(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('avatar-router:live-reconciliation'))`);
     const [row] = await tx.select().from(avatarSessions)
       .where(eq(avatarSessions.id, sessionId)).for("update");
-    if (!row || row.mode !== "live" || row.rendererState !== "reconciliation_required" ||
+    if (!row || row.providerId !== "tavus" || row.mode !== "live" || row.rendererState !== "reconciliation_required" ||
         row.providerCreateState !== "unknown" || row.error !== "LIVE_CREATE_RECONCILIATION_REQUIRED" ||
         row.providerConversationId) {
       throw new SessionProblem(409, "LIVE_SESSION_NOT_RECONCILABLE", "This live session is no longer awaiting provider reconciliation.");

@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.6.0
+ * OpenAPI spec version: 0.7.0
  */
 import * as zod from 'zod';
 
@@ -17,7 +17,7 @@ export const GetWorkspaceLiveCheckParams = zod.object({
 
 export const GetWorkspaceLiveCheckResponse = zod.object({
   "session": zod.union([zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -67,7 +67,7 @@ export const StartWorkspaceLiveCheckBody = zod.object({
 
 export const StartWorkspaceLiveCheckResponse = zod.object({
   "session": zod.union([zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -135,7 +135,7 @@ export const EndWorkspaceLiveCheckParams = zod.object({
 })
 
 export const EndWorkspaceLiveCheckResponse = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -194,7 +194,7 @@ export const GetDeveloperWorkspaceResponse = zod.object({
   "revokedAt": zod.coerce.date().nullable()
 })),
   "sessions": zod.array(zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -688,6 +688,12 @@ export const ListAvatarsResponseItem = zod.object({
 export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
 
+export const getLiveLimitsQueryProviderIdDefault = `tavus`;
+
+export const GetLiveLimitsQueryParams = zod.object({
+  "providerId": zod.enum(['tavus', 'anam']).default(getLiveLimitsQueryProviderIdDefault)
+})
+
 export const GetLiveLimitsResponse = zod.object({
   "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
   "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
@@ -704,7 +710,7 @@ export const GetLiveLimitsResponse = zod.object({
 
 
 export const ListSessionsResponseItem = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -748,7 +754,7 @@ export const createSessionBodyPurposeDefault = `conversation`;
 export const createSessionBodyCostConfirmedDefault = false;
 
 export const CreateSessionBody = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).default(createSessionBodyPipelineDefault).describe('tavus_full uses Tavus STT/LLM/TTS over Daily, not Gemini or LiveKit audio upload.'),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).default(createSessionBodyPipelineDefault).describe('Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently.'),
   "fullPipeline": zod.object({
   "systemPrompt": zod.string().min(1).max(createSessionBodyFullPipelineSystemPromptMax),
   "context": zod.string().max(createSessionBodyFullPipelineContextMax).optional(),
@@ -765,7 +771,7 @@ export const CreateSessionBody = zod.object({
 })
 
 export const CreateSessionResponse = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -866,6 +872,7 @@ export const ListLiveReconciliationResponse = zod.object({
   "expiresAt": zod.coerce.date(),
   "rendererState": zod.string(),
   "providerCreateState": zod.string(),
+  "pipeline": zod.string(),
   "providerConversationId": zod.string().nullable(),
   "cleanupAttempts": zod.int(),
   "cleanupRetryAt": zod.coerce.date().nullable(),
@@ -937,7 +944,7 @@ export const GetSessionParams = zod.object({
 })
 
 export const GetSessionResponse = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -954,6 +961,23 @@ export const GetSessionResponse = zod.object({
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
+})
+
+
+/**
+ * One-time native Anam token handoff for an owned running anam_full session. Requires sessions:connect. Never log or persist the token in the browser. Disable SDK startup retries.
+ */
+export const CreateAnamConnectionParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const CreateAnamConnectionResponse = zod.object({
+  "transport": zod.enum(['anam']),
+  "pipeline": zod.enum(['anam_full']),
+  "sessionToken": zod.string().describe('Single-start secret; keep only in memory. Never expose the provider API key.'),
+  "tokenExpiresAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().describe('Router stop deadline'),
+  "maxSessions": zod.literal(1)
 })
 
 
@@ -1016,7 +1040,7 @@ export const EndSessionParams = zod.object({
 })
 
 export const EndSessionResponse = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
@@ -1044,7 +1068,7 @@ export const InterruptSessionParams = zod.object({
 })
 
 export const InterruptSessionResponse = zod.object({
-  "pipeline": zod.enum(['external_audio', 'tavus_full']).optional(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
   "providerId": zod.string(),
   "avatarId": zod.string(),
