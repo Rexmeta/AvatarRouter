@@ -67,3 +67,6 @@ LIVE_SESSION_OPERATOR_BOOTSTRAP_EMAILS = "btobkorea@gmail.com"
 
 [nix]
 channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-e6d25037-edd1-4b1a-ae9f-b1a5bf4da195"
