@@ -11,8 +11,8 @@ import { playgroundLimit } from "../middlewares/playground-owner";
 import { sessionOwner } from "../middlewares/session-owner";
 import { assetTenant } from "../middlewares/asset-tenant";
 import { resolveSessionAsset } from "../lib/asset-service";
-import { createStockSession, closeStockSession, liveConnection, fullConnection, anamConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
-import { CreateAnamConnectionParams, CreateAnamConnectionResponse, GetLiveLimitsQueryParams } from "@workspace/api-zod";
+import { createStockSession, closeStockSession, liveConnection, fullConnection, anamConnection, clientConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
+import { CreateAnamConnectionParams, CreateAnamConnectionResponse, CreateClientConnectionResponse, GetLiveLimitsQueryParams } from "@workspace/api-zod";
 import { ANAM_AVATAR } from "../lib/anam-runtime";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { integrationIdentity } from "../lib/integration-identity";
@@ -101,6 +101,12 @@ router.post("/v1/sessions/:id/anam-connection", assetTenant, async (req, res): P
   const { id } = CreateAnamConnectionParams.parse(req.params);
   res.set("Cache-Control", "private, no-store");
   res.json(CreateAnamConnectionResponse.parse(await anamConnection(res.locals.ownerHash, res.locals.tenantId, id)));
+});
+
+router.post("/v1/sessions/:id/client-connection", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
+  res.json(CreateClientConnectionResponse.parse(await clientConnection(res.locals.ownerHash, res.locals.tenantId, id)));
 });
 
 router.get("/v1/sessions/:id/full-connection", assetTenant, async (req, res): Promise<void> => {

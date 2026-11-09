@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 export interface CreateDeveloperKeyInput {
   /**
@@ -766,6 +766,33 @@ export interface LiveConversationReconciliationResult {
   cleanupRequested: true;
 }
 
+export type ClientConnectionPipeline = typeof ClientConnectionPipeline[keyof typeof ClientConnectionPipeline];
+
+
+export const ClientConnectionPipeline = {
+  external_audio: 'external_audio',
+  tavus_full: 'tavus_full',
+  anam_full: 'anam_full',
+} as const;
+
+/**
+ * Run the existing voice engine only for application. Never run it concurrently for avatarrouter.
+ */
+export type ClientConnectionAudioOwner = typeof ClientConnectionAudioOwner[keyof typeof ClientConnectionAudioOwner];
+
+
+export const ClientConnectionAudioOwner = {
+  application: 'application',
+  avatarrouter: 'avatarrouter',
+} as const;
+
+export type ClientConnectionClientScriptPath = typeof ClientConnectionClientScriptPath[keyof typeof ClientConnectionClientScriptPath];
+
+
+export const ClientConnectionClientScriptPath = {
+  '/sdk/avatarrouter-clientjs': '/sdk/avatarrouter-client.js',
+} as const;
+
 export type AnamConnectionTransport = typeof AnamConnectionTransport[keyof typeof AnamConnectionTransport];
 
 
@@ -819,6 +846,32 @@ export interface TavusFullConnection {
   /** Private Daily meeting token. Return only to the authorized participant; never log, cache or persist in the client. */
   token: string;
   expiresAt: string;
+}
+
+export type LiveKitClientConnectionTransport = typeof LiveKitClientConnectionTransport[keyof typeof LiveKitClientConnectionTransport];
+
+
+export const LiveKitClientConnectionTransport = {
+  livekit: 'livekit',
+} as const;
+
+export interface LiveKitClientConnection {
+  transport: LiveKitClientConnectionTransport;
+  url: string;
+  /** Private room-scoped subscription credential. */
+  token: string;
+  expiresAt: string;
+}
+
+export interface ClientConnection {
+  sessionId: string;
+  pipeline: ClientConnectionPipeline;
+  /** Run the existing voice engine only for application. Never run it concurrently for avatarrouter. */
+  audioOwner: ClientConnectionAudioOwner;
+  clientScriptPath: ClientConnectionClientScriptPath;
+  expiresAt: string;
+  /** Private opaque data for the hosted client. Never log, cache or persist. */
+  connection: AnamConnection | TavusFullConnection | LiveKitClientConnection;
 }
 
 export interface LiveConnection {

@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 import * as zod from 'zod';
 
@@ -961,6 +961,42 @@ export const GetSessionResponse = zod.object({
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
+})
+
+
+/**
+ * Requires sessions:connect and the session's owner and tenant. Forward the private response only to the authorized browser. Use the hosted AvatarRouter client; callers must not select provider SDKs or inspect the private connection data. Native Anam credentials are single-handoff; never automatically retry this operation.
+ * @summary Get one provider-independent connection for the AvatarRouter hosted browser client
+ */
+export const CreateClientConnectionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CreateClientConnectionResponse = zod.object({
+  "sessionId": zod.string(),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']),
+  "audioOwner": zod.enum(['application', 'avatarrouter']).describe('Run the existing voice engine only for application. Never run it concurrently for avatarrouter.'),
+  "clientScriptPath": zod.enum(['/sdk/avatarrouter-client.js']),
+  "expiresAt": zod.coerce.date(),
+  "connection": zod.union([zod.object({
+  "transport": zod.enum(['anam']),
+  "pipeline": zod.enum(['anam_full']),
+  "sessionToken": zod.string().describe('Single-start secret; keep only in memory. Never expose the provider API key.'),
+  "tokenExpiresAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().describe('Router stop deadline'),
+  "maxSessions": zod.literal(1)
+}),zod.object({
+  "transport": zod.enum(['daily']),
+  "pipeline": zod.enum(['tavus_full']),
+  "url": zod.string(),
+  "token": zod.string().describe('Private Daily meeting token. Return only to the authorized participant; never log, cache or persist in the client.'),
+  "expiresAt": zod.string()
+}),zod.object({
+  "transport": zod.enum(['livekit']),
+  "url": zod.string(),
+  "token": zod.string().describe('Private room-scoped subscription credential.'),
+  "expiresAt": zod.coerce.date()
+})]).describe('Private opaque data for the hosted client. Never log, cache or persist.')
 })
 
 

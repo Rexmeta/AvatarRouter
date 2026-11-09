@@ -161,6 +161,23 @@ export async function fullConnection(owner: string, tenant: string, id: string) 
     token: row.fullPipeline.token, expiresAt: row.expiresAt.toISOString() };
 }
 
+/** The partner selects a persona/pipeline, never a provider-specific browser SDK. */
+export async function clientConnection(owner: string, tenant: string, id: string) {
+  const row = await ownedLiveSession(owner, tenant, id);
+  requireRunning(row);
+  const connection = row.pipeline === "anam_full"
+    ? await anamConnection(owner, tenant, id)
+    : row.pipeline === "tavus_full"
+      ? await fullConnection(owner, tenant, id)
+      : { transport: "livekit" as const, ...await liveConnection(owner, tenant, id) };
+  return {
+    sessionId: row.id, pipeline: row.pipeline,
+    audioOwner: row.pipeline === "external_audio" ? "application" as const : "avatarrouter" as const,
+    clientScriptPath: "/sdk/avatarrouter-client.js" as const,
+    expiresAt: row.expiresAt.toISOString(), connection,
+  };
+}
+
 async function command(owner: string, tenant: string, id: string, type: "audio" | "interrupt", bytes?: Buffer) {
   const session = await ownedLiveSession(owner, tenant, id);
   requireRunning(session);

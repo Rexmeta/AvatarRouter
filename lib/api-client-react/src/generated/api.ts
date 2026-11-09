@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.7.0
+ * OpenAPI spec version: 0.8.0
  */
 import {
   useMutation,
@@ -31,6 +31,7 @@ import type {
   AvatarAsset,
   AvatarAssetInput,
   AvatarPlaybackReport,
+  ClientConnection,
   CompareRendererDiagnosticsParams,
   CreateDeveloperKeyInput,
   DeveloperKey,
@@ -3442,6 +3443,81 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getCreateClientConnectionUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/client-connection`
+}
+
+/**
+ * Requires sessions:connect and the session's owner and tenant. Forward the private response only to the authorized browser. Use the hosted AvatarRouter client; callers must not select provider SDKs or inspect the private connection data. Native Anam credentials are single-handoff; never automatically retry this operation.
+ * @summary Get one provider-independent connection for the AvatarRouter hosted browser client
+ */
+export const createClientConnection = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ClientConnection> => {
+
+  return customFetch<ClientConnection>(getCreateClientConnectionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateClientConnectionMutationKey = () => ['createClientConnection'] as const;
+
+export const getCreateClientConnectionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientConnection>>, TError,CreateClientConnectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClientConnection>>, TError,CreateClientConnectionMutationVariables, TContext> => {
+
+const mutationKey = getCreateClientConnectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClientConnection>>, CreateClientConnectionMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  createClientConnection(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClientConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof createClientConnection>>>
+
+    export type CreateClientConnectionMutationError = ErrorType<void>
+    export type CreateClientConnectionMutationVariables = {id: string}
+
+    /**
+ * @summary Get one provider-independent connection for the AvatarRouter hosted browser client
+ */
+export const useCreateClientConnection = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientConnection>>, TError,CreateClientConnectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createClientConnection>>,
+        TError,
+        CreateClientConnectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateClientConnectionMutationOptions(options), queryClient);
+    }
 
 export const getCreateAnamConnectionUrl = (id: string,) => {
 

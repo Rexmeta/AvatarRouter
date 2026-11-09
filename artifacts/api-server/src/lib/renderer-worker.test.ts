@@ -126,15 +126,20 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
     workers.push(w);
     await w.tick();
     await eventually(async () => (await get(row.id)).rendererState === "running");
-    await assert.rejects(apiA.anamConnection("other-owner", row.tenantId!, row.id), { code: "SESSION_NOT_FOUND" });
-    await assert.rejects(apiA.anamConnection(row.ownerHash, "other-tenant", row.id), { code: "SESSION_NOT_FOUND" });
+    await assert.rejects(apiA.clientConnection("other-owner", row.tenantId!, row.id), { code: "SESSION_NOT_FOUND" });
+    await assert.rejects(apiA.clientConnection(row.ownerHash, "other-tenant", row.id), { code: "SESSION_NOT_FOUND" });
     const attempts = await Promise.allSettled([
-      apiA.anamConnection(row.ownerHash, row.tenantId!, row.id),
-      apiA.anamConnection(row.ownerHash, row.tenantId!, row.id),
+      apiA.clientConnection(row.ownerHash, row.tenantId!, row.id),
+      apiA.clientConnection(row.ownerHash, row.tenantId!, row.id),
     ]);
     assert.equal(attempts.filter(x => x.status === "fulfilled").length, 1);
     const denied = attempts.find(x => x.status === "rejected") as PromiseRejectedResult;
     assert.equal(denied.reason.code, "ANAM_CONNECTION_ALREADY_ISSUED");
+    const accepted = attempts.find(x => x.status === "fulfilled") as PromiseFulfilledResult<Awaited<ReturnType<typeof apiA.clientConnection>>>;
+    assert.equal(accepted.value.audioOwner, "avatarrouter");
+    assert.equal(accepted.value.pipeline, "anam_full");
+    assert.equal(accepted.value.clientScriptPath, "/sdk/avatarrouter-client.js");
+    await assert.rejects(apiA.anamConnection(row.ownerHash, row.tenantId!, row.id), { code: "ANAM_CONNECTION_ALREADY_ISSUED" });
     assert.equal((await get(row.id)).fullPipeline?.token, undefined);
     await assert.rejects(apiA.liveConnection(row.ownerHash, row.tenantId!, row.id), { code: "ANAM_NATIVE_REQUIRED" });
     await assert.rejects(apiA.sendStockAudio(row.ownerHash, row.tenantId!, row.id, Buffer.alloc(960)), { code: "FULL_PIPELINE_DIRECT_MEDIA" });

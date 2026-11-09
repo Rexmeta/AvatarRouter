@@ -1,6 +1,14 @@
 # AvatarRouter API-key quickstart for RoleplayX
 
-**API:** 0.5 · **Recommended connection:** base URL + project API key.
+**API:** 0.8 · **Recommended connection:** base URL + project API key.
+
+## 권장: AvatarRouter 관리형 클라이언트
+
+RoleplayX에는 제공자별 키나 Anam/Tavus SDK를 설치하지 않습니다.
+`POST /sessions/{id}/client-connection`과 AvatarRouter 호스팅 공통 클라이언트를 사용합니다.
+최초 한 번의 브라우저 연결 및 음성 엔진 소유권 처리는 필요합니다.
+자세한 절차는 [관리형 클라이언트 가이드](managed-client-integration.md)를 참고하세요.
+아래 저수준 연결 API 예제는 기존 연동 호환용입니다.
 
 ## 기존 키에 자산 권한 추가
 

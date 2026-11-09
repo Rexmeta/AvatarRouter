@@ -126,3 +126,17 @@ mtime_ms = 1794210223020
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/0ddbfc8a-3959-4f9e-9e69-893ec4cc991c/c683327f-99f6-4e73-9432-af879cafce5f"
 storage_version_token = "1794210395427463"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "B3VWcHfL9NuvX9y-09cpI"
+uri = "file://artifacts/avatar-router/public/roleplayx/managed-client-integration.md"
+type = "text"
+title = "RoleplayX 공통 연결 가이드 · API 0.8"
+description = "Base URL과 프로젝트 API 키만 설정하고, AvatarRouter가 호스팅하는 하나의 클라이언트로 연결하는 가이드입니다. 제공자별 SDK 설치 없이 기존 로그인과 음성 엔진 소유권을 유지하는 전환 절차를 포함합니다."
+logical_id = "6a4b0fcc-0446-4646-94e5-303e5a0778d7"
+content_hash = "sha256:d2beb92015e5a7248f7ef6fc6370946a7dce64e32b8591200e9402223dde0fe6"
+size = 8101
+mtime_ms = 1794211257189
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/6a4b0fcc-0446-4646-94e5-303e5a0778d7/8a1402dc-c59d-4509-a086-62923c2bb35e"
+storage_version_token = "1794211311307882"
+content_type = "text/markdown"

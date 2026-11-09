@@ -21,6 +21,8 @@ const sampleRow = {
 const list = (data: unknown[]) => reply({ data, meta: { next: null, lastPage: 1 } });
 
 test("Anam uses server-selected persona, single-start short token and explicit scope", () => {
+  assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${id}/client-connection`), "sessions:connect");
+  assert.equal(requiredRoleplayxScope("GET", `/api/v1/sessions/${id}/client-connection`), "unrecognized:route");
   assert.deepEqual(anamTokenBody(id), {
     personaConfig: { personaId: ANAM_PERSONA_ID }, maxSessions: 1, expiresInSeconds: 120, clientLabel: anamLabel(id),
   });

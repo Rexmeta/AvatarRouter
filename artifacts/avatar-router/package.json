@@ -6,7 +6,7 @@
   "scripts": {
     "sync:roleplayx-docs": "node ./scripts/sync-roleplayx-docs.mjs",
     "dev": "pnpm run sync:roleplayx-docs && vite --config vite.config.ts --host 0.0.0.0",
-    "build": "pnpm run sync:roleplayx-docs && vite build --config vite.config.ts",
+    "build": "pnpm run sync:roleplayx-docs && vite build --config vite.config.ts && vite build --config vite.sdk.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -79,6 +79,7 @@
   },
   "dependencies": {
     "@anam-ai/js-sdk": "^4.29.1",
+    "@daily-co/daily-js": "^0.95.0",
     "livekit-client": "^2.23.0"
   }
 }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AvatarRouter Live Avatar API
-  version: 0.7.0
+  version: 0.8.0
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready.
@@ -571,6 +571,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/client-connection:
+    post:
+      operationId: createClientConnection
+      tags: [AvatarRouter Client]
+      summary: Get one provider-independent connection for the AvatarRouter hosted browser client
+      description: >-
+        Requires sessions:connect and the session's owner and tenant.
+        Forward the private response only to the authorized browser. Use the hosted AvatarRouter client;
+        callers must not select provider SDKs or inspect the private connection data.
+        Native Anam credentials are single-handoff; never automatically retry this operation.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      security:
+        - ServiceApiKey: []
+        - RoleplayXDelegationJWT: []
+      responses:
+        "200":
+          description: Private client descriptor; no provider API key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClientConnection" }
+        "401": { description: Authentication required }
+        "403": { description: Scope or tenant denied }
+        "404": { description: Session not owned }
+        "409": { description: Not running or credential already handed off }
   /v1/sessions/{id}/anam-connection:
     post:
       operationId: createAnamConnection
@@ -1210,6 +1235,31 @@ components:
         sessionId: { type: string }
         rendererState: { type: string, enum: [cleanup_pending, maintenance_pending] }
         cleanupRequested: { type: boolean, const: true, description: "Worker still must confirm provider termination and room absence." }
+    ClientConnection:
+      type: object
+      additionalProperties: false
+      required: [sessionId, pipeline, audioOwner, clientScriptPath, expiresAt, connection]
+      properties:
+        sessionId: { type: string }
+        pipeline: { type: string, enum: [external_audio, tavus_full, anam_full] }
+        audioOwner: { type: string, enum: [application, avatarrouter], description: "Run the existing voice engine only for application. Never run it concurrently for avatarrouter." }
+        clientScriptPath: { type: string, enum: [/sdk/avatarrouter-client.js] }
+        expiresAt: { type: string, format: date-time }
+        connection:
+          description: "Private opaque data for the hosted client. Never log, cache or persist."
+          oneOf:
+            - { $ref: "#/components/schemas/AnamConnection" }
+            - { $ref: "#/components/schemas/TavusFullConnection" }
+            - { $ref: "#/components/schemas/LiveKitClientConnection" }
+    LiveKitClientConnection:
+      type: object
+      additionalProperties: false
+      required: [transport, url, token, expiresAt]
+      properties:
+        transport: { type: string, enum: [livekit] }
+        url: { type: string }
+        token: { type: string, description: "Private room-scoped subscription credential." }
+        expiresAt: { type: string, format: date-time }
     AnamConnection:
       type: object
       additionalProperties: false

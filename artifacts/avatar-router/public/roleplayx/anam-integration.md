@@ -1,5 +1,9 @@
 # AvatarRouter → Anam 저장 페르소나 연동 · API 0.7
 
+> 새 RoleplayX 연동의 권장 경로는 API 0.8의 `managed-client-integration.md`입니다.
+> RoleplayX에서 Anam SDK를 설치하지 않고 AvatarRouter 공통 클라이언트를 사용합니다.
+> 아래 제공자별 SDK 절차는 저수준 어댑터 설명 및 기존 클라이언트 호환용입니다.
+
 ## 범위
 
 AvatarRouter 프로젝트 API 키로 Anam 저장 페르소나를 사용할 수 있습니다.
@@ -15,8 +19,8 @@ Gemini Live와 마이크 입력·응답 생성을 동시에 실행하지 마세�
 
 ## 사전 확인
 
-- AvatarRouter `/auth/check`와 `/integration/contract`를 확인합니다.
-  계약의 `features`에 `anam_full_pipeline`, `anam_single_start_connection`이 있어야 합니다.
+- AvatarRouter `GET /auth/check`를 확인합니다.
+  응답의 `integration.features`에 `anam_full_pipeline`, `anam_single_start_connection`이 있어야 합니다.
 - `/avatars`에서 `providerId=anam`, `id=anam-persona-default`를 찾습니다.
 - `/live-limits?providerId=anam`의 `creationAllowed`, `blockingReasons`를 확인합니다.
   인증 성공이나 토큰 발급은 영상 재생 성공을 의미하지 않습니다.

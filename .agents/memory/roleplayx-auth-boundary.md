@@ -7,6 +7,12 @@ Keep the existing RoleplayX login unchanged. Verify user and tenant permissions 
 
 The default external connection should work like OpenRouter: base URL plus a dedicated project API key. Do not require RoleplayX to configure issuer/JWKS for ordinary use. A server-only project credential is allowed; it is not a common user's login token. Keep independent signed user delegation optional.
 
+RoleplayX should register only the AvatarRouter API; provider selection, credentials, SDK differences and provider lifecycle belong to AvatarRouter. Do not prescribe Anam/Tavus SDK installation or provider-specific settings in RoleplayX.
+
+**Why:** The user corrected the proposal to add a provider-specific Anam mode in RoleplayX: “roleplayx에서는 아바타라우터 api만 등록해서 사용할 수 있도록 하고, 나머지는 아바타 라우터에서 처리해야해”.
+
+**How to apply:** Offer one hosted AvatarRouter browser client and a common API contract. Explain the unavoidable one-time browser media/voice-ownership hookup without turning it into provider configuration. Keep existing RoleplayX login, persona permissions, conversation mode choices and evaluation authority intact.
+
 **Why:** The user found issuer/JWKS-based setup too problematic and explicitly asked for OpenRouter-style setup and use.
 
 **Why:** The user explicitly requested this boundary.

@@ -14,7 +14,7 @@ export function requiredRoleplayxScope(method: string, path: string): string | u
   if (/^\/api\/v1\/sessions\/[^/]+\/(events|transcript)$/.test(path) && method === "GET") return "sessions:read";
   if (path === "/api/v1/usage" && method === "GET") return "sessions:read";
   if (/^\/api\/v1\/sessions\/[^/]+\/(connection|full-connection)$/.test(path) && method === "GET") return "sessions:connect";
-  if (/^\/api\/v1\/sessions\/[^/]+\/anam-connection$/.test(path) && method === "POST") return "sessions:connect";
+  if (/^\/api\/v1\/sessions\/[^/]+\/(anam-connection|client-connection)$/.test(path) && method === "POST") return "sessions:connect";
   if (/^\/api\/v1\/sessions\/[^/]+\/audio$/.test(path) && method === "POST") return "sessions:audio";
   if (/^\/api\/v1\/sessions\/[^/]+\/interrupt$/.test(path) && method === "POST") return "sessions:interrupt";
   if (/^\/api\/v1\/sessions\/[^/]+\/end$/.test(path) && method === "POST") return "sessions:end";
