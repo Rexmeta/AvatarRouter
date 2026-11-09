@@ -112,3 +112,17 @@ mtime_ms = 1794209536138
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/14028238-285b-4c6e-a80f-e2ed0615732c/51d8efa5-6123-487c-b978-0febbb21204d"
 storage_version_token = "1794209726328338"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "2V9iqljnhTxSi2MWdPWru"
+uri = "file://attached_assets/testing_screenshot/71946a.jpg"
+type = "image"
+title = "Anam 실제 영상 재생 확인"
+description = "개발 환경에서 실제 Anam 영상의 프레임 증가를 확인한 화면입니다. 실제 마이크 발화·청취 및 립싱크 검증은 포함하지 않습니다. 해당 세션은 종료·정리 완료했습니다."
+logical_id = "0ddbfc8a-3959-4f9e-9e69-893ec4cc991c"
+content_hash = "sha256:99e4278bbe4c139d491b4ca5f312e2f0ce590d5c13fa605704db391f4be60ce4"
+size = 199877
+mtime_ms = 1794210223020
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/0ddbfc8a-3959-4f9e-9e69-893ec4cc991c/c683327f-99f6-4e73-9432-af879cafce5f"
+storage_version_token = "1794210395427463"
+content_type = "image/jpeg"

@@ -186,7 +186,13 @@ export function AnamLivePanel() {
 
   /* server ended it */
   useEffect(() => {
-    if (s && s.status !== 'active' && clientRef.current) void stopClient().then(() => mounted.current && setPhase('ended'));
+    if (s && s.status !== 'active' && clientRef.current) {
+      runRef.current++;
+      setPhase('ended');
+      setDeadline(null);
+      setTokenExp(null);
+      void stopClient();
+    }
   }, [s?.status, s, stopClient]);
 
   /* auth switch */
@@ -269,7 +275,7 @@ export function AnamLivePanel() {
                 </div>
               )}
               <div className="mono absolute left-3 top-3 flex flex-wrap gap-1.5 text-[10px]">
-                {steps.map((st) => (
+                {steps.filter((st) => st.on).map((st) => (
                   <span key={st.k} className={cn('rounded-sm px-1.5 py-0.5', st.on ? 'bg-primary text-primary-foreground' : 'bg-sidebar-accent')}>{st.label}</span>
                 ))}
               </div>

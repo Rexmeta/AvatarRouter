@@ -38,7 +38,7 @@ export function getProviders(environment: NodeJS.ProcessEnv = process.env) {
       sourceUrl: p.id === "anam" ? "https://anam.ai/docs/javascript-sdk/authentication" : `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
       validation: p.id === "tavus"
         ? "Stock Lucy - Home LiveKit echo test enabled; sign-in and credit confirmation required. Custom image avatars and Gemini bridge remain unverified."
-        : p.id === "anam" ? "Native single-start token adapter implemented; real microphone/video playback validation pending. Custom Anam assets are not enabled."
+        : p.id === "anam" ? "Development probe (2026-11-09): native video playback and confirmed provider cleanup verified. Real microphone and audible dialogue validation pending; production credentials not verified. Custom Anam assets are not enabled."
         : p.implemented
         ? "Official plugin installed; live provider and Gemini bridge validation pending."
         : "Official plugin documented; AvatarRouter adapter not implemented.",
