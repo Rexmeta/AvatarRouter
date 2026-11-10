@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 import {
   useMutation,
@@ -4026,7 +4026,7 @@ export const getGetTavusFinalTranscriptUrl = (id: string,) => {
 }
 
 /**
- * Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+ * Provider-neutral end-of-call transcript read server-to-server from Tavus or Anam. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned. The legacy operationId is retained for compatibility.
  */
 export const getTavusFinalTranscript = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<GetTavusFinalTranscript200> => {
 

@@ -4,7 +4,7 @@ import {
   ListProvidersResponse, ListAvatarsResponse, ListSessionsResponse,
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
   SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
-  GetTavusFullConnectionResponse,
+  GetTavusFullConnectionResponse, GetTavusFinalTranscriptResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundLimit } from "../middlewares/playground-owner";
@@ -17,7 +17,9 @@ import { ANAM_AVATAR } from "../lib/anam-runtime";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { integrationIdentity } from "../lib/integration-identity";
 import { SessionProblem } from "../lib/session-service";
-import { FinalTranscriptProblem, readTavusFinalTranscript } from "../lib/tavus-final-transcript";
+import { FinalTranscriptProblem } from "../lib/tavus-final-transcript";
+import { readSessionTranscript } from "../lib/session-transcript";
+import { tavusRoleplayOptions } from "../lib/roleplay-context";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -42,19 +44,39 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid provider, avatar, or mode.", code: "INVALID_SESSION_INPUT" }); return;
   }
   const { providerId, avatarId, avatarAssetId, mode, costConfirmed, purpose } = parsed.data;
-  const { pipeline, fullPipeline, roleplay } = parsed.data;
-  if (roleplay && pipeline !== "anam_full") {
-    throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay is currently supported only with anam_full.");
+  const { roleplay } = parsed.data;
+  // A common roleplay request selects the native engine internally. Legacy
+  // pipeline/fullPipeline requests remain supported without silent fallback.
+  const pipeline = (roleplay || parsed.data.fullPipeline) && req.body.pipeline === undefined
+    ? providerId === "anam" ? "anam_full" : providerId === "tavus" ? "tavus_full" : parsed.data.pipeline
+    : parsed.data.pipeline;
+  if (roleplay && (mode !== "live" || !["anam_full", "tavus_full"].includes(pipeline))) {
+    throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires a native Anam or Tavus live conversation.");
+  }
+  if (roleplay && parsed.data.fullPipeline) {
+    throw new SessionProblem(400, "INVALID_PIPELINE_CONFIG", "Use roleplay or fullPipeline, not both.");
+  }
+  const fullPipeline = roleplay && pipeline === "tavus_full" ? tavusRoleplayOptions(roleplay) : parsed.data.fullPipeline;
+  if (fullPipeline && !fullPipeline.systemPrompt.trim()) {
+    throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "fullPipeline.systemPrompt must not be blank.");
   }
   if (roleplay && (!roleplay.persona.trim() || !roleplay.scenario.trim() || (roleplay.language !== undefined && !roleplay.language.trim()) || (roleplay.greeting !== undefined && !roleplay.greeting.trim()))) {
     throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "Roleplay fields must not be blank.");
   }
   if (pipeline === "anam_full") {
-    if (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || fullPipeline || purpose !== "conversation") {
-      throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam persona, live conversation mode, and no Tavus options or custom asset.");
+    if (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || purpose !== "conversation") {
+      throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam template and live conversation mode, not a custom asset.");
     }
-    assetTenant(req, res, () => {});
-    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, undefined, true, roleplay);
+    // This async guard must settle before admission. Otherwise an expired
+    // login rejects outside Express and can crash the API process.
+    await assetTenant(req, res, () => {});
+    if (integrationIdentity(res) && !roleplay && !fullPipeline) {
+      throw new SessionProblem(400, "ROLEPLAY_CONTEXT_REQUIRED", "Anam integration conversations require roleplay or fullPipeline context. Send the same systemPrompt, context and greeting used for Tavus; the router adapts them. No paid session was started.");
+    }
+    if (parsed.data.fullPipeline?.voiceId) {
+      throw new SessionProblem(400, "ANAM_UNSUPPORTED_VOICE", "Do not send a Tavus voiceId to Anam. Use the server-selected template voice.");
+    }
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline, true, roleplay);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }
@@ -63,14 +85,14 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live conversation mode and fullPipeline options. Existing validation remains external_audio." }); return;
   }
   if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
-    assetTenant(req, res, () => {});
+    await assetTenant(req, res, () => {});
     const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }
   if (avatarAssetId) {
     // A browser capability never authorizes access to an owned provider avatar.
-    assetTenant(req, res, () => {});
+    await assetTenant(req, res, () => {});
     if (mode !== "live") {
       res.status(400).json({ code: "ASSET_REQUIRES_LIVE_MODE", error: "A real avatar asset cannot be silently simulated as Mock." }); return;
     }
@@ -125,7 +147,7 @@ router.get("/v1/sessions/:id/transcript", assetTenant, async (req, res): Promise
   res.set("Cache-Control", "private, no-store");
   const row = await getOwnedSession(res.locals.ownerHash, id);
   try {
-    res.json(await readTavusFinalTranscript(row, res.locals.ownerHash, res.locals.tenantId));
+    res.json(GetTavusFinalTranscriptResponse.parse(await readSessionTranscript(row, res.locals.ownerHash, res.locals.tenantId)));
   } catch (error) {
     if (error instanceof FinalTranscriptProblem) throw new SessionProblem(error.status, error.code, error.code);
     throw error;
@@ -156,7 +178,7 @@ router.post("/v1/sessions/:id/interrupt", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   const row = await getOwnedSession(res.locals.ownerHash, id);
   if (row.mode === "live") {
-    assetTenant(req, res, () => {});
+    await assetTenant(req, res, () => {});
     res.json(GetSessionResponse.parse(presentSession(await interruptStockSession(res.locals.ownerHash, res.locals.tenantId, id))));
   } else res.json(GetSessionResponse.parse(presentSession(await mutateOwnedSession(res.locals.ownerHash, id, "interrupt"))));
 });

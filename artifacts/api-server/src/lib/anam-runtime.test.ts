@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AvatarSessionRecord } from "@workspace/db";
-import { AnamRuntime, anamLabel, anamTokenBody, anamRoleplayPersona, terminateAnamResources, ANAM_PERSONA_ID } from "./anam-runtime";
+import { AnamRuntime, anamLabel, anamTokenBody, anamRoleplayPersona, anamFullPersona, terminateAnamResources, ANAM_PERSONA_ID } from "./anam-runtime";
 import { CreateSessionBody } from "@workspace/api-zod";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { presentSession } from "./session-service";
@@ -89,11 +89,44 @@ test("missing or invalid template never falls back to shared persona or issues a
   }
 });
 
+test("legacy Tavus context is adapted to Anam instead of starting the saved persona", async () => {
+  const context = { systemPrompt: "당신은 호텔 직원입니다.", context: "예약 H204, 조식은 별도입니다.",
+    greeting: "예약 번호를 알려주세요.", languages: ["ko"] };
+  const config = anamFullPersona(template, context);
+  assert.ok(config.systemPrompt.includes(context.systemPrompt));
+  assert.ok(config.systemPrompt.includes(context.context));
+  assert.ok(config.systemPrompt.includes("ko"));
+  assert.equal(config.initialMessage, context.greeting);
+  assert.equal("personaId" in config, false);
+  assert.equal("tools" in config, false);
+  assert.equal("knowledge" in config, false);
+  let saved: unknown;
+  const calls: string[] = [];
+  const runtime = new AnamRuntime({ ...sampleRow, fullPipeline: context }, async () => {}, async () => {},
+    async value => { saved = value; }, async (url, init) => {
+      calls.push(String(url));
+      if (calls.length === 1) return reply(template);
+      const body = JSON.parse(init?.body as string);
+      assert.deepEqual(body.personaConfig, config);
+      assert.equal("personaId" in body.personaConfig, false);
+      return reply({ sessionToken: "private-test-legacy-token" });
+    });
+  await Promise.all([runtime.start(), runtime.start()]);
+  assert.equal(calls.length, 2);
+  assert.ok(!JSON.stringify(saved).includes(context.systemPrompt));
+  assert.ok(!JSON.stringify(saved).includes("H204"));
+  assert.ok(!JSON.stringify(saved).includes(context.greeting));
+  assert.ok(!anamFullPersona(template, { systemPrompt: "구매 담당자", context: "월 100만원" }).systemPrompt.includes("H204"));
+  assert.throws(() => anamFullPersona(template, { systemPrompt: " " }), { code: "INVALID_ROLEPLAY_CONTEXT" });
+  assert.throws(() => anamFullPersona(template, { systemPrompt: "valid", voiceId: "tavus-only" }), { code: "ANAM_UNSUPPORTED_VOICE" });
+});
+
 test("Anam uses server-selected persona, single-start short token and explicit scope", () => {
   assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${id}/client-connection`), "sessions:connect");
   assert.equal(requiredRoleplayxScope("GET", `/api/v1/sessions/${id}/client-connection`), "unrecognized:route");
   assert.deepEqual(anamTokenBody(id), {
     personaConfig: { personaId: ANAM_PERSONA_ID }, maxSessions: 1, expiresInSeconds: 120, clientLabel: anamLabel(id),
+    sessionOptions: { dataRetention: { recording: false, transcripts: true } },
   });
   assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${id}/anam-connection`), "sessions:connect");
   assert.equal(requiredRoleplayxScope("GET", `/api/v1/sessions/${id}/anam-connection`), "unrecognized:route");

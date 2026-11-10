@@ -8,3 +8,9 @@ Use an ephemeral persona for per-dialogue character and scenario context, with m
 **Why:** Anam's saved-persona token configuration does not accept a per-session system prompt. Updating a shared persona creates cross-session interference. The user requested RoleplayX character and scenario transmission through AvatarRouter.
 
 **How to apply:** Keep provider configuration inside AvatarRouter. Do not automatically inherit template knowledge folders, tools, private prompts or webhooks into externally authored roleplay sessions. Knowledge folders retain uploaded documents and are not appropriate for transient scenario or behavioral instructions. Explicit tenant-authorized knowledge integration needs its own access-control design. Template voice tuning is not implicitly cloned; document that limitation.
+
+Provider configuration acceptance and generated-dialogue compliance require separate evidence.
+
+**Why:** Provider-side configuration and video playback show the context was transmitted, not that the model obeys it.
+
+**How to apply:** Use provider-side configuration inspection to distinguish transmission failures from response failures. Require completed assistant transcripts from actual LLM user-message exchanges for role, scenario, language, greeting and carry-over claims; scripted TTS and video playback do not establish them.

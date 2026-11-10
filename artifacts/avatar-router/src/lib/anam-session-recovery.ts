@@ -1,13 +1,13 @@
 import type { Session } from '@workspace/api-client-react';
 import { hasConfirmedAnamStop } from './anam-stop-state';
 
-export function needsAnamRecovery(session: Session) {
-  return session.providerId === 'anam' && session.pipeline === 'anam_full' && session.mode === 'live' &&
-    !hasConfirmedAnamStop(session);
+export function needsAnamRecovery(session: Session, providerId: 'anam' | 'tavus' = 'anam') {
+  return session.providerId === providerId && session.pipeline === `${providerId}_full` && session.mode === 'live' &&
+    !hasConfirmedAnamStop(session, providerId);
 }
 
-export function anamRecoverySessions(sessions: Session[]) {
-  return sessions.filter(needsAnamRecovery).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+export function anamRecoverySessions(sessions: Session[], providerId: 'anam' | 'tavus' = 'anam') {
+  return sessions.filter(s => needsAnamRecovery(s, providerId)).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
 // Every asynchronous completion must still belong to the mounted account.
@@ -15,10 +15,10 @@ export function accountIsCurrent(owner: string | null, current: string | null, m
   return !!owner && current === owner && mounted;
 }
 
-export async function loadAnamRecovery(load: () => Promise<Session[]>, stillCurrent: () => boolean) {
+export async function loadAnamRecovery(load: () => Promise<Session[]>, stillCurrent: () => boolean, providerId: 'anam' | 'tavus' = 'anam') {
   const sessions = await load();
   if (!stillCurrent()) throw new Error('ANAM_RECOVERY_ACCOUNT_CHANGED');
-  return anamRecoverySessions(sessions);
+  return anamRecoverySessions(sessions, providerId);
 }
 
 export async function endLateAnamCreation(

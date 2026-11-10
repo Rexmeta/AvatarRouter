@@ -1,4 +1,4 @@
-# AvatarRouter 관리형 클라이언트 연동 · API 0.8
+# AvatarRouter 관리형 클라이언트 연동 · API 0.9
 
 ## 운영 원칙
 
@@ -25,7 +25,7 @@ Anam/Tavus/LiveKit 키, 제공자 SDK 설치, 제공자별 연결 주소 분기�
 
 ## 연결 흐름
 
-Anam에 매 대화의 특성·시나리오를 전달하려면 [페르소나·시나리오 가이드](./roleplay-context.md)의 `roleplay` 입력을 사용하세요. 제공자 키·브라우저 SDK 설정은 추가하지 않습니다.
+Anam/Tavus에 매 대화의 특성·시나리오를 전달하려면 [페르소나·시나리오 가이드](./roleplay-context.md)의 공통 `roleplay` 입력을 사용하세요. 제공자 키·브라우저 SDK 설정은 추가하지 않습니다.
 
 1. RoleplayX 서버가 기존 사용자와 페르소나 사용 권한을 검사합니다.
 2. 기존 `POST /sessions`로 선택한 아바타와 파이프라인을 요청합니다.
@@ -141,6 +141,11 @@ Anam의 기존 네이티브 경로는 개발 환경에서 실제 영상·종료�
 새 래퍼를 통한 실제 제공자별 통화와 RoleplayX 운영 앱 연동은 아직 검증하지 않았습니다.
 이번 작업에서 새로운 실제 제공자 세션을 만들지 않습니다.
 
-이 공통 클라이언트는 미디어 연결용입니다. RoleplayX 시나리오의 평가·저장 및
-제공자별 전체 transcript 정규화까지 자동 구현된 것으로 해석하면 안 됩니다.
-기존 Tavus 최종 transcript API는 그대로 사용하며 Anam 평가 연결은 별도 검증이 필요합니다.
+공통 클라이언트의 `onMessages(messages)`는 두 제공자의 실시간 자막을
+`[{id, role: "user" | "assistant", text}]` 형식으로 전달합니다. 이 값은 임시 자막이며 최종 증거가 아닙니다.
+두 제공자 모두 `GET /sessions/{id}/transcript`로 최종 기록을 조회합니다.
+`pending`이면 종료·기록 확정을 기다리고, `unavailable`이면 보관 설정·기록 만료를 확인합니다.
+`ready`일 때만 정규화된 `messages`, `revision`, `final: true`가 반환됩니다.
+기존 Tavus 응답과 operationId는 유지하고 `source: "anam"`을 추가했습니다.
+제공자 기록 조회·정규화는 AvatarRouter 책임이고, 그 기록을 이용한 RoleplayX 점수 계산·영구 보관은 애플리케이션 책임입니다.
+실제 대화의 컨텍스트 준수 및 제공자 기록 생성은 추가 비용 동의 후 별도 검증이 필요합니다.

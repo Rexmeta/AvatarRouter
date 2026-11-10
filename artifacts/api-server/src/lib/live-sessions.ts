@@ -61,7 +61,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
   if (roleplay && !nativeAnam) throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires anam_full.");
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   if (nativeAnam ? !process.env.ANAM_API_KEY : !stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", nativeAnam ? "Configure the Anam server API key." : "LiveKit and Tavus server credentials must be configured.");
-  if (nativeAnam && (assetId || fullPipeline || purpose !== "conversation")) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam uses the server-registered saved persona, not a custom asset or Tavus config.");
+  if (nativeAnam && (assetId || purpose !== "conversation" || fullPipeline && roleplay)) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam requires the registered template and a single conversation context, not a custom asset.");
   const row = await db.transaction(async tx => {
     // Admission, reservation and capacity are serialized across ALL API processes.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('avatar-router:stock-live'))`);
@@ -92,7 +92,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
       id, ownerHash: owner, tenantId: tenant, providerId: nativeAnam ? "anam" : "tavus", avatarId, avatarAssetId: assetId, purpose,
       mode: "live", status: "active", roomName: nativeAnam || fullPipeline ? null : `ar-stock-${id}`,
       pipeline: nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio",
-      fullPipeline: nativeAnam ? { systemPrompt: "", personaId: ANAM_PERSONA_ID, roleplay } : fullPipeline,
+      fullPipeline: nativeAnam ? { ...fullPipeline, systemPrompt: fullPipeline?.systemPrompt ?? "", personaId: ANAM_PERSONA_ID, roleplay } : fullPipeline,
       rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
       expiresAt: new Date(Date.now() + LIVE_SESSION_MS),
     }).returning();

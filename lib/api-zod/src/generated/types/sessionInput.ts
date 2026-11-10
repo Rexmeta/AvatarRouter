@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 import type { RoleplayContext } from './roleplayContext';
 import type { SessionInputMode } from './sessionInputMode';
@@ -15,6 +15,7 @@ import type { TavusFullOptions } from './tavusFullOptions';
 export interface SessionInput {
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
+  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */
   fullPipeline?: TavusFullOptions;
   roleplay?: RoleplayContext;
   providerId: SessionInputProviderId;

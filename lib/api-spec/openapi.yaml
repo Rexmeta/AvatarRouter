@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AvatarRouter Live Avatar API
-  version: 0.8.0
+  version: 0.9.0
   description: >-
     Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets,
     and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready.
@@ -719,8 +719,9 @@ paths:
     get:
       operationId: getTavusFinalTranscript
       tags: [RoleplayX LiveKit]
-      description: Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+      description: Provider-neutral end-of-call transcript read server-to-server from Tavus or Anam. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned. The legacy operationId is retained for compatibility.
       security:
+        - ClerkSessionJWT: []
         - RoleplayXDelegationJWT: []
         - ServiceApiKey: []
       parameters:
@@ -738,7 +739,7 @@ paths:
                 required: [sessionId, source, status]
                 properties:
                   sessionId: { type: string }
-                  source: { type: string, enum: [tavus] }
+                  source: { type: string, enum: [tavus, anam] }
                   status: { type: string, enum: [pending, unavailable, ready] }
                   final: { type: boolean, enum: [true], description: Present only when ready. }
                   revision: { type: string, pattern: "^[a-f0-9]{64}$", description: "SHA256 of JSON.stringify(messages), present only when ready." }
@@ -753,7 +754,7 @@ paths:
                         text: { type: string, maxLength: 10000 }
                         timestamp: { type: string, format: date-time }
         "404": { description: Session not found or not owned by the current user and tenant. }
-        "409": { description: Not a Tavus full-pipeline session. }
+        "409": { description: Not a native full-pipeline session. }
         "502": { description: Provider transcript could not be verified or read. }
   /v1/sessions/{id}/events:
     get:
@@ -1054,7 +1055,7 @@ components:
       type: object
       additionalProperties: false
       required: [persona, scenario]
-      description: "Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited."
+      description: "Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider's native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona."
       properties:
         persona: { type: string, minLength: 1, maxLength: 8000, description: "Character identity, personality, speaking style, goals and behavioral constraints." }
         scenario: { type: string, minLength: 1, maxLength: 16000, description: "Current setting, roles, objectives, approved facts and optional conversation summary." }
@@ -1066,7 +1067,7 @@ components:
       required: [providerId, avatarId, mode]
       properties:
         pipeline: { type: string, enum: [external_audio, tavus_full, anam_full], default: external_audio, description: "Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently." }
-        fullPipeline: { $ref: "#/components/schemas/TavusFullOptions" }
+        fullPipeline: { $ref: "#/components/schemas/TavusFullOptions", description: "Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam." }
         roleplay: { $ref: "#/components/schemas/RoleplayContext" }
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
@@ -1285,6 +1286,7 @@ components:
     TavusFullOptions:
       type: object
       additionalProperties: false
+      description: "Legacy name retained for compatibility. systemPrompt/context/greeting/languages work with both native providers; voiceId is Tavus-only. Anam integrations must send this input or roleplay."
       required: [systemPrompt]
       properties:
         systemPrompt: { type: string, minLength: 1, maxLength: 12000 }

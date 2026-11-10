@@ -1,5 +1,7 @@
 import { createClientWithDriver, type ClientOptions, type DriverFactory } from './client-core';
-export type { ClientOptions, ClientState } from './client-core';
+import { tavusUtterance } from './dialogue-events';
+import type { DialogueMessage } from './client-core';
+export type { ClientOptions, ClientState, DialogueMessage } from './client-core';
 
 const factory: DriverFactory = async (options, emit, active) => {
   const descriptor = options.connection;
@@ -20,6 +22,14 @@ const factory: DriverFactory = async (options, emit, active) => {
       if (!video.id) video.id = `avatarrouter-${crypto.randomUUID()}`;
       sdk.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => emit('connected'));
       sdk.addListener(AnamEvent.CONNECTION_CLOSED, () => emit('ended'));
+      sdk.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
+        if (!active()) return;
+        try {
+          options.onMessages?.(messages.filter(m => m.content.trim()).map(m => ({
+            id: m.id, role: m.role === 'user' ? 'user' : 'assistant', text: m.content,
+          })));
+        } catch { /* A host caption renderer cannot interrupt media or cleanup. */ }
+      });
       return {
         start: () => sdk.streamToVideoElement(video.id),
         stop: async () => { detach(); await sdk.stopStreaming(); },
@@ -32,6 +42,15 @@ const factory: DriverFactory = async (options, emit, active) => {
       const c = descriptor.connection;
       if (!('transport' in c) || c.transport !== 'daily') throw new Error('CLIENT_DESCRIPTOR_INVALID');
       const call = Daily.createCallObject({ audioSource: true, videoSource: false });
+      const captions = new Map<string, DialogueMessage>();
+      call.on('app-message', (event) => {
+        if (!active()) return;
+        const message = tavusUtterance(event?.data);
+        if (!message) return;
+        captions.set(message.id, message);
+        if (captions.size > 1000) captions.delete(captions.keys().next().value!);
+        try { options.onMessages?.([...captions.values()]); } catch { /* host UI only */ }
+      });
       const refresh = () => {
         if (!active()) return;
         const tracks = Object.values(call.participants()).filter((p) => !p.local).flatMap((p) =>
@@ -98,4 +117,4 @@ export function createClient(options: ClientOptions) {
   return createClientWithDriver(options, factory);
 }
 
-export const version = '0.8.0';
+export const version = '0.9.0';

@@ -6,19 +6,23 @@ type Props = {
   onEnabled: (enabled: boolean) => void;
   onDraft: (draft: RoleplayDraft) => void;
   L: (en: string, ko: string) => string;
+  providerName?: 'Anam' | 'Tavus';
+  allowDefaultPersona?: boolean;
 };
 
-export function AnamRoleplayFields({ enabled, draft, onEnabled, onDraft, L }: Props) {
+export function AnamRoleplayFields({ enabled, draft, onEnabled, onDraft, L, providerName = 'Anam', allowDefaultPersona = true }: Props) {
   return (
     <section className="space-y-3 rounded border p-3" aria-label={L('Roleplay test', '역할 테스트')}>
       <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-        <input type="checkbox" checked={enabled} onChange={e => onEnabled(e.target.checked)}
+        <input type="checkbox" checked={enabled} disabled={!allowDefaultPersona} onChange={e => onEnabled(e.target.checked)}
           data-testid="checkbox-anam-roleplay" className="h-4 w-4 accent-[hsl(var(--primary))]" />
         {L('Test a persona and scenario', '페르소나·시나리오로 테스트')}
       </label>
       <p className="text-xs text-muted-foreground">
-        {L('Off: use the saved Anam persona. Changes apply only to the next new session, never the current conversation.',
-          '끄면 기존 Anam 페르소나를 사용합니다. 편집 내용은 다음 새 세션에만 적용되며 진행 중인 대화는 바뀌지 않습니다.')}
+        {allowDefaultPersona ? L('Off: use the saved Anam persona. Changes apply only to the next new session, never the current conversation.',
+          '끄면 기존 Anam 페르소나를 사용합니다. 편집 내용은 다음 새 세션에만 적용되며 진행 중인 대화는 바뀌지 않습니다.')
+          : L('Context is required. Changes apply only to the next new session, never the current conversation.',
+            '컨텍스트 입력이 필요합니다. 편집 내용은 다음 새 세션에만 적용되며 진행 중인 대화는 바뀌지 않습니다.')}
       </p>
       {enabled && (
         <div className="space-y-3" data-testid="anam-roleplay-fields">
@@ -44,8 +48,8 @@ export function AnamRoleplayFields({ enabled, draft, onEnabled, onDraft, L }: Pr
             );
           })}
           <p className="text-xs text-muted-foreground">
-            {L('Drafts stay only in this page’s memory. Submitted context is sent to AvatarRouter and Anam. Do not enter secrets or unnecessary personal data.',
-              '초안은 이 페이지 메모리에만 유지됩니다. 시작하면 컨텍스트가 AvatarRouter와 Anam에 전달됩니다. 비밀이나 불필요한 개인정보를 입력하지 마세요.')}
+            {L(`Drafts stay only in this page’s memory. Submitted context is sent to AvatarRouter and ${providerName}. Do not enter secrets or unnecessary personal data.`,
+              `초안은 이 페이지 메모리에만 유지됩니다. 시작하면 컨텍스트가 AvatarRouter와 ${providerName}에 전달됩니다. 비밀이나 불필요한 개인정보를 입력하지 마세요.`)}
           </p>
           <button type="button" onClick={() => onDraft({ persona: '', scenario: '', language: '', greeting: '' })}
             className="rounded border px-2 py-1 text-xs hover:bg-muted" data-testid="button-anam-roleplay-clear">

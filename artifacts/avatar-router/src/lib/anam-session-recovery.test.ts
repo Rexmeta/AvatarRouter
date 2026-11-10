@@ -15,6 +15,14 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
+test('shared panel discovery scopes metadata to the selected native provider without reconnecting', async () => {
+  const anam = fixture();
+  const tavus = fixture({ id: 'tavus-native', providerId: 'tavus', pipeline: 'tavus_full' });
+  assert.deepEqual(anamRecoverySessions([anam, tavus], 'tavus').map(s => s.id), ['tavus-native']);
+  assert.deepEqual((await loadAnamRecovery(async () => [anam, tavus], () => true, 'tavus')).map(s => s.id), ['tavus-native']);
+  assert.equal(needsAnamRecovery({ ...tavus, status: 'ended', rendererState: 'closed' }, 'tavus'), false);
+});
+
 test('refresh restores active and unresolved Anam metadata, not closed or unrelated sessions', async () => {
   const rows = [
     fixture(),

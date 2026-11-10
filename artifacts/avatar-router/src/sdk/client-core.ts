@@ -1,6 +1,7 @@
 import type { ClientConnection } from '@workspace/api-client-react';
 
 export type ClientState = 'connecting' | 'connected' | 'playing' | 'ended' | 'error';
+export type DialogueMessage = { id: string; role: 'user' | 'assistant'; text: string };
 export type Driver = { start(): Promise<void>; stop(): Promise<void>; interrupt(): Promise<void> };
 export type ClientOptions = {
   connection: ClientConnection;
@@ -10,6 +11,8 @@ export type ClientOptions = {
   /** Stop the application's voice engine before resolving for avatarrouter. */
   onAudioOwner(owner: 'application' | 'avatarrouter'): Promise<void> | void;
   onState?(state: ClientState, code?: string): void;
+  /** Provisional SDK captions, not the provider-authenticated final transcript. */
+  onMessages?(messages: DialogueMessage[]): void;
   /** External-audio interrupt proxy; native engines are handled inside the client. */
   interruptSession?(sessionId: string): Promise<unknown>;
 };

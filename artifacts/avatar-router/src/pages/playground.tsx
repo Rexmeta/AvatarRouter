@@ -10,7 +10,7 @@ import { ErrorState, MicCheck, Orb, PageHead, Panel, Pill, Skel, errMsg, fmtSec 
 import { SelectedAssetPanel, useValidatedSelectedAsset } from '@/components/selected-asset';
 import type { AvatarAsset } from '@workspace/api-client-react';
 import { StockLivePanel } from '@/components/stock-live';
-import { AnamLivePanel } from '@/components/anam-live';
+import { NativeLivePanel } from '@/components/anam-live';
 import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -86,7 +86,7 @@ export default function Playground() {
       return;
     }
     if (pid === 'tavus') {
-      document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('tavus')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     if (pid === 'anam') {
@@ -138,7 +138,7 @@ export default function Playground() {
         })}
       </div>
 
-      {target === 'anam' && <AnamLivePanel />}
+      {(target === 'anam' || target === 'tavus') && <NativeLivePanel key={target} providerId={target} />}
 
       {target === 'mock' ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">

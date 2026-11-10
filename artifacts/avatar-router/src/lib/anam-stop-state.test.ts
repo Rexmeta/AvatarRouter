@@ -10,6 +10,15 @@ const row = (changes: Partial<Session> = {}): Session => ({
 });
 const closed = row({ status: 'ended', rendererState: 'closed' });
 
+test('shared native panel confirms only the selected provider and retains explicit cleanup proof', async () => {
+  const tavus = { ...closed, providerId: 'tavus', pipeline: 'tavus_full' as const };
+  assert.equal(hasConfirmedAnamStop(tavus), false);
+  assert.equal(hasConfirmedAnamStop(tavus, 'tavus'), true);
+  assert.equal(hasConfirmedAnamStop(closed, 'tavus'), false);
+  assert.equal((await confirmAnamStop(async () => tavus, 'tavus')).state, 'confirmed');
+  assert.equal((await requestAnamStop(async () => {}, async () => ({ ...tavus, cleanupPending: true }), 'tavus')).state, 'pending');
+});
+
 test('end network failure leaves an unconfirmed state, not completed, even with a readable active session', async () => {
   let endRequests = 0, reads = 0;
   const result = await requestAnamStop(async () => { endRequests++; throw new Error('network'); }, async () => { reads++; return row(); });

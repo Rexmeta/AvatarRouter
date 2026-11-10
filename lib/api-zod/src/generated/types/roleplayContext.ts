@@ -3,11 +3,11 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 
 /**
- * Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited.
+ * Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider's native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona.
  */
 export interface RoleplayContext {
   /**

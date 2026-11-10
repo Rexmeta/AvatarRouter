@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 import * as zod from 'zod';
 
@@ -770,13 +770,13 @@ export const CreateSessionBody = zod.object({
   "greeting": zod.string().max(createSessionBodyFullPipelineGreetingMax).optional(),
   "languages": zod.array(zod.string().min(createSessionBodyFullPipelineLanguagesItemMin).max(createSessionBodyFullPipelineLanguagesItemMax)).min(1).max(createSessionBodyFullPipelineLanguagesMax).optional(),
   "voiceId": zod.string().min(1).max(createSessionBodyFullPipelineVoiceIdMax).optional().describe('Tavus-managed voice ID; not an external provider API key.')
-}).optional(),
+}).optional().describe('Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam.'),
   "roleplay": zod.object({
   "persona": zod.string().min(1).max(createSessionBodyRoleplayPersonaMax).describe('Character identity, personality, speaking style, goals and behavioral constraints.'),
   "scenario": zod.string().min(1).max(createSessionBodyRoleplayScenarioMax).describe('Current setting, roles, objectives, approved facts and optional conversation summary.'),
   "language": zod.string().min(createSessionBodyRoleplayLanguageMin).max(createSessionBodyRoleplayLanguageMax).optional().describe('Desired spoken language, e.g. Korean.'),
   "greeting": zod.string().min(1).max(createSessionBodyRoleplayGreetingMax).optional().describe('Optional exact opening line.')
-}).optional().describe('Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited.'),
+}).optional().describe('Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider\'s native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona.'),
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
   "avatarAssetId": zod.uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),
@@ -1140,7 +1140,7 @@ export const InterruptSessionResponse = zod.object({
 
 
 /**
- * Owned full-pipeline end-of-call transcript, read server-to-server from Tavus. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned.
+ * Provider-neutral end-of-call transcript read server-to-server from Tavus or Anam. Requires sessions:read and exact tenant ownership. No browser captions or provider resource identifiers are returned. The legacy operationId is retained for compatibility.
  */
 export const GetTavusFinalTranscriptParams = zod.object({
   "id": zod.coerce.string()
@@ -1155,7 +1155,7 @@ export const getTavusFinalTranscriptResponseMessagesMax = 1000;
 
 export const GetTavusFinalTranscriptResponse = zod.object({
   "sessionId": zod.string(),
-  "source": zod.enum(['tavus']),
+  "source": zod.enum(['tavus', 'anam']),
   "status": zod.enum(['pending', 'unavailable', 'ready']),
   "final": zod.literal(true).optional().describe('Present only when ready.'),
   "revision": zod.string().regex(getTavusFinalTranscriptResponseRevisionRegExp).optional().describe('SHA256 of JSON.stringify(messages), present only when ready.'),

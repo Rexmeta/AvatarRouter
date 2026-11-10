@@ -11,6 +11,7 @@ import { ErrorState, PageHead, Panel, Pill, Skel, errMsg, fmtSec, fmtTime } from
 import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SessionTranscript } from '@/components/session-transcript';
 
 function Detail({ id }: { id: string }) {
   const { t } = useI18n();
@@ -39,7 +40,7 @@ function Detail({ id }: { id: string }) {
         </div>
         {active && (
           <div className="flex gap-2">
-            <button data-testid="button-session-interrupt" disabled={intr.isPending} onClick={() => intr.mutate({ id }, { onSuccess: inv, onError: onErr })} className="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-40"><Zap className="h-3.5 w-3.5" />{t('pg.interrupt')}</button>
+            {s.pipeline === 'external_audio' && <button data-testid="button-session-interrupt" disabled={intr.isPending} onClick={() => intr.mutate({ id }, { onSuccess: inv, onError: onErr })} className="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-40"><Zap className="h-3.5 w-3.5" />{t('pg.interrupt')}</button>}
             <button data-testid="button-session-end" disabled={end.isPending} onClick={() => end.mutate({ id }, { onSuccess: inv, onError: onErr })} className="inline-flex items-center gap-1.5 rounded border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 disabled:opacity-40"><Square className="h-3.5 w-3.5" />{t('pg.end')}</button>
           </div>
         )}
@@ -55,6 +56,7 @@ function Detail({ id }: { id: string }) {
       </dl>
       <div className="eyebrow px-4 pt-4">{t('sess.events')}</div>
       <Timeline sessionId={id} live={active} />
+      {['anam_full', 'tavus_full'].includes(s.pipeline ?? '') && <SessionTranscript id={id} />}
     </div>
   );
 }

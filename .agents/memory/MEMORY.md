@@ -8,3 +8,4 @@
 - [Native SDK safety](native-sdk-session-safety.md) — Anam token lifetime is not call duration; disable start retries and reconcile exact server-owned labels.
 - [Provider status](provider-status-semantics.md) — use uniform configuration/implementation availability; show playback evidence and session admission separately.
 - [Anam roleplay isolation](anam-roleplay-context.md) — ephemeral context, not shared persona mutation; no implicit knowledge/tool inheritance.
+- [Unified avatar boundary](unified-avatar-boundary.md) — provider-specific context, media and history differences belong inside AvatarRouter, not partner apps.

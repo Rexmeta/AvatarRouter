@@ -15,7 +15,7 @@ Anam API 키는 AvatarRouter 서버에만 둡니다. RoleplayX의 기존 로그�
 이 경로는 Anam의 대화·음성을 사용하는 `anam_full` 모드입니다.
 Gemini Live와 마이크 입력·응답 생성을 동시에 실행하지 마세요.
 기존 Gemini PCM을 Anam으로 보내는 렌더링 전용 기능은 이번 범위에 포함하지 않습니다.
-`roleplay`를 생략하면 프롬프트·음성·모델은 저장 페르소나 설정을 사용하며 임의로 공용 페르소나를 수정하지 않습니다.
+외부 연동은 `roleplay` 또는 기존 Tavus와 동일한 `fullPipeline` 컨텍스트를 반드시 보내야 합니다. 누락 시 `ROLEPLAY_CONTEXT_REQUIRED`로 유료 세션 생성 전에 거절합니다. 저장 페르소나로의 조용한 대체는 하지 않습니다.
 세션별 페르소나 특성·시나리오는 [Roleplay context](./roleplay-context.md)의 `roleplay` 입력으로 전달할 수 있습니다. 이때는 서버 템플릿의 아바타·음성·LLM을 사용하는 임시 페르소나로 연결됩니다.
 
 ## 사전 확인
@@ -46,11 +46,17 @@ Content-Type: application/json
   "avatarId": "anam-persona-default",
   "mode": "live",
   "pipeline": "anam_full",
-  "costConfirmed": true
+  "costConfirmed": true,
+  "fullPipeline": {
+    "systemPrompt": "당신은 한국어로 말하는 신중한 구매 담당자입니다. 역할을 유지하세요.",
+    "context": "교육 솔루션 상담. 월 예산은 100만원이며 아직 계약하지 않았습니다.",
+    "greeting": "가격과 유지보수 조건을 설명해 주세요.",
+    "languages": ["ko"]
+  }
 }
 ```
 
-`avatarAssetId`, Tavus `fullPipeline` 옵션, `purpose=validation`은 지원하지 않습니다.
+`avatarAssetId`, `purpose=validation`은 지원하지 않습니다. `fullPipeline.systemPrompt/context/greeting/languages`는 AvatarRouter가 Anam 임시 설정으로 변환합니다. Tavus 전용 `voiceId`는 지원하지 않습니다.
 서비스 공통 정리 차단·용량·사용량 예산은 그대로 적용됩니다. Anam 전환은
 미확인 Tavus 세션 차단을 우회하는 방법이 아닙니다.
 

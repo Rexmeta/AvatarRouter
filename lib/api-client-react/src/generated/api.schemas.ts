@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
- * OpenAPI spec version: 0.8.0
+ * OpenAPI spec version: 0.9.0
  */
 export interface CreateDeveloperKeyInput {
   /**
@@ -448,7 +448,7 @@ export interface Avatar {
 }
 
 /**
- * Anam full-pipeline per-session prompt. Send only context authorized for this tenant. Not uploaded to a persistent knowledge folder; never mutates the shared saved persona. Knowledge tools are not inherited.
+ * Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider's native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona.
  */
 export interface RoleplayContext {
   /**
@@ -517,6 +517,9 @@ export const SessionInputMode = {
   live: 'live',
 } as const;
 
+/**
+ * Legacy name retained for compatibility. systemPrompt/context/greeting/languages work with both native providers; voiceId is Tavus-only. Anam integrations must send this input or roleplay.
+ */
 export interface TavusFullOptions {
   /**
      * @minLength 1
@@ -545,6 +548,7 @@ export interface TavusFullOptions {
 export interface SessionInput {
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
+  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */
   fullPipeline?: TavusFullOptions;
   roleplay?: RoleplayContext;
   providerId: SessionInputProviderId;
@@ -1014,6 +1018,7 @@ export type GetTavusFinalTranscript200Source = typeof GetTavusFinalTranscript200
 
 export const GetTavusFinalTranscript200Source = {
   tavus: 'tavus',
+  anam: 'anam',
 } as const;
 
 export type GetTavusFinalTranscript200Status = typeof GetTavusFinalTranscript200Status[keyof typeof GetTavusFinalTranscript200Status];

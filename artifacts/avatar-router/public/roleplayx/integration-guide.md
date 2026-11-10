@@ -1,10 +1,12 @@
 # AvatarRouter API-key quickstart for RoleplayX
 
-**API:** 0.8 · **Recommended connection:** base URL + project API key.
+**API:** 0.9 · **Recommended connection:** base URL + project API key.
 
-Anam per-session character and scenario input: see [Roleplay context](./roleplay-context.md).
-Send `roleplay` with `pipeline: "anam_full"`; discover support via
-`GET /auth/check` → `integration.features` → `anam_roleplay_context`.
+Anam/Tavus use the same per-session `roleplay` input: see [Roleplay context](./roleplay-context.md).
+With `roleplay`, omit `pipeline` to select the provider's native conversation engine.
+Discover support via `GET /auth/check` → `integration.features` →
+`unified_roleplay_context` and `unified_final_transcript`.
+Read the same `GET /sessions/{id}/transcript` for either provider.
 
 ## 권장: AvatarRouter 관리형 클라이언트
 
@@ -27,7 +29,7 @@ RoleplayX에는 제공자별 키나 Anam/Tavus SDK를 설치하지 않습니다.
 No issuer, JWKS endpoint, signing-key exchange, Clerk migration or shared user session is required.
 RoleplayX keeps its existing login and membership checks. Existing `external_audio` sessions keep its conversation engine, prompts, scoring and voice pipeline.
 API 0.6 adds an explicit alternative: [Tavus full pipeline](./tavus-full-pipeline.md), where Tavus owns dialogue and voice over a private Daily connection.
-Do not run Gemini responses simultaneously in this mode. RoleplayX must adapt its client and transcript/evaluation integration separately.
+Do not run Gemini responses simultaneously in native conversation mode. Use the hosted common client and common transcript endpoint; RoleplayX still owns evaluation and any application-side permanent archive.
 This is OpenRouter-style credential setup, not compatibility with OpenAI chat/completions.
 
 ## 1. Create a project key
