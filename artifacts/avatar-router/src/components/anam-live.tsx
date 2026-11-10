@@ -12,6 +12,8 @@ import {
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg } from '@/components/bits';
 import { cn } from '@/lib/utils';
+import { AnamRoleplayFields } from '@/components/anam-roleplay-fields';
+import { emptyRoleplayDraft, prepareRoleplay } from '@/lib/anam-roleplay-input';
 
 const PERSONA_ID = 'anam-persona-default';
 const VIDEO_ID = 'anam-live-video';
@@ -44,6 +46,9 @@ export function AnamLivePanel() {
   const [sid, setSid] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [ack, setAck] = useState(false);
+  const [roleplayEnabled, setRoleplayEnabled] = useState(false);
+  const [roleplayDraft, setRoleplayDraft] = useState(emptyRoleplayDraft);
+  const preparedRoleplay = prepareRoleplay(roleplayEnabled, roleplayDraft);
   const [err, setErr] = useState<string | null>(null);
   const [deadline, setDeadline] = useState<number | null>(null);
   const [tokenExp, setTokenExp] = useState<string | null>(null);
@@ -62,7 +67,8 @@ export function AnamLivePanel() {
     },
   });
   const s = session.data;
-  const create = useCreateSession();
+  const create = useCreateSession({ mutation: { gcTime: 0 } });
+  const startingRef = useRef(false);
 
   const invalidate = useCallback((id: string) => {
     qc.invalidateQueries({ queryKey: getGetSessionQueryKey(id) });
@@ -99,8 +105,10 @@ export function AnamLivePanel() {
   }, [stopClient, invalidate]);
   const stopRef = useRef(stop); stopRef.current = stop;
 
-  const start = async () => {
+  const startAttempt = async () => {
     if (!ack || !uid || phase !== 'idle' && phase !== 'ended' && phase !== 'error') return;
+    const context = prepareRoleplay(roleplayEnabled, roleplayDraft);
+    if (context.invalid) return;
     const run = ++runRef.current;
     const live = () => mounted.current && runRef.current === run;
     setErr(null); setAck(false); setDeadline(null); setTokenExp(null);
@@ -110,12 +118,15 @@ export function AnamLivePanel() {
     try {
       const ns = await create.mutateAsync({ data: {
         providerId: 'anam', avatarId: PERSONA_ID, pipeline: 'anam_full', mode: 'live', costConfirmed: true,
+        ...context,
       } });
       id = ns.id;
     } catch (e) {
       if (live()) { setErr(errMsg(e)); setPhase('error'); }
       qc.invalidateQueries({ queryKey: getGetUsageQueryKey() });
       return;
+    } finally {
+      create.reset(); // Do not retain submitted context in the mutation observer.
     }
     if (!live()) { void endSession(id).catch(() => {}); return; } // late creation after cancel
     setSid(id); sidRef.current = id; invalidate(id);
@@ -170,6 +181,11 @@ export function AnamLivePanel() {
       if (live()) void stopRef.current(L('Could not start the avatar stream (microphone permission or network). Session stopped; no retry.', '아바타 스트림을 시작하지 못했습니다(마이크 권한 또는 네트워크). 세션을 종료했고 재시도하지 않습니다.'));
     }
   };
+  const start = async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    try { await startAttempt(); } finally { startingRef.current = false; }
+  };
 
   /* router deadline timer */
   useEffect(() => {
@@ -199,6 +215,12 @@ export function AnamLivePanel() {
   const prevUid = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!isLoaded) return;
+    if (prevUid.current !== undefined && prevUid.current !== uid) {
+      setRoleplayDraft(emptyRoleplayDraft());
+      setRoleplayEnabled(false);
+      setAck(false);
+      create.reset();
+    }
     if (prevUid.current !== undefined && prevUid.current !== uid && sidRef.current) {
       void stopRef.current();
       setSid(''); setPhase('idle');
@@ -239,7 +261,7 @@ export function AnamLivePanel() {
   const cleanupPending = !!s?.cleanupPending || (limits.data?.cleanupPending ?? 0) > 0;
   const lim = limits.data;
   const canStart = ack && !busy && phase !== 'stopping' && !create.isPending && !!lim?.workerReady && lim.creationAllowed !== false
-    && lim.userRemainingSeconds >= STOP_DEADLINE_S && lim.globalRemainingSeconds >= STOP_DEADLINE_S && !cleanupPending;
+    && lim.userRemainingSeconds >= STOP_DEADLINE_S && lim.globalRemainingSeconds >= STOP_DEADLINE_S && !cleanupPending && !preparedRoleplay.invalid;
 
   const steps: { k: string; on: boolean; label: string }[] = [
     { k: 'queued', on: ['queued', 'token', 'connecting', 'connected', 'playing'].includes(phase), label: L('worker', '워커') },
@@ -310,6 +332,15 @@ export function AnamLivePanel() {
                 <MessagesSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                 <span>{L('Anam runs the voice and dialogue end to end. Gemini input/audio is not used at the same time. Your microphone is requested by the browser when streaming starts; camera is never requested.', 'Anam이 음성과 대화를 직접 처리합니다. Gemini 입력/오디오는 동시에 사용하지 않습니다. 스트리밍 시작 시 브라우저가 마이크 권한을 요청하며 카메라는 요청하지 않습니다.')}</span>
               </div>
+
+              <AnamRoleplayFields enabled={roleplayEnabled} draft={roleplayDraft}
+                onEnabled={setRoleplayEnabled} onDraft={setRoleplayDraft} L={L} />
+              {preparedRoleplay.invalid && (
+                <p role="status" className="text-xs text-destructive" data-testid="anam-roleplay-validation">
+                  {L('Complete the required roleplay fields and check their length before starting.',
+                    '시작 전에 필수 역할 입력과 글자 수 제한을 확인하세요.')}
+                </p>
+              )}
 
               {!busy && phase !== 'stopping' && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
