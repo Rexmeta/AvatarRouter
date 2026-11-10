@@ -9,3 +9,4 @@
 - [Provider status](provider-status-semantics.md) — use uniform configuration/implementation availability; show playback evidence and session admission separately.
 - [Anam roleplay isolation](anam-roleplay-context.md) — ephemeral context, not shared persona mutation; no implicit knowledge/tool inheritance.
 - [Unified avatar boundary](unified-avatar-boundary.md) — provider-specific context, media and history differences belong inside AvatarRouter, not partner apps.
+- [SDK bundle isolation](sdk-bundle-isolation.md) — inline provider code can evaluate browser prerequisites before media starts; distinguish import-time probes from activity.
