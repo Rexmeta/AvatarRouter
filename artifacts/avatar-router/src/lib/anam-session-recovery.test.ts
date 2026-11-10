@@ -7,7 +7,7 @@ const fixture = (overrides: Partial<Session> = {}): Session => ({
   id: 'owned-session', providerId: 'anam', pipeline: 'anam_full', avatarId: 'anam-persona-default',
   mode: 'live', status: 'active', startedAt: '2026-11-10T11:00:00Z',
   expiresAt: '2026-11-10T11:02:00Z', durationSeconds: 10, interruptions: 0,
-  rendererState: 'running', ...overrides,
+  rendererState: 'running', cleanupPending: false, ...overrides,
 });
 const deferred = <T>() => {
   let resolve!: (value: T) => void;

@@ -1,10 +1,9 @@
 import type { Session } from '@workspace/api-client-react';
+import { hasConfirmedAnamStop } from './anam-stop-state';
 
 export function needsAnamRecovery(session: Session) {
   return session.providerId === 'anam' && session.pipeline === 'anam_full' && session.mode === 'live' &&
-    (session.status === 'active' || !!session.cleanupPending ||
-      ['queued', 'connecting', 'running', 'stopping', 'cleanup_pending', 'reconciliation_required'].includes(session.rendererState ?? '') &&
-      !['closed', 'maintenance_pending'].includes(session.rendererState ?? ''));
+    !hasConfirmedAnamStop(session);
 }
 
 export function anamRecoverySessions(sessions: Session[]) {

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { AnamRoleplayFields } from '@/components/anam-roleplay-fields';
 import { emptyRoleplayDraft, prepareRoleplay } from '@/lib/anam-roleplay-input';
 import { accountIsCurrent, anamRecoverySessions, needsAnamRecovery, loadAnamRecovery, endLateAnamCreation } from '@/lib/anam-session-recovery';
+import { hasConfirmedAnamStop, requestAnamStop, confirmAnamStop, type AnamStopState } from '@/lib/anam-stop-state';
 
 const PERSONA_ID = 'anam-persona-default';
 const VIDEO_ID = 'anam-live-video';
@@ -22,7 +23,7 @@ const POLL_MS = 2000;
 const QUEUE_TIMEOUT_MS = 90_000;
 const STOP_DEADLINE_S = 120;
 
-type Phase = 'idle' | 'creating' | 'queued' | 'token' | 'connecting' | 'connected' | 'playing' | 'stopping' | 'ended' | 'error' | 'recovered';
+type Phase = 'idle' | 'creating' | 'queued' | 'token' | 'connecting' | 'connected' | 'playing' | 'stopping' | 'stop_unconfirmed' | 'ended' | 'error' | 'recovered';
 
 function useL() {
   const { lang } = useI18n();
@@ -57,6 +58,9 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
   const recoveredRef = useRef(false);
   recoveredRef.current = recovered;
   const [phase, setPhase] = useState<Phase>('idle');
+  const [stopState, setStopState] = useState<AnamStopState | null>(null);
+  const stopInFlight = useRef(false);
+  const [checkingStop, setCheckingStop] = useState(false);
   const [ack, setAck] = useState(false);
   const [roleplayEnabled, setRoleplayEnabled] = useState(false);
   const [roleplayDraft, setRoleplayDraft] = useState(emptyRoleplayDraft);
@@ -104,37 +108,72 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
   const stopClient = useCallback(async () => {
     const c = clientRef.current;
     clientRef.current = null;
+    const video = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
+    if (video) { video.pause(); video.srcObject = null; }
     if (c) {
       try { await Promise.race([c.stopStreaming(), sleep(3000)]); } catch { /* router end must still run */ }
     }
   }, []);
 
-  /* Stop: SDK stop + router end, even after connection errors */
+  /* Stop local playback immediately, then independently prove server cleanup. */
   const stop = useCallback(async (reason?: string) => {
-    runRef.current++;
+    if (!isCurrent() || stopInFlight.current) return;
+    stopInFlight.current = true;
+    const stopRun = ++runRef.current;
     const id = sidRef.current;
     setPhase('stopping');
+    setAck(false); setDeadline(null); setTokenExp(null);
+    if (reason) setErr(reason);
     const sdkStop = stopClient();
-    if (id) {
-      try { if (isCurrent()) await endSession(id); } catch (e) { if (isCurrent()) setErr(errMsg(e)); }
+    try {
+      if (!id) {
+        await sdkStop;
+        if (isCurrent()) setPhase('idle');
+        return;
+      }
+      const result = await requestAnamStop(
+        () => endSession(id, { signal: AbortSignal.timeout(8000) }),
+        () => {
+          if (!isCurrent()) return Promise.reject(new Error('ACCOUNT_CHANGED'));
+          return getSession(id, { signal: AbortSignal.timeout(8000) });
+        },
+      );
+      await sdkStop;
+      if (!isCurrent() || sidRef.current !== id || runRef.current !== stopRun) return;
+      if (result.session) qc.setQueryData([...getGetSessionQueryKey(id), uid], result.session);
+      setStopState(result.state);
+      setPhase(result.state === 'confirmed' ? 'ended' : 'stop_unconfirmed');
+      invalidate(id);
+    } finally {
+      stopInFlight.current = false;
+    }
+  }, [stopClient, invalidate, isCurrent, qc, uid]);
+  const stopRef = useRef(stop); stopRef.current = stop;
+
+  const refreshStopStatus = async () => {
+    const id = sidRef.current;
+    if (!id || checkingStop || !isCurrent()) return;
+    setCheckingStop(true);
+    const result = await confirmAnamStop(() => getSession(id, { signal: AbortSignal.timeout(8000) }));
+    if (!isCurrent()) return;
+    if (sidRef.current === id) {
+      if (result.session) qc.setQueryData(sessionKey(id), result.session);
+      setStopState(result.state);
+      setPhase(result.state === 'confirmed' ? 'ended' : 'stop_unconfirmed');
       invalidate(id);
     }
-    await sdkStop;
-    if (isCurrent()) {
-      setPhase(id ? 'ended' : 'idle');
-      setDeadline(null); setTokenExp(null);
-      if (reason) setErr(reason);
-    }
-  }, [stopClient, invalidate, isCurrent]);
-  const stopRef = useRef(stop); stopRef.current = stop;
+    setCheckingStop(false);
+  };
 
   const startAttempt = async () => {
     if (!ack || !uid || phase !== 'idle' && phase !== 'ended' && phase !== 'error') return;
+    if (stopInFlight.current || checkingStop) return;
+    if (sid && !hasConfirmedAnamStop(s)) return;
     const context = prepareRoleplay(roleplayEnabled, roleplayDraft);
     if (context.invalid) return;
     const run = ++runRef.current;
     const live = () => isCurrent() && runRef.current === run;
-    setErr(null); setAck(false); setDeadline(null); setTokenExp(null);
+    setErr(null); setAck(false); setDeadline(null); setTokenExp(null); setStopState(null);
     setPhase('creating');
 
     let id = '';
@@ -178,8 +217,12 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
       }
       if (!live()) return;
       qc.setQueryData(sessionKey(id), cur);
-      if (cur.status !== 'active') { setPhase('ended'); setErr(cur.error ?? L('Session ended before it became ready.', '준비 전에 세션이 종료되었습니다.')); return; }
-      if (cur.stopRequested) { setPhase('ended'); return; }
+      if (cur.status !== 'active' || cur.stopRequested) {
+        setStopState(hasConfirmedAnamStop(cur) ? 'confirmed' : 'pending');
+        setPhase(hasConfirmedAnamStop(cur) ? 'ended' : 'stop_unconfirmed');
+        setErr(cur.error ?? L('Session stopped before it became ready.', '준비 전에 세션이 중단되었습니다.'));
+        return;
+      }
       if (cur.rendererState === 'running') break;
       if (Date.now() - t0 > QUEUE_TIMEOUT_MS) { void stopRef.current(L('Worker did not become ready in time. Session stopped; no retry.', '워커 준비 시간이 초과되어 세션을 종료했습니다. 재시도하지 않습니다.')); return; }
     }
@@ -230,13 +273,15 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
     setRecovered(true); recoveredRef.current = true;
     setSid(candidate.id); sidRef.current = candidate.id;
     qc.setQueryData(sessionKey(candidate.id), candidate);
-    setDeadline(null); setTokenExp(null); setAck(false); setErr(null);
+    setDeadline(null); setTokenExp(null); setAck(false); setErr(null); setStopState(null);
     setPhase('recovered');
   }, [owned.data, sid, phase, isCurrent, qc, uid]);
 
   useEffect(() => {
-    if (recovered && s && !needsAnamRecovery(s)) setPhase('ended');
-  }, [recovered, s]);
+    if (s && hasConfirmedAnamStop(s) && (recovered || phase === 'stop_unconfirmed')) {
+      setStopState('confirmed'); setPhase('ended');
+    }
+  }, [recovered, s, phase]);
 
   /* router deadline timer */
   useEffect(() => {
@@ -253,9 +298,11 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
 
   /* server ended it */
   useEffect(() => {
-    if (s && s.status !== 'active' && clientRef.current) {
+    if (s && (s.status !== 'active' || s.stopRequested) && clientRef.current) {
       runRef.current++;
-      setPhase('ended');
+      const confirmed = hasConfirmedAnamStop(s);
+      setStopState(confirmed ? 'confirmed' : 'pending');
+      setPhase(confirmed ? 'ended' : 'stop_unconfirmed');
       setDeadline(null);
       setTokenExp(null);
       void stopClient();
@@ -292,11 +339,13 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
 
   const busy = ['creating', 'queued', 'token', 'connecting', 'connected', 'playing'].includes(phase);
   const recoveredPending = recovered && (!s || needsAnamRecovery(s));
+  const stopUnconfirmed = phase === 'stop_unconfirmed';
   const cleanupPending = !!s?.cleanupPending || (limits.data?.cleanupPending ?? 0) > 0;
   const lim = limits.data;
   const canStart = ack && !busy && phase !== 'stopping' && !create.isPending && !!lim?.workerReady && lim.creationAllowed !== false
     && lim.userRemainingSeconds >= STOP_DEADLINE_S && lim.globalRemainingSeconds >= STOP_DEADLINE_S && !cleanupPending && !preparedRoleplay.invalid
-    && owned.isSuccess && !owned.isError && !session.isError && !recoverable.length && !recoveredPending;
+    && owned.isSuccess && !owned.isError && !session.isError && !recoverable.length && !recoveredPending
+    && !stopUnconfirmed && !stopInFlight.current && !checkingStop && (!sid || hasConfirmedAnamStop(s));
 
   const steps: { k: string; on: boolean; label: string }[] = [
     { k: 'queued', on: ['queued', 'token', 'connecting', 'connected', 'playing'].includes(phase), label: L('worker', '워커') },
@@ -347,7 +396,9 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
                   <div className="break-all text-lg font-bold" data-testid="text-anam-persona">{persona?.name ?? (avatars.isLoading ? '…' : L('Configured Anam persona', '설정된 Anam 페르소나'))}</div>
                   <div className="mono break-all text-[10.5px] text-muted-foreground">anam · {persona?.id ?? PERSONA_ID}{persona && !persona.configured ? ` · ${L('not configured', '미설정')}` : ''}</div>
                 </div>
-                {s ? <Pill value={s.status} live={s.status === 'active'} /> : <Pill value="ended" label={L('idle', '대기')} />}
+                {stopUnconfirmed
+                  ? <Pill value="failed" label={L('Stop unconfirmed', '종료 확인 필요')} />
+                  : s ? <Pill value={s.status} live={s.status === 'active'} /> : <Pill value="ended" label={L('idle', '대기')} />}
               </div>
 
               {owned.isPending && <p className="text-xs text-muted-foreground" role="status">{L('Checking your existing Anam sessions…', '기존 Anam 세션을 확인하고 있습니다…')}</p>}
@@ -379,7 +430,7 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
                           if (!row) return;
                           setSid(row.id); sidRef.current = row.id;
                           qc.setQueryData(sessionKey(row.id), row);
-                          setPhase('recovered'); setErr(null);
+                          setPhase('recovered'); setErr(null); setStopState(null);
                         }}>
                         {recoverable.map(row => <option key={row.id} value={row.id}>{row.id} · {row.rendererState ?? row.status}</option>)}
                       </select>
@@ -401,8 +452,29 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
 
               {(cleanupPending || phase === 'stopping') && (
                 <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert" data-testid="warning-anam-cleanup">
-                  {L('Stop requested. Waiting for confirmed provider cleanup; new paid sessions stay blocked until then.', '종료를 요청했습니다. 공급자 정리 확인을 기다리며, 그때까지 새 유료 세션은 차단됩니다.')}
+                  {L('Provider cleanup is not confirmed yet. New paid sessions remain blocked; a request being accepted is not completion.', '공급자 정리가 아직 확인되지 않았습니다. 새 유료 세션은 차단되며, 종료 요청 접수가 완료를 의미하지는 않습니다.')}
                 </div>
+              )}
+
+              {stopUnconfirmed && (
+                <div className="space-y-2 rounded border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert" data-testid="anam-stop-unconfirmed">
+                  <p className="font-semibold">{L('Playback stopped · server stop unconfirmed', '재생 중단 · 서버 종료 확인 필요')}</p>
+                  <p className="text-xs">{stopState === 'unconfirmed'
+                    ? L('The stop request or status lookup could not be confirmed. The session is not marked complete and paid starts stay blocked.',
+                      '종료 요청 또는 상태 조회를 확인하지 못했습니다. 완료로 표시하지 않으며 새 유료 시작을 차단합니다.')
+                    : L('The server still reports an active session or unfinished cleanup. Wait for confirmed cleanup, or explicitly retry the stop request.',
+                      '서버에서 활성 세션 또는 미완료 정리 상태가 확인됩니다. 정리 확인을 기다리거나 종료 요청을 다시 할 수 있습니다.')}</p>
+                  <button type="button" disabled={checkingStop} onClick={() => void refreshStopStatus()}
+                    className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40" data-testid="button-anam-stop-check">
+                    {checkingStop ? L('Checking…', '확인 중…') : L('Check status only · no new session', '상태만 다시 확인 · 새 세션 생성 없음')}
+                  </button>
+                </div>
+              )}
+              {stopState === 'confirmed' && phase === 'ended' && (
+                <p className="rounded border p-3 text-xs text-muted-foreground" role="status" data-testid="anam-stop-confirmed">
+                  {L('Server cleanup confirmed. Starting another session still requires cost consent and the normal capacity checks.',
+                    '서버 정리 완료를 확인했습니다. 새 세션에는 비용 동의와 기존 용량 확인이 다시 필요합니다.')}
+                </p>
               )}
 
               <div className="flex items-start gap-2 rounded border p-3 text-[12px] text-muted-foreground">
@@ -419,7 +491,7 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
                 </p>
               )}
 
-              {!busy && !recoveredPending && phase !== 'stopping' && (
+              {!busy && !recoveredPending && !stopUnconfirmed && phase !== 'stopping' && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
                   <input type="checkbox" data-testid="checkbox-anam-ack" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
                   <span>{L('This may consume Anam credits. One session, one connection attempt, no automatic retry or reconnect. It is stopped at the router deadline.', 'Anam 크레딧이 사용될 수 있습니다. 세션 1개, 연결 시도 1회이며 자동 재시도·재연결은 없습니다. 라우터 기한에 종료됩니다.')}</span>
@@ -427,7 +499,7 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
               )}
 
               <div className="flex flex-wrap gap-2">
-                {!busy && !recoveredPending && phase !== 'stopping' ? (
+                {!busy && !recoveredPending && !stopUnconfirmed && phase !== 'stopping' ? (
                   <button data-testid="button-anam-start" disabled={!canStart} onClick={() => void start()}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
                     <Play className="h-4 w-4" /> {L('Start Anam live', 'Anam 라이브 시작')}
@@ -435,7 +507,7 @@ function AnamLiveSession({ uid, account }: { uid: string | null; account: { curr
                 ) : (
                   <button data-testid="button-anam-stop" disabled={phase === 'stopping'} onClick={() => void stop()}
                     className="inline-flex items-center gap-2 rounded border border-destructive/40 px-4 py-2 text-sm text-destructive transition hover:bg-destructive/5 active:scale-[.97] disabled:opacity-40">
-                    <Square className="h-4 w-4" /> {phase === 'stopping' ? L('Stopping…', '종료 중…') : L('Stop', '종료')}
+                    <Square className="h-4 w-4" /> {phase === 'stopping' ? L('Stopping…', '종료 중…') : stopUnconfirmed ? L('Retry stop request', '종료 요청 다시 하기') : L('Stop', '종료')}
                   </button>
                 )}
                 {phase === 'playing' && <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Mic className="h-3.5 w-3.5 text-primary" />{L('Speak to the avatar', '아바타에게 말하세요')}</span>}
