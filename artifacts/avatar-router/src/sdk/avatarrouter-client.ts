@@ -117,4 +117,9 @@ export function createClient(options: ClientOptions) {
   return createClientWithDriver(options, factory);
 }
 
-export const version = '0.9.0';
+/** Browser bundle release, independent of the REST API version.
+ * Detect the actual client method as well: cached/pinned bundles may omit metadata.
+ */
+export const version = '0.9.1';
+/** Additive, immutable capability identifiers; never infer cleanup from local ended. */
+export const features = Object.freeze(['cleanup_status_v1'] as const);

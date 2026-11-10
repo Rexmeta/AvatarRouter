@@ -69,6 +69,12 @@ Authorization: Bearer {AVATAR_ROUTER_PROJECT_API_KEY}
 `roleplayxFetch`는 HTTP 오류를 reject하고 성공 응답의 JSON을 반환하는 함수로 가정합니다.
 
 ```js
+// SDK 옵션과 구버전 호환 조회가 공유하는 인증된 읽기 전용 프록시입니다.
+const getSessionStatus = (sessionId) => roleplayxFetch(
+  `/avatar/${localConversationId}/status?sessionId=${encodeURIComponent(sessionId)}`,
+  { method: "GET", cache: "no-store" }
+);
+
 // 서버에서 검증한 AvatarRouter origin과 공통 API 응답을 받습니다.
 const descriptor = await roleplayxFetch(`/avatar/${localConversationId}/client-connection`, {
   method: "POST"
@@ -97,10 +103,7 @@ const client = AvatarRouter.createClient({
     method: "POST", keepalive: true
   }),
   // 선택형 읽기 전용 프록시. 서버는 아래 sessionId와 로컬 대화의 매핑을 검사합니다.
-  getSessionStatus: (sessionId) => roleplayxFetch(
-    `/avatar/${localConversationId}/status?sessionId=${encodeURIComponent(sessionId)}`,
-    { method: "GET", cache: "no-store" }
-  ),
+  getSessionStatus,
   onCleanupState: (state, code) => showCleanupState(state, code),
   interruptSession: () => roleplayxFetch(`/avatar/${localConversationId}/interrupt`, {
     method: "POST"
@@ -112,10 +115,16 @@ await client.start();     // 시작 1회만 허용
 // 사용자 끼어들기: await client.interrupt(); -- 전체 세션 종료가 아닙니다.
 // 기존 앱의 사용자 종료 버튼에 연결할 함수:
 async function endAvatarConversation() {
-  await client.stop();      // 로컬 종료 + end 요청 시도. 서버 정리 완료를 기다리지 않습니다.
-  await client.refreshCleanup(); // 같은 세션 GET 1회. pending/unknown이면 생성 버튼은 잠금 유지.
+  showCleanupState("pending");
+  try {
+    await client.stop(); // 로컬 종료 + end 요청 시도. 서버 정리 완료를 기다리지 않습니다.
+  } finally {
+    const result = await refreshCleanupSafely(client, descriptor.sessionId, getSessionStatus);
+    showCleanupState(result.state, result.code);
+  }
 }
-// "정리 상태 다시 확인" 버튼: await client.refreshCleanup();
+// 아래 호환 함수도 함께 복사합니다. getSessionStatus는 위 옵션과 같은 인증된 GET 프록시입니다.
+// "정리 상태 다시 확인" 버튼도 refreshCleanupSafely() 결과를 showCleanupState()에 전달합니다.
 // 화면 이탈에서는 client.stop()만 시도하고, 다음 방문 시 서버에서 상태를 복구합니다.
 ```
 
@@ -150,6 +159,82 @@ Gemini 마이크 전송과 응답 생성을 중지합니다. 네이티브 모드
 - SDK가 로드되기 전에 실패해도 RoleplayX 서버는 예약한 세션에 `/end`를 요청해야 합니다.
 
 ### 선택형 정리 확인 계약
+
+#### SDK 버전과 기능 탐지
+
+- REST API `0.9`와 브라우저 번들 `AvatarRouter.version`은 별도 버전입니다.
+  이번 번들은 `0.9.1`이며 `AvatarRouter.features`에 `cleanup_status_v1`을 제공합니다.
+  이 기능은 `getSessionStatus`, `onCleanupState`, `cleanupState`, `refreshCleanup()` 계약을 뜻합니다.
+- 이전 `0.9.0` 번들은 같은 버전 문자열이어도 배포 시점에 따라 정리 메서드 유무가 다를 수 있습니다.
+  캐시·고정 파일에는 버전이나 기능 목록도 없을 수 있으므로 **버전 문자열 비교만으로 호출하지 않습니다.**
+  `Array.isArray(AvatarRouter.features)` 및 목록 포함 여부는 참고용이며,
+  최종 호출 조건은 `typeof client?.refreshCleanup === "function"`입니다.
+  기능 목록이 없어도 실제 메서드가 있으면 사용할 수 있습니다.
+- 구버전은 새 옵션을 무시할 수 있습니다. `onCleanupState` 콜백이 오지 않는 것이 완료 증거는 아닙니다.
+  아래 함수는 메서드가 없으면 같은 세션의 서버 상태만 조회합니다. SDK나 프록시가 없으면
+  `unknown / CLIENT_SDK_UPDATE_REQUIRED`를 반환하고, 앱은 “정리 확인 필요 · SDK/상태 조회 연동 업데이트 필요”를
+  표시합니다. 예외로 종료 흐름을 끊거나 `ended`로 정리 완료를 추정하지 않습니다.
+
+아래 공통 호환 함수를 앱에 두세요. 제공자 SDK나 프로젝트 키가 필요하지 않습니다.
+반환된 `state`가 `unknown/pending`이면 생성 버튼 잠금을 유지합니다.
+
+```js
+// cleanup-compat-example:start
+async function refreshCleanupSafely(client, sessionId, getSessionStatus) {
+  const unknown = (code) => ({ state: "unknown", code });
+  let timer;
+  const bounded = (operation) => Promise.race([
+    Promise.resolve().then(operation),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("STATUS_TIMEOUT")), 8000);
+    })
+  ]);
+  try {
+    if (typeof sessionId !== "string" || !sessionId) {
+      return unknown("ROUTER_STATUS_INVALID");
+    }
+    if (typeof client?.refreshCleanup === "function") {
+      // 세션이 다른 클라이언트의 완료 결과를 사용하지 않습니다.
+      if (client.sessionId !== sessionId) return unknown("ROUTER_STATUS_INVALID");
+      const state = await bounded(() => client.refreshCleanup());
+      return ["unknown", "pending", "confirmed"].includes(state)
+        ? { state } : unknown("ROUTER_STATUS_INVALID");
+    }
+    if (typeof getSessionStatus !== "function") {
+      return unknown("CLIENT_SDK_UPDATE_REQUIRED");
+    }
+    const status = await bounded(() => getSessionStatus(sessionId));
+    if (!status || status.id !== sessionId
+      || typeof status.cleanupPending !== "boolean"
+      || !(status.rendererState === null || typeof status.rendererState === "string")) {
+      return unknown("ROUTER_STATUS_INVALID");
+    }
+    return {
+      state: status.rendererState === "closed" && status.cleanupPending === false
+        ? "confirmed" : "pending"
+    };
+  } catch {
+    // HTTP 실패·403·404·시간 초과 모두 미확인. 원본 오류/응답을 UI나 로그에 전달하지 않습니다.
+    return unknown("ROUTER_STATUS_UNCONFIRMED");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+// cleanup-compat-example:end
+```
+
+이 함수는 1회 조회만 하며 자동 폴링·세션 생성·토큰 발급·미디어 시작을 하지 않습니다.
+복구 화면에서는 `client` 대신 `null`과 서버에 저장된 세션 매핑을 전달할 수 있습니다.
+동시에 여러 조회를 실행하지 말고 조회 중 다시 확인 버튼을 비활성화하세요.
+종료 중에는 `stop()` 시도 이후에만 조회하고, 종료 전에 시작한 조회 결과는 폐기하세요.
+계정 전환·화면 이탈 후에는 진행 중인 결과도 적용하지 않도록 앱의 계정/화면 식별자를 검사하세요.
+
+SDK 업데이트는 통화가 끝난 뒤 호스팅 스크립트의 캐시(브라우저·서비스 워커·CDN)를 재검증하거나,
+고정한 SDK 파일을 검증된 최신 파일로 교체하는 작업입니다. 현재 통화 중 스크립트를 재삽입하거나
+클라이언트를 재시작하지 않습니다. 스크립트 경로는 `/sdk/avatarrouter-client.js` 그대로이며
+버전별 URL을 제공한다는 뜻이 아닙니다. **업데이트/정리 조회를 위해 `/client-connection`을
+다시 호출하거나 새 세션을 만들지 않습니다.** 기존 세션 ID로 인증된 GET만 계속 사용합니다.
+`/auth/check`의 서버 기능 지원은 로드된 브라우저 SDK가 최신이라는 증거가 아닙니다.
 
 새 SDK의 `getSessionStatus(sessionId)`는 RoleplayX 자신의 인증된 서버를 통해
 **`GET {BASE_URL}/sessions/{id}`만** 호출합니다. 브라우저에 프로젝트 키를 전달하지 않습니다.

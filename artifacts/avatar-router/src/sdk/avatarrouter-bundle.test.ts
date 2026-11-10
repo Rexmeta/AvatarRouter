@@ -5,7 +5,7 @@ import { createContext, Script } from 'node:vm';
 import { build } from 'vite';
 import type { ClientOptions, CleanupState, SessionCleanupStatus } from './avatarrouter-client';
 
-type PublicSdk = Pick<typeof import('./avatarrouter-client'), 'createClient'>;
+type PublicSdk = Pick<typeof import('./avatarrouter-client'), 'createClient' | 'version' | 'features'>;
 const sessionId = 'bundle-cleanup-session';
 const cleanStatus: SessionCleanupStatus = Object.freeze({
   id: sessionId, rendererState: 'closed', cleanupPending: false,
@@ -124,6 +124,15 @@ function options(
     ...overrides,
   };
 }
+
+test('shipping IIFE publishes separate SDK version and immutable cleanup capability', t => {
+  const env = sandbox();
+  t.after(() => env.dispose());
+  assert.equal(env.sdk.version, '0.9.1');
+  assert.deepEqual(Array.from(env.sdk.features), ['cleanup_status_v1']);
+  assert.equal(Object.isFrozen(env.sdk.features), true);
+  env.verifyReadOnly();
+});
 
 test('shipping IIFE exposes cleanup APIs and confirms via only the host status proxy', async t => {
   for (const descriptor of descriptors) {
