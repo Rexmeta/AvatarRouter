@@ -5,8 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createClient, AnamEvent, type AnamClient } from '@anam-ai/js-sdk';
 import { LogIn, MessagesSquare, Mic, Play, Radio, Square } from 'lucide-react';
 import {
-  useCreateSession, useGetSession, useGetLiveLimits, useListAvatars,
-  getSession, createAnamConnection, endSession,
+  useCreateSession, useGetSession, useGetLiveLimits, useListAvatars, useListSessions,
+  getSession, createAnamConnection, endSession, listSessions,
   getGetSessionQueryKey, getGetLiveLimitsQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
@@ -14,6 +14,7 @@ import { Panel, Pill, errMsg } from '@/components/bits';
 import { cn } from '@/lib/utils';
 import { AnamRoleplayFields } from '@/components/anam-roleplay-fields';
 import { emptyRoleplayDraft, prepareRoleplay } from '@/lib/anam-roleplay-input';
+import { accountIsCurrent, anamRecoverySessions, needsAnamRecovery, loadAnamRecovery, endLateAnamCreation } from '@/lib/anam-session-recovery';
 
 const PERSONA_ID = 'anam-persona-default';
 const VIDEO_ID = 'anam-live-video';
@@ -21,7 +22,7 @@ const POLL_MS = 2000;
 const QUEUE_TIMEOUT_MS = 90_000;
 const STOP_DEADLINE_S = 120;
 
-type Phase = 'idle' | 'creating' | 'queued' | 'token' | 'connecting' | 'connected' | 'playing' | 'stopping' | 'ended' | 'error';
+type Phase = 'idle' | 'creating' | 'queued' | 'token' | 'connecting' | 'connected' | 'playing' | 'stopping' | 'ended' | 'error' | 'recovered';
 
 function useL() {
   const { lang } = useI18n();
@@ -31,10 +32,18 @@ function useL() {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function AnamLivePanel() {
-  const L = useL();
-  const qc = useQueryClient();
   const { isLoaded, isSignedIn, userId } = useAuth();
   const uid = isSignedIn ? userId ?? null : null;
+  const account = useRef(uid);
+  account.current = uid;
+  if (!isLoaded) return null;
+  // Account changes unmount the old view before any old metadata can be shown.
+  return <AnamLiveSession key={uid ?? 'signed-out'} uid={uid} account={account} />;
+}
+
+function AnamLiveSession({ uid, account }: { uid: string | null; account: { current: string | null } }) {
+  const L = useL();
+  const qc = useQueryClient();
 
   const limitsParams = { providerId: 'anam' as const };
   const limits = useGetLiveLimits(limitsParams, {
@@ -44,6 +53,9 @@ export function AnamLivePanel() {
   const persona = avatars.data?.find((a) => a.id === PERSONA_ID);
 
   const [sid, setSid] = useState('');
+  const [recovered, setRecovered] = useState(false);
+  const recoveredRef = useRef(false);
+  recoveredRef.current = recovered;
   const [phase, setPhase] = useState<Phase>('idle');
   const [ack, setAck] = useState(false);
   const [roleplayEnabled, setRoleplayEnabled] = useState(false);
@@ -58,12 +70,23 @@ export function AnamLivePanel() {
   const runRef = useRef(0);
   const sidRef = useRef(''); sidRef.current = sid;
   const mounted = useRef(false);
+  const isCurrent = useCallback(() => accountIsCurrent(uid, account.current, mounted.current), [uid, account]);
+  const sessionKey = (id: string) => [...getGetSessionQueryKey(id), uid];
+  const owned = useListSessions({
+    query: {
+      queryKey: [...getListSessionsQueryKey(), uid], enabled: !!uid, gcTime: 0,
+      staleTime: 0, refetchOnMount: 'always', refetchInterval: POLL_MS, retry: false,
+      queryFn: ({ signal }) => loadAnamRecovery(() => listSessions({ signal }), () => account.current === uid && !!uid),
+    },
+  });
+  const recoverable = anamRecoverySessions(owned.data ?? []);
 
   const session = useGetSession(sid, {
     query: {
-      queryKey: getGetSessionQueryKey(sid),
+      queryKey: sessionKey(sid),
       enabled: !!sid && !!uid,
-      refetchInterval: (q) => (q.state.data?.status === 'active' || q.state.data?.cleanupPending ? POLL_MS : false),
+      gcTime: 0, staleTime: 0, retry: false,
+      refetchInterval: (q) => (!q.state.data || needsAnamRecovery(q.state.data) ? POLL_MS : false),
     },
   });
   const s = session.data;
@@ -93,16 +116,16 @@ export function AnamLivePanel() {
     setPhase('stopping');
     const sdkStop = stopClient();
     if (id) {
-      try { await endSession(id); } catch (e) { if (mounted.current) setErr(errMsg(e)); }
+      try { if (isCurrent()) await endSession(id); } catch (e) { if (isCurrent()) setErr(errMsg(e)); }
       invalidate(id);
     }
     await sdkStop;
-    if (mounted.current) {
+    if (isCurrent()) {
       setPhase(id ? 'ended' : 'idle');
       setDeadline(null); setTokenExp(null);
       if (reason) setErr(reason);
     }
-  }, [stopClient, invalidate]);
+  }, [stopClient, invalidate, isCurrent]);
   const stopRef = useRef(stop); stopRef.current = stop;
 
   const startAttempt = async () => {
@@ -110,12 +133,18 @@ export function AnamLivePanel() {
     const context = prepareRoleplay(roleplayEnabled, roleplayDraft);
     if (context.invalid) return;
     const run = ++runRef.current;
-    const live = () => mounted.current && runRef.current === run;
+    const live = () => isCurrent() && runRef.current === run;
     setErr(null); setAck(false); setDeadline(null); setTokenExp(null);
     setPhase('creating');
 
     let id = '';
     try {
+      // A fresh free lookup closes the gap between list polling and a paid start.
+      const check = await owned.refetch();
+      if (!live()) return;
+      if (check.error || !check.data) throw new Error(L('Could not confirm existing sessions. Refresh status before starting.', '기존 세션을 확인하지 못했습니다. 상태를 다시 확인한 뒤 시작하세요.'));
+      if (anamRecoverySessions(check.data).length) { setPhase('idle'); return; }
+      setRecovered(false); recoveredRef.current = false;
       const ns = await create.mutateAsync({ data: {
         providerId: 'anam', avatarId: PERSONA_ID, pipeline: 'anam_full', mode: 'live', costConfirmed: true,
         ...context,
@@ -128,7 +157,11 @@ export function AnamLivePanel() {
     } finally {
       create.reset(); // Do not retain submitted context in the mutation observer.
     }
-    if (!live()) { void endSession(id).catch(() => {}); return; } // late creation after cancel
+    if (!live()) {
+      // Closing this view may finish creation later; never end it as a new user.
+      void endLateAnamCreation(id, uid, () => account.current, endSession);
+      return;
+    }
     setSid(id); sidRef.current = id; invalidate(id);
     setPhase('queued');
 
@@ -144,7 +177,7 @@ export function AnamLivePanel() {
         continue;
       }
       if (!live()) return;
-      qc.setQueryData(getGetSessionQueryKey(id), cur);
+      qc.setQueryData(sessionKey(id), cur);
       if (cur.status !== 'active') { setPhase('ended'); setErr(cur.error ?? L('Session ended before it became ready.', '준비 전에 세션이 종료되었습니다.')); return; }
       if (cur.stopRequested) { setPhase('ended'); return; }
       if (cur.rendererState === 'running') break;
@@ -187,6 +220,24 @@ export function AnamLivePanel() {
     try { await startAttempt(); } finally { startingRef.current = false; }
   };
 
+  /* Discover metadata only. This path must never request connection credentials. */
+  useEffect(() => {
+    if (!uid || account.current !== uid || !owned.data || startingRef.current || clientRef.current ||
+      ['creating', 'queued', 'token', 'connecting', 'connected', 'playing', 'stopping'].includes(phase)) return;
+    const candidate = recoverable.find(row => row.id === sid) ?? recoverable[0];
+    if (!candidate || candidate.id === sid) return;
+    runRef.current++;
+    setRecovered(true); recoveredRef.current = true;
+    setSid(candidate.id); sidRef.current = candidate.id;
+    qc.setQueryData(sessionKey(candidate.id), candidate);
+    setDeadline(null); setTokenExp(null); setAck(false); setErr(null);
+    setPhase('recovered');
+  }, [owned.data, sid, phase, isCurrent, qc, uid]);
+
+  useEffect(() => {
+    if (recovered && s && !needsAnamRecovery(s)) setPhase('ended');
+  }, [recovered, s]);
+
   /* router deadline timer */
   useEffect(() => {
     if (!deadline) return;
@@ -211,35 +262,19 @@ export function AnamLivePanel() {
     }
   }, [s?.status, s, stopClient]);
 
-  /* auth switch */
-  const prevUid = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (prevUid.current !== undefined && prevUid.current !== uid) {
-      setRoleplayDraft(emptyRoleplayDraft());
-      setRoleplayEnabled(false);
-      setAck(false);
-      create.reset();
-    }
-    if (prevUid.current !== undefined && prevUid.current !== uid && sidRef.current) {
-      void stopRef.current();
-      setSid(''); setPhase('idle');
-    }
-    prevUid.current = uid;
-  }, [uid, isLoaded]);
-
   /* unmount / nav: cancel pending run, stop SDK + router (deferred for StrictMode) */
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       const id = sidRef.current;
+      const wasRecovered = recoveredRef.current;
       setTimeout(() => {
         if (mounted.current) return;
         runRef.current++;
         const c = clientRef.current; clientRef.current = null;
         if (c) void c.stopStreaming().catch(() => {});
-        if (id) void endSession(id).catch(() => {});
+        if (id && !wasRecovered && account.current === uid) void endSession(id).catch(() => {});
       }, 0);
     };
   }, []);
@@ -247,7 +282,7 @@ export function AnamLivePanel() {
   /* pagehide keepalive end */
   useEffect(() => {
     const onHide = (e: PageTransitionEvent) => {
-      if (e.persisted || !sidRef.current) return;
+      if (e.persisted || !sidRef.current || recoveredRef.current || !isCurrent()) return;
       const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       try { void fetch(`${base}/api/v1/sessions/${sidRef.current}/end`, { method: 'POST', keepalive: true, credentials: 'include' }); } catch { /* TTL bounds */ }
     };
@@ -255,13 +290,13 @@ export function AnamLivePanel() {
     return () => window.removeEventListener('pagehide', onHide);
   }, []);
 
-  if (!isLoaded) return null;
-
   const busy = ['creating', 'queued', 'token', 'connecting', 'connected', 'playing'].includes(phase);
+  const recoveredPending = recovered && (!s || needsAnamRecovery(s));
   const cleanupPending = !!s?.cleanupPending || (limits.data?.cleanupPending ?? 0) > 0;
   const lim = limits.data;
   const canStart = ack && !busy && phase !== 'stopping' && !create.isPending && !!lim?.workerReady && lim.creationAllowed !== false
-    && lim.userRemainingSeconds >= STOP_DEADLINE_S && lim.globalRemainingSeconds >= STOP_DEADLINE_S && !cleanupPending && !preparedRoleplay.invalid;
+    && lim.userRemainingSeconds >= STOP_DEADLINE_S && lim.globalRemainingSeconds >= STOP_DEADLINE_S && !cleanupPending && !preparedRoleplay.invalid
+    && owned.isSuccess && !owned.isError && !session.isError && !recoverable.length && !recoveredPending;
 
   const steps: { k: string; on: boolean; label: string }[] = [
     { k: 'queued', on: ['queued', 'token', 'connecting', 'connected', 'playing'].includes(phase), label: L('worker', '워커') },
@@ -315,6 +350,48 @@ export function AnamLivePanel() {
                 {s ? <Pill value={s.status} live={s.status === 'active'} /> : <Pill value="ended" label={L('idle', '대기')} />}
               </div>
 
+              {owned.isPending && <p className="text-xs text-muted-foreground" role="status">{L('Checking your existing Anam sessions…', '기존 Anam 세션을 확인하고 있습니다…')}</p>}
+              {(owned.isError || session.isError) && (
+                <div className="rounded border border-destructive/40 p-3 text-xs" role="alert" data-testid="anam-recovery-error">
+                  <p>{L('Session status could not be confirmed. New starts remain blocked until the check succeeds.', '세션 상태를 확인하지 못했습니다. 확인이 성공할 때까지 새 시작을 차단합니다.')}</p>
+                  <button type="button" onClick={() => { void owned.refetch(); if (sid) void session.refetch(); }}
+                    className="mt-2 rounded border px-2 py-1 hover:bg-muted" data-testid="button-anam-recovery-retry">
+                    {L('Refresh status', '상태 다시 확인')}
+                  </button>
+                </div>
+              )}
+              {recovered && (
+                <div className="space-y-2 rounded border border-primary/40 bg-primary/5 p-3 text-xs" data-testid="anam-recovered-session">
+                  <p className="font-semibold">{L('Previous Anam session found', '이전 Anam 세션을 찾았습니다')}</p>
+                  <p>{L('Status and stop controls were restored from your server records. Video, microphone and connection tokens are not restarted or reissued. Leaving this restored view does not stop a session in another tab.',
+                    '서버 기록에서 상태와 종료 기능을 복구했습니다. 영상·마이크를 다시 시작하거나 연결 토큰을 재발급하지 않습니다. 이 복구 화면을 벗어나는 것만으로 다른 탭의 대화를 종료하지 않습니다.')}</p>
+                  <p className="mono break-all" data-testid="anam-recovered-id">{sid}</p>
+                  <p data-testid="anam-recovered-state">{L('Server state', '서버 상태')}: {s?.status ?? '…'} · {s?.rendererState ?? '…'}{s?.stopRequested ? ` · ${L('stop requested', '종료 요청됨')}` : ''}</p>
+                  {s?.error && <p className="mono break-all text-destructive">{s.error}</p>}
+                  {s && <p>{L('Server expiry', '서버 만료 시각')}: {new Date(s.expiresAt).toLocaleString()}</p>}
+                  {recoverable.length > 1 && (
+                    <label className="block space-y-1">
+                      <span>{L('Other sessions awaiting resolution', '확인이 필요한 다른 세션')}</span>
+                      <select value={sid} disabled={phase === 'stopping'} data-testid="select-anam-recovery"
+                        className="w-full rounded border bg-background p-1.5"
+                        onChange={e => {
+                          const row = recoverable.find(item => item.id === e.target.value);
+                          if (!row) return;
+                          setSid(row.id); sidRef.current = row.id;
+                          qc.setQueryData(sessionKey(row.id), row);
+                          setPhase('recovered'); setErr(null);
+                        }}>
+                        {recoverable.map(row => <option key={row.id} value={row.id}>{row.id} · {row.rendererState ?? row.status}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  <button type="button" onClick={() => { void owned.refetch(); void session.refetch(); }}
+                    className="rounded border px-2 py-1 hover:bg-muted" data-testid="button-anam-recovery-refresh">
+                    {L('Refresh status', '상태 다시 확인')}
+                  </button>
+                </div>
+              )}
+
               <div className="rounded border p-3 text-xs text-muted-foreground" data-testid="text-anam-bounds">
                 <p>{L(`Router stop deadline: ${STOP_DEADLINE_S}s per attempt, enforced server-side.`, `라우터 종료 기한: 시도당 ${STOP_DEADLINE_S}초, 서버에서 강제.`)}{remaining !== null ? L(` ${remaining}s left.`, ` 남은 시간 ${remaining}초.`) : ''}</p>
                 {tokenExp && <p className="mt-1">{L('Start-token expiry', '시작 토큰 만료')}: <span className="mono">{new Date(tokenExp).toLocaleTimeString()}</span> {L('(not call duration)', '(통화 시간 아님)')}</p>}
@@ -342,7 +419,7 @@ export function AnamLivePanel() {
                 </p>
               )}
 
-              {!busy && phase !== 'stopping' && (
+              {!busy && !recoveredPending && phase !== 'stopping' && (
                 <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
                   <input type="checkbox" data-testid="checkbox-anam-ack" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
                   <span>{L('This may consume Anam credits. One session, one connection attempt, no automatic retry or reconnect. It is stopped at the router deadline.', 'Anam 크레딧이 사용될 수 있습니다. 세션 1개, 연결 시도 1회이며 자동 재시도·재연결은 없습니다. 라우터 기한에 종료됩니다.')}</span>
@@ -350,7 +427,7 @@ export function AnamLivePanel() {
               )}
 
               <div className="flex flex-wrap gap-2">
-                {!busy && phase !== 'stopping' ? (
+                {!busy && !recoveredPending && phase !== 'stopping' ? (
                   <button data-testid="button-anam-start" disabled={!canStart} onClick={() => void start()}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
                     <Play className="h-4 w-4" /> {L('Start Anam live', 'Anam 라이브 시작')}
