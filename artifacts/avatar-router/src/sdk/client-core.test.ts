@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createClientWithDriver, type ClientOptions } from './client-core';
+import { createClientWithDriver, type ClientOptions, type CleanupState, type SessionCleanupStatus } from './client-core';
 
 function fixture(overrides: Partial<ClientOptions> = {}, expiresAt = new Date(Date.now() + 90_000).toISOString()) {
   const order: string[] = [];
@@ -64,4 +64,139 @@ test('expired descriptors never start provider media and still end reservation',
   await assert.rejects(f.client.start(), /CLIENT_START_FAILED/);
   assert.ok(f.order.includes('router-end'));
   assert.ok(!f.order.includes('factory'));
+});
+
+const cleanStatus: SessionCleanupStatus = { id: 'one-session', rendererState: 'closed', cleanupPending: false };
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(r => { resolve = r; });
+  return { promise, resolve };
+}
+
+test('end acceptance and ended remain local; cleanup is confirmed only by an explicit read', async () => {
+  const cleanup: CleanupState[] = [];
+  let reads = 0;
+  const f = fixture({
+    endSession: async () => cleanStatus, // Even a clean-looking end response is not evidence.
+    getSessionStatus: async id => { assert.equal(id, cleanStatus.id); reads++; return cleanStatus; },
+    onCleanupState: state => { cleanup.push(state); },
+  });
+  assert.equal(f.client.cleanupState, 'unknown');
+  await f.client.start();
+  await f.client.stop();
+  assert.equal(f.states.at(-1), 'ended');
+  assert.equal(reads, 0);
+  assert.equal(f.client.cleanupState, 'pending');
+  assert.equal(await f.client.refreshCleanup(), 'confirmed');
+  assert.deepEqual(cleanup, ['pending', 'confirmed']);
+  assert.equal(reads, 1);
+  assert.equal(f.order.filter(x => x === 'factory').length, 1);
+});
+
+test('closed and explicit cleanupPending=false are both required on the same session', async () => {
+  const cases: [unknown, CleanupState][] = [
+    [{ ...cleanStatus, cleanupPending: true }, 'pending'],
+    [{ ...cleanStatus, rendererState: 'cleanup_pending' }, 'pending'],
+    [{ ...cleanStatus, rendererState: 'running' }, 'pending'],
+    [{ ...cleanStatus, rendererState: null }, 'pending'],
+    [{ ...cleanStatus, id: 'another-session' }, 'unknown'],
+    [{ id: cleanStatus.id, rendererState: 'closed' }, 'unknown'],
+    [{ ...cleanStatus, cleanupPending: 'false' }, 'unknown'],
+    [null, 'unknown'],
+    [{}, 'unknown'],
+  ];
+  for (const [status, expected] of cases) {
+    const f = fixture({ getSessionStatus: async () => status as SessionCleanupStatus });
+    assert.equal(await f.client.refreshCleanup(), expected, JSON.stringify(status));
+    assert.deepEqual(f.order, []); // Querying never starts media, creates or ends a session.
+  }
+});
+
+test('missing proxy and failed reads stay unknown without leaking upstream errors', async () => {
+  const events: string[] = [];
+  const f = fixture({ onCleanupState: (state, code) => { events.push(`${state}:${code}`); } });
+  assert.equal(await f.client.refreshCleanup(), 'unknown');
+  assert.deepEqual(events, ['unknown:CLIENT_STATUS_PROXY_REQUIRED']);
+  let fail = false;
+  const g = fixture({
+    getSessionStatus: async () => {
+      if (fail) throw new Error('private URL and credential');
+      return cleanStatus;
+    },
+    onCleanupState: (state, code) => { events.push(`${state}:${code}`); },
+  });
+  assert.equal(await g.client.refreshCleanup(), 'confirmed');
+  fail = true;
+  assert.equal(await g.client.refreshCleanup(), 'unknown');
+  assert.equal(g.client.cleanupState, 'unknown');
+  assert.equal(events.at(-1), 'unknown:ROUTER_STATUS_UNCONFIRMED');
+  assert.ok(!JSON.stringify(events).includes('private'));
+});
+
+test('end failure cannot confirm cleanup, but a later successful read can', async () => {
+  const f = fixture({
+    endSession: async () => { throw new Error('private end failure'); },
+    getSessionStatus: async () => cleanStatus,
+    onCleanupState: () => { throw new Error('host UI failure'); },
+  });
+  await f.client.stop();
+  assert.deepEqual(f.states, ['error', 'ended']);
+  assert.equal(f.client.cleanupState, 'pending');
+  assert.equal(await f.client.refreshCleanup(), 'confirmed');
+});
+
+test('concurrent cleanup checks are read-only and single-flight', async () => {
+  const result = deferred<SessionCleanupStatus>();
+  let reads = 0;
+  const f = fixture({ getSessionStatus: () => { reads++; return result.promise; } });
+  const first = f.client.refreshCleanup();
+  const second = f.client.refreshCleanup();
+  assert.equal(first, second);
+  await Promise.resolve();
+  assert.equal(reads, 1);
+  result.resolve(cleanStatus);
+  assert.deepEqual(await Promise.all([first, second]), ['confirmed', 'confirmed']);
+  assert.deepEqual(f.order, []);
+});
+
+test('a pre-stop read cannot overwrite pending with stale confirmation', async () => {
+  const result = deferred<SessionCleanupStatus>();
+  const f = fixture({ getSessionStatus: () => result.promise });
+  const read = f.client.refreshCleanup();
+  await Promise.resolve();
+  await f.client.stop();
+  result.resolve(cleanStatus);
+  assert.equal(await read, 'pending');
+  assert.equal(f.client.cleanupState, 'pending');
+});
+
+test('a cleanup check during stop waits for end settlement', async () => {
+  const end = deferred<unknown>();
+  const order: string[] = [];
+  const f = fixture({
+    endSession: async () => { order.push('end'); await end.promise; order.push('end-settled'); },
+    getSessionStatus: async () => { order.push('read'); return cleanStatus; },
+  });
+  const stop = f.client.stop();
+  const read = f.client.refreshCleanup();
+  await Promise.resolve();
+  assert.deepEqual(order, ['end']);
+  end.resolve(undefined);
+  await stop;
+  assert.equal(await read, 'confirmed');
+  assert.deepEqual(order, ['end', 'end-settled', 'read']);
+});
+
+test('a hung cleanup proxy times out to unknown and permits another read', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let hung = true;
+  const f = fixture({
+    getSessionStatus: () => hung ? new Promise<SessionCleanupStatus>(() => {}) : Promise.resolve(cleanStatus),
+  });
+  const read = f.client.refreshCleanup();
+  await Promise.resolve();
+  t.mock.timers.tick(8000);
+  assert.equal(await read, 'unknown');
+  hung = false;
+  assert.equal(await f.client.refreshCleanup(), 'confirmed');
 });

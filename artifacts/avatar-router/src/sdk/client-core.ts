@@ -1,6 +1,13 @@
 import type { ClientConnection } from '@workspace/api-client-react';
 
 export type ClientState = 'connecting' | 'connected' | 'playing' | 'ended' | 'error';
+/** Independent of local playback; confirmed is not permission to create a paid session. */
+export type CleanupState = 'unknown' | 'pending' | 'confirmed';
+export type SessionCleanupStatus = {
+  id: string;
+  rendererState: string | null;
+  cleanupPending: boolean;
+};
 export type DialogueMessage = { id: string; role: 'user' | 'assistant'; text: string };
 export type Driver = { start(): Promise<void>; stop(): Promise<void>; interrupt(): Promise<void> };
 export type ClientOptions = {
@@ -8,6 +15,10 @@ export type ClientOptions = {
   video: HTMLVideoElement;
   /** Implement with your own authenticated server's /sessions/:id/end proxy. */
   endSession(sessionId: string): Promise<unknown>;
+  /** Optional read-only GET /sessions/:id proxy on your authenticated server. No tokens. */
+  getSessionStatus?(sessionId: string): Promise<SessionCleanupStatus>;
+  /** Only refreshCleanup() can confirm cleanup; stop/end acceptance never does. */
+  onCleanupState?(state: CleanupState, code?: string): void;
   /** Stop the application's voice engine before resolving for avatarrouter. */
   onAudioOwner(owner: 'application' | 'avatarrouter'): Promise<void> | void;
   onState?(state: ClientState, code?: string): void;
@@ -23,9 +34,9 @@ export type DriverFactory = (
   active: () => boolean,
 ) => Promise<Driver>;
 
-function bounded(promise: Promise<unknown>, ms: number) {
+function bounded<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
-  return Promise.race([promise, new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new Error('CLIENT_TIMEOUT')), ms); })])
+  return Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('CLIENT_TIMEOUT')), ms); })])
     .finally(() => clearTimeout(timer));
 }
 
@@ -35,13 +46,23 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
   let closed = false;
   let driver: Driver | undefined;
   let stopping: Promise<void> | undefined;
+  let cleanupState: CleanupState = 'unknown';
+  let refreshing: Promise<CleanupState> | undefined;
+  let cleanupRevision = 0;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   const emit = (state: ClientState, code?: string) => {
     try { options.onState?.(state, code); } catch { /* host UI must not break teardown */ }
   };
+  const emitCleanup = (state: CleanupState, code?: string) => {
+    cleanupState = state;
+    try { options.onCleanupState?.(state, code); } catch { /* host UI must not break cleanup checks */ }
+    return state;
+  };
   const stop = (): Promise<void> => {
     if (stopping) return stopping;
     closed = true;
+    // Discard an in-flight read taken before this stop request.
+    cleanupRevision++;
     clearTimeout(deadline);
     if (typeof window !== 'undefined') window.removeEventListener('pagehide', pageHide);
     const safely = (fn: () => Promise<unknown>, ms: number) => bounded(Promise.resolve().then(fn), ms);
@@ -53,7 +74,38 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
       if (results[1]?.status === 'rejected') emit('error', 'ROUTER_END_UNCONFIRMED');
       emit('ended'); // Local playback ended; server cleanup must still be polled.
     });
+    emitCleanup('pending');
     return stopping;
+  };
+  const refreshCleanup = (): Promise<CleanupState> => {
+    if (refreshing) return refreshing;
+    const revision = cleanupRevision;
+    refreshing = (async () => {
+      // A read begun during stop must not race the end request.
+      if (stopping) await stopping;
+      if (revision !== cleanupRevision) return cleanupState;
+      if (typeof options.getSessionStatus !== 'function') {
+        return emitCleanup('unknown', 'CLIENT_STATUS_PROXY_REQUIRED');
+      }
+      try {
+        const status = await bounded(Promise.resolve().then(() =>
+          options.getSessionStatus!(options.connection.sessionId)), 8000);
+        if (revision !== cleanupRevision) return cleanupState;
+        // Reject malformed, missing and mismatched records rather than fail open.
+        if (!status || status.id !== options.connection.sessionId
+          || typeof status.cleanupPending !== 'boolean'
+          || !(status.rendererState === null || typeof status.rendererState === 'string')) {
+          return emitCleanup('unknown', 'ROUTER_STATUS_INVALID');
+        }
+        return emitCleanup(status.rendererState === 'closed' && status.cleanupPending === false
+          ? 'confirmed' : 'pending');
+      } catch {
+        if (revision !== cleanupRevision) return cleanupState;
+        // Never expose upstream errors (credentials, URLs or response bodies).
+        return emitCleanup('unknown', 'ROUTER_STATUS_UNCONFIRMED');
+      }
+    })().finally(() => { refreshing = undefined; });
+    return refreshing;
   };
   const pageHide = () => { void stop(); };
   const start = async () => {
@@ -83,7 +135,8 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
     }
   };
   return {
-    start, stop,
+    start, stop, refreshCleanup,
+    get cleanupState() { return cleanupState; },
     interrupt: async () => {
       if (!started || closed || !driver) throw new Error('CLIENT_NOT_CONNECTED');
       try { await driver.interrupt(); } catch { throw new Error('CLIENT_INTERRUPT_FAILED'); }

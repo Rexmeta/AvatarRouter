@@ -1,7 +1,7 @@
 import { createClientWithDriver, type ClientOptions, type DriverFactory } from './client-core';
 import { tavusUtterance } from './dialogue-events';
 import type { DialogueMessage } from './client-core';
-export type { ClientOptions, ClientState, DialogueMessage } from './client-core';
+export type { ClientOptions, ClientState, CleanupState, SessionCleanupStatus, DialogueMessage } from './client-core';
 
 const factory: DriverFactory = async (options, emit, active) => {
   const descriptor = options.connection;

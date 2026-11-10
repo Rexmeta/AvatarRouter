@@ -14,3 +14,9 @@ An external native conversation must not silently use a default saved persona wh
 **Why:** The user clarified that Tavus works in RoleplayX while Anam speaks without any context. A default persona can look like model noncompliance even when the requested instructions never reached the active configuration.
 
 **How to apply:** Translate the shared legacy full-pipeline context as well as the roleplay format inside AvatarRouter. Reject missing integration context before paid admission. Do not infer model noncompliance from absent fields in an ended router row; use the provider's effective configuration for transmission evidence and actual dialogue for adherence evidence.
+
+External clients must treat local playback end, server cleanup confirmation, and paid admission as separate decisions.
+
+**Why:** An end response acknowledges a request while provider cleanup and late-start protection may still be running. Even confirmed cleanup for one session does not prove that other sessions or shared capacity allow a paid start.
+
+**How to apply:** Preserve the local `ended` contract. Confirm cleanup through authenticated, read-only status requests, never by creating sessions or reissuing connection tokens. Keep existing login/project-key boundaries and final server admission checks.

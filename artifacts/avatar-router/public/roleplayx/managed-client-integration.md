@@ -15,7 +15,7 @@ Anam/Tavus/LiveKit 키, 제공자 SDK 설치, 제공자별 연결 주소 분기�
 | 제공자 키·토큰 발급·SDK 선택 | 기존 로그인·사용자·tenant 권한 검사 |
 | Anam / Tavus / LiveKit 연결 차이 | 선택한 페르소나·대화 모드 전달 |
 | 영상·원격 음성 재생 | 공통 비디오 요소와 클라이언트 호출 |
-| 제공자별 끼어들기·연결 종료 | 자기 서버의 공통 end/interrupt 프록시 |
+| 제공자별 끼어들기·연결 종료 | 자기 서버의 공통 end/interrupt/status 프록시 |
 | 세션 정리 확인·용량/비용 차단 | 기존 Gemini 엔진의 실행/로컬 출력 권한 전환 |
 
 프로젝트 키는 서버에만 보관합니다. 공용 사용자 토큰·Clerk 세션·JWT 서명 비밀을 공유하지 않습니다.
@@ -64,8 +64,9 @@ Authorization: Bearer {AVATAR_ROUTER_PROJECT_API_KEY}
 
 ## 브라우저 예시
 
-아래 `roleplayxFetch`, `setExistingVoicePolicy`, `showAvatarState`는 기존 앱에 맞게
+아래 `roleplayxFetch`, `setExistingVoicePolicy`, `showAvatarState`, `showCleanupState`는 기존 앱에 맞게
 연결할 함수입니다. **제공자별 구현 함수가 아닙니다.**
+`roleplayxFetch`는 HTTP 오류를 reject하고 성공 응답의 JSON을 반환하는 함수로 가정합니다.
 
 ```js
 // 서버에서 검증한 AvatarRouter origin과 공통 API 응답을 받습니다.
@@ -95,6 +96,12 @@ const client = AvatarRouter.createClient({
   endSession: () => roleplayxFetch(`/avatar/${localConversationId}/end`, {
     method: "POST", keepalive: true
   }),
+  // 선택형 읽기 전용 프록시. 서버는 아래 sessionId와 로컬 대화의 매핑을 검사합니다.
+  getSessionStatus: (sessionId) => roleplayxFetch(
+    `/avatar/${localConversationId}/status?sessionId=${encodeURIComponent(sessionId)}`,
+    { method: "GET", cache: "no-store" }
+  ),
+  onCleanupState: (state, code) => showCleanupState(state, code),
   interruptSession: () => roleplayxFetch(`/avatar/${localConversationId}/interrupt`, {
     method: "POST"
   }),
@@ -103,7 +110,13 @@ const client = AvatarRouter.createClient({
 
 await client.start();     // 시작 1회만 허용
 // 사용자 끼어들기: await client.interrupt(); -- 전체 세션 종료가 아닙니다.
-// 대화 종료/화면 이탈: await client.stop();
+// 기존 앱의 사용자 종료 버튼에 연결할 함수:
+async function endAvatarConversation() {
+  await client.stop();      // 로컬 종료 + end 요청 시도. 서버 정리 완료를 기다리지 않습니다.
+  await client.refreshCleanup(); // 같은 세션 GET 1회. pending/unknown이면 생성 버튼은 잠금 유지.
+}
+// "정리 상태 다시 확인" 버튼: await client.refreshCleanup();
+// 화면 이탈에서는 client.stop()만 시도하고, 다음 방문 시 서버에서 상태를 복구합니다.
 ```
 
 ```html
@@ -128,11 +141,53 @@ Gemini 마이크 전송과 응답 생성을 중지합니다. 네이티브 모드
 - 페이지 이탈과 만료에도 같은 종료를 요청합니다. 네트워크가 끊긴 페이지에서는
   전송을 보장할 수 없으므로 Router Worker의 기한·제공자 정리 절차도 유지됩니다.
 - `ended` 이벤트는 **로컬 재생 종료**이며 제공자 정리 완료를 뜻하지 않습니다.
-  서버 세션의 `rendererState=closed`, `cleanupPending=false`를 확인합니다.
+  기존 `onState` 값과 `stop(): Promise<void>` 계약은 그대로 유지됩니다.
+- `/end`의 HTTP 성공·응답 접수·`status=ended`만으로 **새 유료 생성 가능**으로 표시하지 않습니다.
+  서버가 종료를 접수한 뒤에도 제공자 정리 또는 늦은 시작 방지 처리가 남을 수 있습니다.
 - `CLIENT_START_FAILED`는 비밀 정보가 제거된 공통 오류입니다. 원인은 같은 세션의
   상태와 안전한 서버 진단에서 확인하고 새 유료 세션을 자동 생성하지 않습니다.
 - 연결 정보, 프로젝트 키, 제공자 토큰, 제공자 연결 URL을 로그·분석·브라우저 저장소에 넣지 않습니다.
 - SDK가 로드되기 전에 실패해도 RoleplayX 서버는 예약한 세션에 `/end`를 요청해야 합니다.
+
+### 선택형 정리 확인 계약
+
+새 SDK의 `getSessionStatus(sessionId)`는 RoleplayX 자신의 인증된 서버를 통해
+**`GET {BASE_URL}/sessions/{id}`만** 호출합니다. 브라우저에 프로젝트 키를 전달하지 않습니다.
+RoleplayX 서버는 기존 로그인·사용자·tenant·로컬 대화와 세션 매핑을 확인한 뒤,
+기존 서버 전용 프로젝트 API 키로 조회하고 `Cache-Control: private, no-store`를 적용합니다.
+성공 응답의 아래 필드를 그대로 전달하면 됩니다. 토큰·연결 정보·운영자 진단은 필요 없습니다.
+
+```json
+{ "id": "<owned-session-id>", "rendererState": "closed", "cleanupPending": false }
+```
+
+| 정리 상태 | 의미 | 화면 처리 |
+|---|---|---|
+| `unknown` | 초기 상태, 조회 프록시 없음, 실패·권한 오류·시간 초과·잘못된 응답 | 정리 확인 필요, 새 생성 잠금 유지 |
+| `pending` | 종료 시도 시작 또는 조회 결과가 아직 정리 완료 조건을 충족하지 않음 | 서버 정리 중, 새 생성 잠금 유지 |
+| `confirmed` | 같은 세션 조회에서 `rendererState === "closed"` **및** `cleanupPending === false` 확인 | 해당 세션 정리 확인 완료 |
+
+- `client.cleanupState`로 현재 값을 읽고 `onCleanupState(state, code)`로 변화를 받습니다.
+  `ended`와 별도이며 `onState`에 새 값을 추가하지 않습니다. 이 옵션을 생략한 기존 연동도 동작하지만,
+  종료나 로컬 화면만으로 정리를 확인할 수는 없습니다.
+- `await client.refreshCleanup()`은 정리 상태를 반환합니다. 자동 조회·자동 재시도는 하지 않습니다.
+  `getSessionStatus`가 없으면 `unknown / CLIENT_STATUS_PROXY_REQUIRED`,
+  실패하면 `unknown / ROUTER_STATUS_UNCONFIRMED`, 잘못된 응답이면
+  `unknown / ROUTER_STATUS_INVALID`를 전달합니다. 원본 오류·비밀 정보는 전달하지 않습니다.
+  조회는 최대 8초 기다리며 동시 호출은 하나로 합칩니다.
+- `stop()`과 동시에 호출하면 종료 요청 시도가 끝난 뒤 조회합니다.
+  종료 전에 시작한 오래된 조회는 종료 이후 정리 상태를 덮어쓰지 않습니다.
+  `stop()`은 정리 상태를 `pending`으로 바꾸며, end 응답 자체로 `confirmed`로 바꾸지 않습니다.
+- `pending/unknown`이면 수동 다시 확인 또는 횟수·기간이 제한된 앱의 조회만 사용합니다.
+  네트워크 실패·404·403은 정리 완료 증거가 아닙니다. 조회 실패 시 생성 버튼을 열지 않습니다.
+  계정 전환·화면 이탈 시 앱의 조회 타이머를 중지하고 이전 계정의 상태 표시를 폐기합니다.
+- **조회 재시도 과정에서 `POST /sessions`, `/client-connection`, `/anam-connection`,
+  `/full-connection`, `/connection`을 호출하지 않습니다.** 생성·토큰 재발급·미디어 재시작은
+  정리 확인 방법이 아닙니다. 새로고침 후에도 저장된 로컬 대화 매핑으로 서버 조회만 복구하며,
+  조회를 위해 클라이언트 연결 정보를 다시 받거나 새 클라이언트를 시작하지 않습니다.
+- `confirmed`는 **해당 세션의 정리 확인**일 뿐, 새 유료 생성의 허가가 아닙니다.
+  다른 미정리 세션, 프로젝트/사용자 한도, 서버의 `creationAllowed` 및 기존 비용 동의 등
+  모든 생성 조건을 별도로 확인하고 최종 서버 차단을 유지합니다.
 
 ## 현재 검증 범위
 
