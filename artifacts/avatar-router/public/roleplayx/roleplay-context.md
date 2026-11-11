@@ -30,7 +30,7 @@ Content-Type: application/json
 
 - `persona`: 필수, 1–8,000자. 특성·말투·역할·행동 제약.
 - `scenario`: 필수, 1–16,000자. 상황·사용자 역할·목표·공유 가능한 사실·이전 대화 요약.
-- `language`: 선택, 2–80자. 원하는 발화 언어.
+- `language`: 선택, 2–80자. 원하는 대화 언어. Anam에서는 사용자 음성 인식 언어에도 적용됩니다.
 - `greeting`: 선택, 1–1,000자. 첫 발화 문장. 생략하면 제공자가 인사말을 생성합니다.
 - 같은 요청에서 `providerId: "tavus"`, `avatarId: "tavus-stock-lucy"`로 바꾸면 동일한 컨텍스트를 Tavus에 전달합니다. 기존 권한·재생 검증을 통과한 Tavus 커스텀 자산에는 그 자산의 ID를 사용합니다.
 - `roleplay`가 있으면 `pipeline`을 생략할 수 있습니다. AvatarRouter가 `anam_full` 또는 `tavus_full`을 선택합니다. 명시적인 기존 pipeline 입력도 유지합니다.
@@ -57,6 +57,18 @@ Tavus에서 쓰던 컨텍스트 형식의 Anam 요청 예시입니다. 제공자
 ```
 
 세션 생성 뒤에는 종전과 동일하게 `/client-connection`과 관리형 클라이언트를 사용합니다.
+Anam은 `roleplay.language`와 기존 `fullPipeline.languages`를 모두 사용자 인식용
+`personaConfig.languageCode`로 변환하며 `voiceDetectionOptions.sttProvider=anam`을 명시합니다.
+`ko`, `Korean`, `한국어`, `ko-KR`는 모두 한국어 인식으로 변환됩니다.
+지원되는 ISO 코드·영문 언어명·지역 태그를 사용할 수 있으며, 제공자 설정을 앱에 추가할 필요는 없습니다.
+명시한 언어가 지원되지 않으면 `ANAM_UNSUPPORTED_LANGUAGE`로 토큰 발급 전에 실패합니다.
+Anam은 세션당 하나의 인식 언어를 사용하므로 서로 다른 여러 언어를 전달하면
+`ANAM_MULTIPLE_INPUT_LANGUAGES`로 실패합니다. 같은 언어의 별칭은 중복 제거합니다.
+언어를 생략하거나 빈 목록을 보내는 기존 요청은 조직 기본값을 유지합니다.
+Tavus의 언어 처리나 저장된 공용 Anam 페르소나는 변경하지 않습니다.
+이 설정은 STT 요청 계약이며, 실제 한국어 인식 정확성 검증을 대신하지 않습니다.
+근거: [Anam 다국어 및 STT 지원 계약](https://anam.ai/docs/personas/voices/multilingual).
+
 두 컨텍스트 형식 중 하나는 RoleplayX 서버가 **실제로 요청 본문에 포함**해야 합니다.
 AvatarRouter는 전송받지 않은 RoleplayX 내부의 선택된 페르소나·시나리오를 추측하거나 복원하지 않습니다.
 `GET /auth/check`의 `anam_full_context_compat`, `anam_integration_context_required`로 이 동작의 지원 여부를 확인합니다.

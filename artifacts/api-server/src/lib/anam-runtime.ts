@@ -1,6 +1,7 @@
 import type { AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
 import { roleplayPrompt } from "./roleplay-context";
+import { anamRecognitionConfig } from "./anam-recognition";
 
 // Public saved-persona reference supplied by the owner. Not a custom-avatar ID.
 export const ANAM_PERSONA_ID = "c00f2c0c-b16b-49f3-9f07-672162b2741c";
@@ -33,7 +34,8 @@ export function anamTokenBody(id: string) {
 // Read only the server-selected template. Never copy its tools, knowledge or
 // webhook configuration into an externally supplied roleplay session.
 export function anamRoleplayPersona(template: unknown, roleplay: NonNullable<Options["roleplay"]>) {
-  return anamPersona(template, roleplayPrompt(roleplay), roleplay.greeting);
+  return anamPersona(template, roleplayPrompt(roleplay), roleplay.greeting,
+    roleplay.language === undefined ? undefined : [roleplay.language]);
 }
 
 /** Accept the SAME legacy fullPipeline context that already works with Tavus. */
@@ -49,10 +51,10 @@ export function anamFullPersona(template: unknown, options: Options) {
     ...(options.context ? ["SCENARIO REFERENCE (JSON string):\n" + JSON.stringify(options.context)] : []),
     ...(options.languages?.length ? ["Speak in these languages: " + options.languages.join(", ")] : []),
   ].join("\n\n");
-  return anamPersona(template, prompt, options.greeting);
+  return anamPersona(template, prompt, options.greeting, options.languages);
 }
 
-function anamPersona(template: unknown, systemPrompt: string, greeting?: string) {
+function anamPersona(template: unknown, systemPrompt: string, greeting?: string, languages?: string[]) {
   const p = template as { avatar?: { id?: unknown }; voice?: { id?: unknown }; llmId?: unknown; avatarModel?: unknown };
   if (!p || ![p.avatar?.id, p.voice?.id, p.llmId].every(x => typeof x === "string" && uuid.test(x))) {
     throw new SessionProblem(502, "ANAM_TEMPLATE_INVALID", "The server-selected Anam template requires an avatar, voice and hosted LLM.");
@@ -62,6 +64,8 @@ function anamPersona(template: unknown, systemPrompt: string, greeting?: string)
     avatarId: p.avatar!.id as string, voiceId: p.voice!.id as string, llmId: p.llmId as string,
     ...(typeof p.avatarModel === "string" ? { avatarModel: p.avatarModel } : {}),
     systemPrompt, maxSessionLengthSeconds: 120,
+    // Output-language instructions alone do not configure input transcription.
+    ...anamRecognitionConfig(languages),
     ...(greeting ? { initialMessage: greeting } : {}),
   };
 }
