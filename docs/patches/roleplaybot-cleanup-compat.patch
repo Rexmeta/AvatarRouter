@@ -1,0 +1,432 @@
+diff --git a/client/src/components/chat/AvatarCleanupNotice.tsx b/client/src/components/chat/AvatarCleanupNotice.tsx
+new file mode 100644
+index 0000000..7b26b26
+--- /dev/null
++++ b/client/src/components/chat/AvatarCleanupNotice.tsx
+@@ -0,0 +1,23 @@
++import type { CleanupResult } from "@/lib/avatarCleanupCompat";
++
++export function AvatarCleanupNotice({ result, checking, disabled, onRefresh }: {
++  result: CleanupResult; checking: boolean; disabled?: boolean; onRefresh(): void;
++}) {
++  return <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"
++    data-testid="avatar-cleanup-notice">
++    <p role="status">{result.state === "confirmed"
++      ? "해당 세션의 서버 정리가 확인되었습니다. 새 유료 세션의 생성 허용 여부는 서버에서 별도로 확인합니다."
++      : result.state === "pending"
++        ? "서버 정리 중입니다. 정리 완료가 확인될 때까지 새 세션 생성 잠금을 유지합니다."
++        : "정리 확인이 필요합니다. 상태가 미확인이므로 새 세션 생성 잠금을 유지합니다."}</p>
++    {result.state === "unknown" && <p className="mt-1">
++      SDK에 정리 확인 기능이 없어도 기존 로그인으로 서버 상태를 조회합니다. 조회 연동이 없거나 확인되지 않으면 SDK/상태 조회 연동 업데이트가 필요합니다.
++      통화가 끝난 뒤 업데이트하세요. 새 연결이나 세션을 만들지 않습니다.
++    </p>}
++    <button type="button" onClick={onRefresh} disabled={checking || disabled}
++      className="mt-2 rounded-lg border border-amber-300 px-3 py-2 font-semibold disabled:opacity-50"
++      data-testid="avatar-cleanup-refresh">
++      {checking ? "정리 상태 확인 중…" : "정리 상태 다시 확인"}
++    </button>
++  </div>;
++}
+diff --git a/client/src/components/chat/TavusChatWindow.tsx b/client/src/components/chat/TavusChatWindow.tsx
+index 91be8a6..a9a0bec 100644
+--- a/client/src/components/chat/TavusChatWindow.tsx
++++ b/client/src/components/chat/TavusChatWindow.tsx
+@@ -11,9 +11,13 @@ import TavusConversationLayout from "./TavusConversationLayout";
+ import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
+ import { useBrowserCaptions } from "./tavusBrowserCaptions";
+ import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../ScenarioOverrideSummary";
++import { useAuth } from "@/hooks/useAuth";
++import { useAvatarCleanup } from "./useAvatarCleanup";
++import { AvatarCleanupNotice } from "./AvatarCleanupNotice";
+ 
+ type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
+ type Session = {
++  id?: string;
+   language?: import("@shared/conversationLanguage").ConversationLanguage;
+   state: SessionState;
+   providerId?: "tavus" | "anam";
+@@ -83,6 +87,9 @@ export default function TavusChatWindow({
+   // Keep provider codes/messages for internal recovery, never as learner-facing copy.
+   const displayError = (details: { code: string; message: string }) => reasonText(details.code);
+   const [session, setSession] = useState<Session>({ state: "idle" });
++  const { user } = useAuth();
++  const cleanup = useAvatarCleanup(`${user?.id ?? "signed-out"}:${conversationId}`,
++    `${sessionUrl(conversationId)}/session`, session.id);
+   const [config, setConfig] = useState<Config | null>(null);
+   const [consent, setConsent] = useState(false);
+   const [starting, setStarting] = useState(false);
+@@ -383,6 +390,7 @@ export default function TavusChatWindow({
+ 
+   const end = async () => {
+     if (endInFlightRef.current || session.state === "ended") return;
++    cleanup.invalidate();
+     releaseScreenWakeLock();
+     endInFlightRef.current = true;
+     setEnding(true);
+@@ -397,6 +405,7 @@ export default function TavusChatWindow({
+       if (!mountedRef.current) return;
+       updateSession(next.state === "active" ? { ...next, state: "ending" } : next);
+       if (next.state === "ended") setEndFailed(false);
++      await cleanup.refresh();
+     } catch (cause) {
+       if (mountedRef.current) {
+         setError(errorDetails(cause));
+@@ -589,6 +598,9 @@ export default function TavusChatWindow({
+       hasCaptionEvents={browserCaptions.captions.length > 0}
+       sessionControls={
+         <div className="space-y-4">
++          {started && ["ending", "ended", "create_unknown"].includes(session.state) &&
++            <AvatarCleanupNotice result={cleanup.result} checking={cleanup.checking}
++              disabled={ending || !user} onRefresh={() => void cleanup.refresh()} />}
+           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
+             <p>{text("unifiedContext", "The live avatar service receives this session's persona, scenario and applicable organization instructions. Confirmed history is saved after the session ends when supported.", "라이브 아바타 서비스에 이 실행의 페르소나·시나리오·적용된 조직 지침을 전달합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
+             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>
+diff --git a/client/src/components/chat/useAvatarCleanup.ts b/client/src/components/chat/useAvatarCleanup.ts
+new file mode 100644
+index 0000000..53c75a0
+--- /dev/null
++++ b/client/src/components/chat/useAvatarCleanup.ts
+@@ -0,0 +1,50 @@
++import { useCallback, useEffect, useRef, useState } from "react";
++import { apiRequest } from "@/lib/queryClient";
++import { refreshCleanupSafely, type CleanupResult } from "@/lib/avatarCleanupCompat";
++
++/** The ended screen has no media client. Always use the existing authenticated BFF GET. */
++export function useAvatarCleanup(scope: string, endpoint: string, sessionId?: string) {
++  const [result, setResult] = useState<CleanupResult>({ state: "unknown" });
++  const [checking, setChecking] = useState(false);
++  const generation = useRef(0);
++  const busy = useRef(false);
++  const current = useRef({ scope, endpoint, sessionId });
++  current.current = { scope, endpoint, sessionId };
++
++  useEffect(() => {
++    generation.current++;
++    busy.current = false;
++    setChecking(false);
++    setResult({ state: "unknown" });
++    return () => { generation.current++; };
++  }, [scope, endpoint, sessionId]);
++
++  const invalidate = useCallback(() => {
++    generation.current++;
++    busy.current = false;
++    setChecking(false);
++    setResult({ state: "pending" });
++  }, []);
++
++  const refresh = useCallback(async () => {
++    if (busy.current) return;
++    busy.current = true;
++    setChecking(true);
++    const revision = generation.current;
++    const captured = current.current;
++    const isCurrent = () => revision === generation.current &&
++      captured.scope === current.current.scope && captured.endpoint === current.current.endpoint &&
++      captured.sessionId === current.current.sessionId;
++    // Do not remount/reload the SDK, reissue a descriptor or create a session to check cleanup.
++    const next = await refreshCleanupSafely(null, captured.sessionId, async () => {
++      const response = await apiRequest("GET", captured.endpoint);
++      return response.json();
++    });
++    if (!isCurrent()) return;
++    setResult(next);
++    busy.current = false;
++    setChecking(false);
++  }, []);
++
++  return { result, checking, refresh, invalidate };
++}
+diff --git a/client/src/lib/avatarCleanupCompat.ts b/client/src/lib/avatarCleanupCompat.ts
+new file mode 100644
+index 0000000..11c1f51
+--- /dev/null
++++ b/client/src/lib/avatarCleanupCompat.ts
+@@ -0,0 +1,43 @@
++export type CleanupResult = {
++  state: "unknown" | "pending" | "confirmed";
++  code?: string;
++};
++export type CleanupClient = { sessionId?: string; refreshCleanup?: () => Promise<unknown> };
++
++/** Copy of AvatarRouter's bounded compatibility contract. Reads never issue media credentials. */
++export async function refreshCleanupSafely(
++  client: CleanupClient | null | undefined,
++  sessionId: string | undefined,
++  getSessionStatus?: (sessionId: string) => Promise<unknown>,
++): Promise<CleanupResult> {
++  const unknown = (code: string): CleanupResult => ({ state: "unknown", code });
++  let timer: ReturnType<typeof setTimeout> | undefined;
++  const bounded = (operation: () => Promise<unknown>) => Promise.race([
++    Promise.resolve().then(operation),
++    new Promise<never>((_, reject) => {
++      timer = setTimeout(() => reject(new Error("STATUS_TIMEOUT")), 8000);
++    }),
++  ]);
++  try {
++    if (typeof sessionId !== "string" || !sessionId) return unknown("ROUTER_STATUS_INVALID");
++    if (typeof client?.refreshCleanup === "function") {
++      if (client.sessionId !== sessionId) return unknown("ROUTER_STATUS_INVALID");
++      const state = await bounded(() => client.refreshCleanup!());
++      return state === "unknown" || state === "pending" || state === "confirmed"
++        ? { state } : unknown("ROUTER_STATUS_INVALID");
++    }
++    if (typeof getSessionStatus !== "function") return unknown("CLIENT_SDK_UPDATE_REQUIRED");
++    const status = await bounded(() => getSessionStatus(sessionId)) as {
++      id?: unknown; cleanupPending?: unknown; rendererState?: unknown;
++    } | null;
++    if (!status || status.id !== sessionId || typeof status.cleanupPending !== "boolean" ||
++        !(status.rendererState === null || typeof status.rendererState === "string")) {
++      return unknown("ROUTER_STATUS_INVALID");
++    }
++    return { state: status.rendererState === "closed" && status.cleanupPending === false ? "confirmed" : "pending" };
++  } catch {
++    return unknown("ROUTER_STATUS_UNCONFIRMED");
++  } finally {
++    clearTimeout(timer);
++  }
++}
+diff --git a/server/routes/tavus.ts b/server/routes/tavus.ts
+index 0d5d6e4..f7156ef 100644
+--- a/server/routes/tavus.ts
++++ b/server/routes/tavus.ts
+@@ -9,7 +9,7 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
+   const router = Router();
+   router.use(isAuthenticated);
+   router.use((req, res, next) => {
+-    res.setHeader("Cache-Control", "no-store");
++    res.setHeader("Cache-Control", "private, no-store");
+     // Cookie-authenticated lifecycle writes must originate in this application.
+     const origin = req.headers.origin;
+     if (req.method !== "GET" && origin) {
+diff --git a/tests/client/avatarCleanupCompat.test.ts b/tests/client/avatarCleanupCompat.test.ts
+new file mode 100644
+index 0000000..e041323
+--- /dev/null
++++ b/tests/client/avatarCleanupCompat.test.ts
+@@ -0,0 +1,54 @@
++import { afterEach, describe, expect, it, vi } from "vitest";
++import { refreshCleanupSafely } from "../../client/src/lib/avatarCleanupCompat";
++
++afterEach(() => vi.useRealTimers());
++const closed = { id: "owned", rendererState: "closed", cleanupPending: false };
++describe("AvatarRouter cleanup compatibility", () => {
++  it("feature-detects the actual method without requiring a version/features field", async () => {
++    const refreshCleanup = vi.fn(async () => "confirmed");
++    const get = vi.fn();
++    expect(await refreshCleanupSafely({ sessionId: "owned", refreshCleanup }, "owned", get))
++      .toEqual({ state: "confirmed" });
++    expect(refreshCleanup).toHaveBeenCalledOnce();
++    expect(get).not.toHaveBeenCalled();
++  });
++  it("uses only the authenticated status callback for legacy or missing SDKs", async () => {
++    const get = vi.fn(async () => closed);
++    for (const client of [null, {}]) {
++      expect(await refreshCleanupSafely(client, "owned", get)).toEqual({ state: "confirmed" });
++    }
++    expect(get.mock.calls).toEqual([["owned"], ["owned"]]);
++  });
++  it("requires an update when neither SDK method nor status proxy is available", async () => {
++    expect(await refreshCleanupSafely({}, "owned"))
++      .toEqual({ state: "unknown", code: "CLIENT_SDK_UPDATE_REQUIRED" });
++  });
++  it.each([
++    { ...closed, rendererState: "running" }, { ...closed, rendererState: null },
++    { ...closed, cleanupPending: true }, { ...closed, status: "ended", rendererState: "closing" },
++  ])("never equates local end or partial cleanup with confirmation: %j", async status => {
++    expect(await refreshCleanupSafely(null, "owned", async () => status)).toEqual({ state: "pending" });
++  });
++  it.each([null, { ...closed, id: "foreign" }, { ...closed, cleanupPending: undefined },
++    { ...closed, rendererState: undefined }])("rejects malformed or foreign status: %j", async status => {
++    expect(await refreshCleanupSafely(null, "owned", async () => status))
++      .toEqual({ state: "unknown", code: "ROUTER_STATUS_INVALID" });
++  });
++  it("rejects a different client's result without invoking it", async () => {
++    const refreshCleanup = vi.fn(async () => "confirmed");
++    expect(await refreshCleanupSafely({ sessionId: "foreign", refreshCleanup }, "owned"))
++      .toEqual({ state: "unknown", code: "ROUTER_STATUS_INVALID" });
++    expect(refreshCleanup).not.toHaveBeenCalled();
++  });
++  it.each(["403", "404", "network"])("sanitizes %s failures", async message => {
++    expect(await refreshCleanupSafely(null, "owned", async () => { throw new Error(`${message}: private`); }))
++      .toEqual({ state: "unknown", code: "ROUTER_STATUS_UNCONFIRMED" });
++  });
++  it("bounds stuck reads to eight seconds", async () => {
++    vi.useFakeTimers();
++    const result = refreshCleanupSafely(null, "owned", () => new Promise(() => {}));
++    await vi.advanceTimersByTimeAsync(8000);
++    expect(await result).toEqual({ state: "unknown", code: "ROUTER_STATUS_UNCONFIRMED" });
++    expect(vi.getTimerCount()).toBe(0);
++  });
++});
+diff --git a/tests/client/avatarCleanupNotice.test.tsx b/tests/client/avatarCleanupNotice.test.tsx
+new file mode 100644
+index 0000000..f769b65
+--- /dev/null
++++ b/tests/client/avatarCleanupNotice.test.tsx
+@@ -0,0 +1,58 @@
++// @vitest-environment happy-dom
++import React from "react";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
++import { AvatarCleanupNotice } from "../../client/src/components/chat/AvatarCleanupNotice";
++import { useAvatarCleanup } from "../../client/src/components/chat/useAvatarCleanup";
++const api = vi.hoisted(() => vi.fn());
++vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
++function Harness({ scope = "user:run", id = "owned" }) {
++  const state = useAvatarCleanup(scope, "/api/tavus/conversations/run/session", id);
++  return <><AvatarCleanupNotice result={state.result} checking={state.checking}
++    onRefresh={() => void state.refresh()} />
++    <button onClick={state.invalidate}>end</button></>;
++}
++beforeEach(() => { api.mockReset(); });
++afterEach(cleanup);
++describe("ended-screen authenticated cleanup reads", () => {
++  it("shows the legacy update guidance and sends only GET, never media or creation requests", async () => {
++    api.mockResolvedValue({ json: async () => ({ id: "owned", rendererState: "closed", cleanupPending: false }) });
++    render(<Harness />);
++    expect(screen.getByText(/SDK\/상태 조회 연동 업데이트/)).toBeTruthy();
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await screen.findByText(/해당 세션의 서버 정리가 확인/);
++    expect(api.mock.calls).toEqual([["GET", "/api/tavus/conversations/run/session"]]);
++    expect(screen.queryByText(/SDK\/상태 조회 연동 업데이트/)).toBeNull();
++  });
++  it("keeps unknown on authorization failure without leaking the response", async () => {
++    api.mockRejectedValue(new Error("403: provider private detail"));
++    render(<Harness />);
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await waitFor(() => expect((screen.getByTestId("avatar-cleanup-refresh") as HTMLButtonElement).disabled).toBe(false));
++    expect(screen.getByRole("status").textContent).toContain("생성 잠금을 유지");
++    expect(screen.queryByText(/provider private detail/)).toBeNull();
++  });
++  it("keeps pending locked and disables concurrent manual reads", async () => {
++    let resolve!: (value: unknown) => void;
++    api.mockImplementation(() => new Promise(r => { resolve = r; }));
++    render(<Harness />);
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await waitFor(() => expect(api).toHaveBeenCalledOnce());
++    expect((screen.getByTestId("avatar-cleanup-refresh") as HTMLButtonElement).disabled).toBe(true);
++    await act(async () => resolve({ json: async () => ({ id: "owned", rendererState: "closed", cleanupPending: true }) }));
++    expect(screen.getByRole("status").textContent).toContain("서버 정리 중");
++  });
++  it.each(["account", "session", "end"])("discards a delayed read after %s changes", async change => {
++    let resolve!: (value: unknown) => void;
++    api.mockImplementation(() => new Promise(r => { resolve = r; }));
++    const view = render(<Harness />);
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await waitFor(() => expect(api).toHaveBeenCalledOnce());
++    if (change === "account") view.rerender(<Harness scope="other:run" />);
++    else if (change === "session") view.rerender(<Harness id="other" />);
++    else fireEvent.click(screen.getByText("end"));
++    await act(async () => resolve({ json: async () => ({ id: "owned", rendererState: "closed", cleanupPending: false }) }));
++    expect(screen.queryByText(/해당 세션의 서버 정리가 확인/)).toBeNull();
++  });
++});
+diff --git a/tests/client/tavusCleanupScreen.test.tsx b/tests/client/tavusCleanupScreen.test.tsx
+new file mode 100644
+index 0000000..931c84a
+--- /dev/null
++++ b/tests/client/tavusCleanupScreen.test.tsx
+@@ -0,0 +1,64 @@
++// @vitest-environment happy-dom
++import React from "react";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
++const mocks = vi.hoisted(() => ({ api: vi.fn(), actor: { user: { id: "owner" } } }));
++vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: mocks.api }));
++vi.mock("../../client/src/hooks/useAuth", () => ({ useAuth: () => mocks.actor }));
++vi.mock("react-i18next", () => ({
++  useTranslation: () => ({ t: (_key: string, options: any) => options?.defaultValue ?? _key, i18n: { language: "ko" } }),
++}));
++vi.mock("../../client/src/components/chat/useTavusTranscript", () => ({
++  useTavusTranscript: () => ({ transcriptState: "unavailable", messages: [] }),
++}));
++vi.mock("../../client/src/components/chat/TavusConversationLayout", () => ({
++  default: (p: any) => <div>{p.preStartControls}{p.headerActions}{p.stage}{p.sessionControls}</div>,
++}));
++vi.mock("../../client/src/components/chat/ManagedAvatarRoom", () => ({ default: () => <div>legacy media client</div> }));
++vi.mock("../../client/src/components/chat/DailyAvatarRoom", () => ({ default: () => null }));
++import TavusChatWindow from "../../client/src/components/chat/TavusChatWindow";
++let state: any;
++beforeEach(() => {
++  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true })));
++  state = { state: "active", id: "owned", managedClient: true, providerId: "anam", evaluationAvailable: false };
++  mocks.api.mockReset();
++  mocks.api.mockImplementation(async (method, path) => {
++    if (path.includes("/config?")) return { json: async () => ({ available: true, managedClient: true, providerId: "anam" }) };
++    if (method === "POST" && path.endsWith("/end")) {
++      state = { ...state, state: "ending", rendererState: "closing", cleanupPending: true };
++    }
++    return { json: async () => state };
++  });
++});
++afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
++function view() {
++  return render(<TavusChatWindow conversationId="run" persona={{ name: "Actor" } as any}
++    scenario={{ title: "Scenario" } as any} onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
++}
++describe("actual external app end and manual reconfirm screen", () => {
++  it("keeps the creation fence after end acceptance and checks the same session using GET only", async () => {
++    view();
++    await screen.findByText("legacy media client");
++    fireEvent.click(screen.getByTestId("tavus-exit"));
++    await screen.findByText(/서버 정리 중입니다/);
++    expect(screen.queryByTestId("tavus-start")).toBeNull();
++    await waitFor(() => expect((screen.getByTestId("avatar-cleanup-refresh") as HTMLButtonElement).disabled).toBe(false));
++    mocks.api.mockClear();
++    state = { ...state, state: "ended", rendererState: "closed", cleanupPending: false };
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await screen.findByText(/해당 세션의 서버 정리가 확인/);
++    expect(mocks.api.mock.calls).toEqual([["GET", "/api/tavus/conversations/run/session"]]);
++    expect(screen.queryByTestId("tavus-start")).toBeNull();
++  });
++  it("shows update guidance on a recovered ended session with incomplete status, never starts a client", async () => {
++    state = { state: "ended", id: "owned", managedClient: true, providerId: "anam" };
++    view();
++    await screen.findByTestId("avatar-cleanup-notice");
++    fireEvent.click(screen.getByTestId("avatar-cleanup-refresh"));
++    await waitFor(() => expect((screen.getByTestId("avatar-cleanup-refresh") as HTMLButtonElement).disabled).toBe(false));
++    expect(screen.getByText(/SDK\/상태 조회 연동 업데이트/)).toBeTruthy();
++    expect(screen.queryByText("legacy media client")).toBeNull();
++    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
++    expect(screen.queryByTestId("tavus-start")).toBeNull();
++  });
++});
+diff --git a/tests/server/tavusRoutes.test.ts b/tests/server/tavusRoutes.test.ts
+index ff86824..e08ef9a 100644
+--- a/tests/server/tavusRoutes.test.ts
++++ b/tests/server/tavusRoutes.test.ts
+@@ -49,7 +49,7 @@ describe("Tavus authenticated routes", () => {
+     await request(app()).get("/api/tavus/conversations/run/connection").expect(401);
+     await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "other").expect(403);
+     const result = await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "owner").expect(200);
+-    expect(result.headers["cache-control"]).toBe("no-store");
++    expect(result.headers["cache-control"]).toBe("private, no-store");
+     expect(service.connection).toHaveBeenCalledWith("owner", "run");
+     await request(app()).get("/api/tavus/config?runId=run").set("x-user", "owner").expect(200);
+     expect(service.config).toHaveBeenCalledWith("owner", "run");
+@@ -59,6 +59,14 @@ describe("Tavus authenticated routes", () => {
+       .set("x-user", "other").set("x-role", "admin").expect(403);
+     expect(result.body.code).toBe("tavus_conversation_forbidden");
+   });
++  it("reads an owned cleanup status without issuing connection credentials or writes", async () => {
++    service.session.mockResolvedValueOnce({ state: "ended", id: "owned", rendererState: "closed", cleanupPending: false });
++    const result = await request(app()).get("/api/tavus/conversations/run/session").set("x-user", "owner").expect(200);
++    expect(result.headers["cache-control"]).toBe("private, no-store");
++    expect(result.body).toEqual({ state: "ended", id: "owned", rendererState: "closed", cleanupPending: false });
++    expect(service.session).toHaveBeenCalledWith("owner", "run");
++    for (const method of ["connection", "start", "end", "sync"]) expect(service[method]).not.toHaveBeenCalled();
++  });
+   it("rejects absent consent and all client-supplied persona/context/provider IDs", async () => {
+     for (const body of [{}, { consent: false }, { consent: true, pal_id: "foreign" },
+       { consent: true, conversational_context: "replace role" }]) {
+@@ -70,7 +78,7 @@ describe("Tavus authenticated routes", () => {
+     const result = await request(app()).post("/api/tavus/conversations/run/start")
+       .set("Host", "app.example").set("Origin", "https://app.example")
+       .set("x-user", "owner").send({ consent: true }).expect(200);
+-    expect(result.headers["cache-control"]).toBe("no-store");
++    expect(result.headers["cache-control"]).toBe("private, no-store");
+     expect(service.start).toHaveBeenCalledWith("owner", "run", true);
+     await request(app()).post("/api/tavus/conversations/run/end")
+       .set("Host", "app.example").set("Origin", "https://other.example")
