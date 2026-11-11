@@ -43,6 +43,31 @@
 
 ## 보안 및 한계
 
+### Anam 한국어 인식 진단
+
+새 빌드를 실행하는 Renderer Worker는 `Anam recognition diagnostic`이라는 별도 구조화 로그를 남깁니다.
+이 로그는 기존 진단 비교 API/화면에 추가하지 않으며, 운영 실행 로그에서 같은 `sessionId`로 조회합니다.
+기존 세션을 다시 시작하거나 유료 호출을 재시도하지 않습니다.
+
+| 필드 | 의미 |
+|---|---|
+| `phase=request` | 실제 세션 토큰 요청 직전에 추출한 설정. 전송 성공을 뜻하지 않음 |
+| `phase=token_accepted` | 토큰 API가 성공하고 유효한 토큰을 반환함. 인식 정확성·마이크 전달을 증명하지 않음 |
+| `recognitionLanguage` | 요청의 언어 코드. `inherited`면 조직 기본값을 조회·확인한 것이 아님 |
+| `recognitionSttProvider` | 요청의 `anam/deepgram/cartesia_ink_2` 또는 `inherited/unknown` |
+| `personaMode` | `ephemeral` 또는 `saved`. 제공자 페르소나 ID 자체는 기록하지 않음 |
+| `workerBuildId` | 빌드 시 API 서버 소스 트리·빌드 스크립트·패키지 선언을 해시한 16자리 식별자 |
+
+`workerBuildId`는 배포 리비전·환경 설정·의존성 잠금 파일 전체의 식별자가 아닙니다.
+동일 소스의 재게시에서는 동일하며, 번들 빌드 없이 실행하면 `unbundled`입니다.
+Worker 로그의 식별자를 기대 소스 빌드와 비교하고, 웹/API 게시 여부만으로 Worker 반영을 단정하지 않습니다.
+이 로그가 없다는 사실만으로 구버전이라고 단정하지 않습니다. 로그 보존·수집 누락도 확인해야 합니다.
+
+한국어 세션의 새 로그에서 `recognitionLanguage=ko`, `recognitionSttProvider=anam`과
+`token_accepted`가 확인돼도 이는 **제공자로 보낸 설정과 토큰 응답**의 증거입니다.
+제공자가 실제 적용한 설정, 마이크 입력, 한국어 인식 품질은 별도의 승인된 실통화 증거가 필요합니다.
+진단 코드 자체가 언어·엔진 선택이나 기존 전사·평가를 변경하지 않습니다.
+
 - `errorClass`는 정해진 클래스 이름만, `httpStatus`는 유효한 숫자만 기록합니다.
 - `transportCode`는 허용된 네트워크·DB·리스 코드만 기록합니다.
 - API 키, 토큰, URL, 공급자 응답 본문, 원시 오류 메시지, 스택, SQL, 이미지·오디오 및 사용자 대화 내용은 기록하지 않습니다.
