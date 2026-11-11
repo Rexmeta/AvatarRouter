@@ -12,6 +12,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
   fullPipeline: jsonb("full_pipeline").$type<{
     systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
     palId?: string; url?: string; token?: string;
+    transcriptConversationId?: string;
     personaId?: string; tokenExpiresAt?: string; connectionIssuedAt?: string;
     roleplay?: { persona: string; scenario: string; language?: string; greeting?: string };
   }>(),

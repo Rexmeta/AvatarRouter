@@ -9,6 +9,7 @@ import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
 import { storeRendererDiagnostic, pruneRendererDiagnostics } from "./renderer-diagnostic-store";
 import { TavusFullRuntime, terminateFullResources } from "./tavus-full-runtime";
 import { AnamRuntime, terminateAnamResources } from "./anam-runtime";
+import { closedPipelineOptions } from "./full-pipeline-cleanup";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -237,7 +238,7 @@ export class RendererWorker {
       roomName: result.roomDeleted ? null : row.roomName,
       providerConversationId: result.providerEnded && !unknown ? null : row.providerConversationId,
       ...(["tavus_full", "anam_full"].includes(row.pipeline) && callClosed ? {
-        fullPipeline: maintenancePending ? { systemPrompt: "", palId: row.fullPipeline?.palId } : null,
+        fullPipeline: closedPipelineOptions(row, maintenancePending),
       } : {}),
       cleanupAttempts: attempts, cleanupRetryAt: new Date(Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(attempts, 6))),
       workerId: null, leaseExpiresAt: null,

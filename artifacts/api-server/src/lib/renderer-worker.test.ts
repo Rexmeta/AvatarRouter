@@ -174,10 +174,11 @@ test("full-pipeline private connection is owner/tenant scoped and rejects extern
   await assert.rejects(apiA.liveConnection(row.ownerHash, row.tenantId!, row.id), { code: "FULL_PIPELINE_DAILY_REQUIRED" });
   await assert.rejects(apiA.sendStockAudio(row.ownerHash, row.tenantId!, row.id, Buffer.alloc(960)), { code: "FULL_PIPELINE_DIRECT_MEDIA" });
   await assert.rejects(apiA.interruptStockSession(row.ownerHash, row.tenantId!, row.id), { code: "FULL_PIPELINE_DIRECT_MEDIA" });
+  const transcriptConversationId = (await get(row.id)).providerConversationId;
   await apiA.closeStockSession(row.ownerHash, row.id);
   await w.tick();
   await eventually(async () => (await get(row.id)).rendererState === "closed");
-  assert.equal((await get(row.id)).fullPipeline, null);
+  assert.deepEqual((await get(row.id)).fullPipeline, { systemPrompt: "", transcriptConversationId });
   await assert.rejects(apiA.fullConnection(row.ownerHash, row.tenantId!, row.id), { code: "LIVE_NOT_ACTIVE" });
 });
 
@@ -403,7 +404,9 @@ test("ended full calls release capacity while isolated PAL deletion retries with
     assert.equal(saved.providerConversationId, null);
     assert.equal(saved.roomName, null);
     assert.equal(saved.error, "LIVE_PAL_CLEANUP_PENDING");
-    assert.deepEqual(saved.fullPipeline, { systemPrompt: "", palId: "temporary-pal" });
+    assert.deepEqual(saved.fullPipeline, {
+      systemPrompt: "", palId: "temporary-pal", transcriptConversationId: "ended-call",
+    });
     assert.equal((await apiA.liveLimits(row.tenantId!)).creationAllowed, true);
     assert.equal((await apiA.liveLimits(row.tenantId!)).cleanupPending, 0);
     assert.ok((await listLiveReconciliation()).pending.some(x => x.id === row.id));
@@ -421,7 +424,9 @@ test("ended full calls release capacity while isolated PAL deletion retries with
     await retryLiveCleanup(row.id, "trusted-operator");
     await w.tick();
     await eventually(async () => (await get(row.id)).rendererState === "closed");
-    assert.equal((await get(row.id)).fullPipeline, null);
+    assert.deepEqual((await get(row.id)).fullPipeline, {
+      systemPrompt: "", transcriptConversationId: "ended-call",
+    });
     assert.equal(stats.starts, 0);
     assert.equal(requests.filter(x => x.endsWith("/end")).length, 1);
     assert.ok(!requests.some(x => x === "POST https://tavusapi.com/v2/conversations"));
