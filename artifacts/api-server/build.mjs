@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
+import { computeWorkerBuildId } from "./worker-build-id.mjs";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -15,6 +16,9 @@ async function buildAll() {
   // running bundle/pino transport while it is starting.
 
   await esbuild({
+    define: {
+      __AVATAR_ROUTER_WORKER_BUILD_ID__: JSON.stringify(await computeWorkerBuildId(artifactDir)),
+    },
     entryPoints: ["src/index.ts", "src/renderer.ts"].map(file => path.resolve(artifactDir, file)),
     platform: "node",
     bundle: true,

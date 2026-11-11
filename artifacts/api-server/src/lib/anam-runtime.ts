@@ -2,6 +2,7 @@ import type { AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
 import { roleplayPrompt } from "./roleplay-context";
 import { anamRecognitionConfig } from "./anam-recognition";
+import type { AnamRecognitionReporter } from "./anam-recognition-diagnostics";
 
 // Public saved-persona reference supplied by the owner. Not a custom-avatar ID.
 export const ANAM_PERSONA_ID = "c00f2c0c-b16b-49f3-9f07-672162b2741c";
@@ -117,7 +118,13 @@ export class AnamRuntime {
     private rejected: () => Promise<void>,
     private persist: (options: Options) => Promise<void>,
     private fetcher: Fetcher = fetch,
+    private recognitionDiagnostic?: AnamRecognitionReporter,
   ) { this.options = { ...row.fullPipeline, systemPrompt: row.fullPipeline?.systemPrompt ?? "", personaId: ANAM_PERSONA_ID }; }
+
+  private reportRecognition(phase: "request" | "token_accepted", personaConfig: unknown) {
+    try { this.recognitionDiagnostic?.(phase, personaConfig); }
+    catch { /* Diagnostic failure must not change token issuance or persistence. */ }
+  }
 
   start() { return this.starting ??= this.initialize(); }
   private async initialize() {
@@ -134,6 +141,7 @@ export class AnamRuntime {
           ? anamRoleplayPersona(config, this.options.roleplay)
           : anamFullPersona(config, this.options);
       }
+      this.reportRecognition("request", body.personaConfig);
       const response = await request("/auth/session-token", "POST", body, this.fetcher);
       if (!response.ok) {
         const code = response.status === 401 ? "ANAM_KEY_REJECTED"
@@ -146,6 +154,7 @@ export class AnamRuntime {
       if (typeof data.sessionToken !== "string" || data.sessionToken.length < 10) {
         throw new SessionProblem(502, "ANAM_TOKEN_INVALID", "Anam returned an invalid session token.");
       }
+      this.reportRecognition("token_accepted", body.personaConfig);
       // Context was bound into this single-start token; don't retain it in the
       // lifecycle record after issuance or expose it through session endpoints.
       this.options = { systemPrompt: "", personaId: ANAM_PERSONA_ID, token: data.sessionToken,

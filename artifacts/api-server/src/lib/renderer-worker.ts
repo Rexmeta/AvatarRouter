@@ -9,6 +9,7 @@ import { RendererDiagnostics, safeRendererError } from "./renderer-diagnostics";
 import { storeRendererDiagnostic, pruneRendererDiagnostics } from "./renderer-diagnostic-store";
 import { TavusFullRuntime, terminateFullResources } from "./tavus-full-runtime";
 import { AnamRuntime, terminateAnamResources } from "./anam-runtime";
+import { createAnamRecognitionReporter } from "./anam-recognition-diagnostics";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -31,7 +32,10 @@ export class RendererWorker {
           fullPipeline: options, providerCreateState: "token_issued",
         }).where(and(this.owns(row.id), sql`${avatarSessions.stopRequestedAt} is null`)).returning();
         if (!saved) throw new SessionProblem(409, "LIVE_LEASE_LOST", "Lease lost before native token persistence.");
-      });
+      }, undefined, createAnamRecognitionReporter(
+        { sessionId: row.id, workerId: this.id },
+        fields => logger.info(fields, "Anam recognition diagnostic"),
+      ));
       if (row.pipeline === "tavus_full") return new TavusFullRuntime(row, onId, before, rejected, async options => {
         await db.update(avatarSessions).set({ fullPipeline: options }).where(eq(avatarSessions.id, row.id));
       });
