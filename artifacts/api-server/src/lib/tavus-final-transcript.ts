@@ -4,6 +4,7 @@ import { z } from "zod";
 type Session = {
   id: string; ownerHash: string; tenantId: string | null; providerId: string; mode: string;
   pipeline: string; status: string; rendererState: string; providerConversationId: string | null;
+  fullPipeline?: { transcriptConversationId?: string } | null;
 };
 export class FinalTranscriptProblem extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -34,11 +35,12 @@ export async function readTavusFinalTranscript(
   }
   const base = { sessionId: row.id, source: "tavus" as const };
   if (row.status === "active" || row.rendererState !== "closed") return { ...base, status: "pending" as const };
-  if (!row.providerConversationId) return { ...base, status: "unavailable" as const };
+  const conversationId = row.providerConversationId || row.fullPipeline?.transcriptConversationId;
+  if (!conversationId) return { ...base, status: "unavailable" as const };
   if (!process.env.TAVUS_API_KEY) throw new FinalTranscriptProblem(503, "TAVUS_TRANSCRIPT_UNAVAILABLE");
   try {
     const response = await fetcher(
-      `https://tavusapi.com/v2/conversations/${encodeURIComponent(row.providerConversationId)}?verbose=true`,
+      `https://tavusapi.com/v2/conversations/${encodeURIComponent(conversationId)}?verbose=true`,
       { method: "GET", redirect: "error", credentials: "omit",
         headers: { "x-api-key": process.env.TAVUS_API_KEY, Accept: "application/json" },
         signal: AbortSignal.timeout(15000) },
@@ -58,7 +60,7 @@ export async function readTavusFinalTranscript(
       }
     } finally { await reader.cancel().catch(() => {}); }
     const data = providerEnvelope.parse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-    if (data.conversation_id !== row.providerConversationId) throw new Error();
+    if (data.conversation_id !== conversationId) throw new Error();
     if (data.status !== "ended") return { ...base, status: "pending" as const };
     const event = [...(data.events ?? [])].reverse().find(e => e.event_type === "application.transcription_ready");
     if (!event) return { ...base, status: "pending" as const };
