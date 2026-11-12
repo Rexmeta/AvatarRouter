@@ -5,6 +5,7 @@ import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { SessionProblem } from "./session-service";
 import { setTimeout as delay } from "node:timers/promises";
 import { STOCK_AVATAR, STOCK_FACE, STOCK_PAL, LIVE_SESSION_MS } from "./stock-policy";
+import { sessionFace } from "./stock-reference";
 import type { RendererDiagnostics, RendererStage } from "./renderer-diagnostics";
 export { STOCK_FACE, STOCK_PAL, STOCK_AVATAR, STOCK_KEYS, stockConfigured, safeLiveError, validateLiveAudio } from "./stock-policy";
 
@@ -20,10 +21,7 @@ export function liveRoomOptions(name: string) {
 let loggerInitialized = false;
 
 export function runtimeFace(row: { providerId: string; avatarId: string; avatarAssetId: string | null }) {
-  if (row.providerId !== "tavus" || !row.avatarId || (!row.avatarAssetId && row.avatarId !== STOCK_AVATAR)) {
-    throw new SessionProblem(409, "LIVE_TARGET_UNSUPPORTED", "No enabled runtime for this avatar target.");
-  }
-  return row.avatarAssetId ? row.avatarId : STOCK_FACE;
+  return sessionFace(row);
 }
 
 export function roomClient() {

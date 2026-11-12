@@ -13,6 +13,7 @@ const files = [
   ["docs/persona-live-integration.md", "persona-live-integration.md"],
   ["docs/router-budget-management.md", "router-budget-management.md"],
   ["docs/automatic-training-images.md", "automatic-training-images.md"],
+  ["docs/stock-avatar-catalog.md", "stock-avatar-catalog.md"],
   ["docs/persona-seed-live.md", "persona-seed-live.md"],
   ["docs/roleplaybot-live-diagnostics.md", "roleplaybot-live-diagnostics.md"],
 ];

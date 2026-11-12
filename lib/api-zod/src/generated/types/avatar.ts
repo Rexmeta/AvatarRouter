@@ -15,4 +15,14 @@ export interface Avatar {
   kind: AvatarKind;
   configured: boolean;
   languages: string[];
+  /**
+     * Public provider stock image preview; never a private user upload.
+     * @nullable
+     */
+  thumbnailUrl?: string | null;
+  /** @nullable */
+  previewVideoUrl?: string | null;
+  model?: string;
+  /** Provider-confirmed stock entry; not an owned avatar asset or playback proof. */
+  stock?: boolean;
 }

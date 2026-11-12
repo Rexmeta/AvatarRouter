@@ -1224,6 +1224,10 @@ components:
         kind: { type: string, enum: [mock, configured] }
         configured: { type: boolean }
         languages: { type: array, items: { type: string } }
+        thumbnailUrl: { type: [string, "null"], description: "Public provider stock image preview; never a private user upload." }
+        previewVideoUrl: { type: [string, "null"] }
+        model: { type: string }
+        stock: { type: boolean, description: "Provider-confirmed stock entry; not an owned avatar asset or playback proof." }
     RoleplayContext:
       type: object
       additionalProperties: false

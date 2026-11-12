@@ -15,6 +15,7 @@ import { createStockSession, closeStockSession, liveConnection, fullConnection, 
 import { CreateAnamConnectionParams, CreateAnamConnectionResponse, CreateClientConnectionResponse, GetLiveLimitsQueryParams } from "@workspace/api-zod";
 import { ANAM_AVATAR } from "../lib/anam-runtime";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
+import { stockCatalog } from "../lib/stock-catalog";
 import { integrationIdentity } from "../lib/integration-identity";
 import { SessionProblem } from "../lib/session-service";
 import { FinalTranscriptProblem } from "../lib/tavus-final-transcript";
@@ -28,7 +29,11 @@ import {
 const router: IRouter = Router();
 router.use("/v1", sessionOwner, playgroundLimit);
 router.get("/v1/providers", (_req, res) => { res.json(ListProvidersResponse.parse(getProviders())); });
-router.get("/v1/avatars", (_req, res) => { res.json(ListAvatarsResponse.parse(getAvatars())); });
+router.get("/v1/avatars", async (_req, res) => {
+  const stock = await stockCatalog.list();
+  const base = getAvatars().filter(a => !process.env.TAVUS_API_KEY || a.id !== STOCK_AVATAR);
+  res.set("Cache-Control", "private, no-store").json(ListAvatarsResponse.parse([...base, ...stock]));
+});
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
 router.get("/v1/live-limits", assetTenant, async (req, res): Promise<void> => {
   const { providerId, pipeline } = GetLiveLimitsQueryParams.parse(req.query);
@@ -94,9 +99,9 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
       (pipeline !== "tavus_full" && fullPipeline)) {
     res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live mode and fullPipeline options. Native validation additionally requires an owned avatarAssetId." }); return;
   }
-  if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
+  if (mode === "live" && providerId === "tavus" && !avatarAssetId) {
     await assetTenant(req, res, () => {});
-    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline);
+    const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline, false, undefined, avatarId);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }

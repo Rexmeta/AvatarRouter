@@ -35,6 +35,12 @@ Negotiate custom-live features against the actual configured server before sendi
 
 Stock avatars and user-owned custom avatar assets are separate reference namespaces. Never represent a stock catalog entry as an owned asset or manufacture a UUID for it.
 
+Stock selection must use the provider's actual account-available library with image previews, not a one-avatar/free-tier assumption. Preserve the selected face through both renderer and native full-pipeline session creation.
+
+**Why:** The user reported that RoleplayX persona editing still showed only one stock avatar after upgrading and requested diverse image-based selection. The restriction was hardcoded on both sides, not evidence of account limits.
+
+**How to apply:** Publish only system stock entries the provider marks available; keep legacy Lucy references compatible, retain server-side catalog validation, and never silently substitute Lucy for a different saved stock selection.
+
 **Why:** The user explicitly requires persona stock selection without mixing AvatarRouter `/avatars` and `/avatar-assets`; existing custom draft values must remain compatible.
 
 **How to apply:** Resolve a reference against its own catalog. Choosing or saving a reference is not authorization to create a paid session or activate learner Live rendering.

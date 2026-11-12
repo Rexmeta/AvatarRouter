@@ -9,6 +9,7 @@ import { saveRendererAudio } from "./private-images";
 import { liveCapacityFence, liveReadiness } from "./live-admission";
 import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
 import { budgetSnapshot } from "./live-budget-policy";
+import { requireStockAvatar } from "./stock-catalog";
 
 export { LIVE_SESSION_MS } from "./stock-policy";
 
@@ -55,7 +56,7 @@ export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = 
 
 export async function createStockSession(owner: string, tenant: string, costConfirmed: boolean, assetId?: string, purpose: "conversation" | "validation" = "conversation",
   fullPipeline?: AvatarSessionRecord["fullPipeline"], nativeAnam = false,
-  roleplay?: NonNullable<AvatarSessionRecord["fullPipeline"]>["roleplay"]) {
+  roleplay?: NonNullable<AvatarSessionRecord["fullPipeline"]>["roleplay"], stockAvatarId = STOCK_AVATAR) {
   if (roleplay && !nativeAnam) throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires anam_full.");
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   const provider = nativeAnam ? "anam" : "tavus";
@@ -69,10 +70,11 @@ export async function createStockSession(owner: string, tenant: string, costConf
       ? "Configure the Tavus server API key. Full pipeline uses Daily, not LiveKit."
       : "LiveKit and Tavus server credentials must be configured.");
   if (nativeAnam && (assetId || purpose !== "conversation" || fullPipeline && roleplay)) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam requires the registered template and a single conversation context, not a custom asset.");
+  if (!nativeAnam && !assetId) await requireStockAvatar(stockAvatarId);
   const row = await db.transaction(async tx => {
     // Admission, reservation and capacity are serialized across ALL API processes.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('avatar-router:stock-live'))`);
-    let avatarId = nativeAnam ? ANAM_AVATAR : STOCK_AVATAR;
+    let avatarId = nativeAnam ? ANAM_AVATAR : stockAvatarId;
     if (assetId) {
       const [asset] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, assetId), eq(avatarAssets.tenantId, tenant))).for("update");
       if (!asset) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");

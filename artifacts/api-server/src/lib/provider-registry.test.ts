@@ -7,9 +7,9 @@ test("providers start unconfigured without paid credentials", () => {
   assert.equal(providers.length, 4);
   for (const p of providers) {
     assert.equal(p.status, "unconfigured");
-    assert.ok(p.missing.length >= (p.id === "anam" ? 1 : 4));
-    assert.equal(p.modes[0], p.id === "anam" ? "full_pipeline" : "renderer");
-    assert.match(p.sourceUrl, p.id === "anam" ? /^https:\/\/anam.ai\// : /^https:\/\/docs.livekit.io\//);
+    assert.ok(p.missing.length >= (["anam", "tavus"].includes(p.id) ? 1 : 4));
+    assert.equal(p.modes[0], ["anam", "tavus"].includes(p.id) ? "full_pipeline" : "renderer");
+    assert.match(p.sourceUrl, p.id === "anam" ? /^https:\/\/anam.ai\// : p.id === "tavus" ? /^https:\/\/docs.tavus.io\// : /^https:\/\/docs.livekit.io\//);
   }
 });
 test("Anam is available with its own key; voice validation remains separate", () => {
@@ -28,12 +28,16 @@ test("configured implemented providers use the same availability rule", () => {
   for (const id of ["anam", "tavus"]) {
     assert.equal(providers.find(p => p.id === id)!.status, "available");
   }
-  for (const key of Object.keys(environment)) {
+  for (const key of ["ANAM_API_KEY", "TAVUS_API_KEY"]) {
     const partial: NodeJS.ProcessEnv = { ...environment };
     delete partial[key];
     const affected = getProviders(partial).find(p => p.id === (key === "ANAM_API_KEY" ? "anam" : "tavus"))!;
     assert.equal(affected.status, "unconfigured", key);
     assert.ok(affected.missing.includes(key));
+  }
+  for (const key of ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"]) {
+    const partial: NodeJS.ProcessEnv = { ...environment }; delete partial[key];
+    assert.equal(getProviders(partial).find(p => p.id === "tavus")!.status, "available");
   }
 });
 test("credentials alone cannot make an unimplemented adapter available", () => {
@@ -58,6 +62,6 @@ test("Tavus stock echo availability is separate from custom-avatar validation", 
     LIVEKIT_API_SECRET: "test-only", TAVUS_API_KEY: "test-only",
   }).find(p => p.id === "tavus")!;
   assert.equal(tavus.status, "available");
-  assert.match(tavus.validation, /Stock Lucy/);
-  assert.match(tavus.validation, /Custom.*unverified/);
+  assert.match(tavus.validation, /Full pipeline/);
+  assert.match(tavus.validation, /do not verify.*playback/);
 });

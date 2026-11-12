@@ -3,6 +3,7 @@ import { SessionProblem } from "./session-service";
 import { storedProviderFailure } from "./provider-session-failure";
 import { readProviderRejection } from "./provider-rejection-diagnostic";
 import { STOCK_FACE } from "./stock-policy";
+import { sessionFace } from "./stock-reference";
 
 type Options = NonNullable<AvatarSessionRecord["fullPipeline"]>;
 type Fetcher = typeof fetch;
@@ -99,7 +100,7 @@ export class TavusFullRuntime {
   private async initialize() {
     // Each session owns its PAL: never mutate a shared persona or echo PAL.
     const pal = await request("/pals", fullPalBody(this.row.id,
-      this.row.avatarAssetId ? this.row.avatarId : STOCK_FACE, this.options), this.fetcher);
+      sessionFace(this.row), this.options), this.fetcher);
     if (!pal.ok) {
       const reason = await readProviderRejection(pal);
       const problem = new SessionProblem(502, "TAVUS_FULL_PAL_REJECTED", "Tavus rejected the full-pipeline persona or voice configuration.");
@@ -124,7 +125,7 @@ export class TavusFullRuntime {
       throw new SessionProblem(409, "LIVE_NOT_ACTIVE", "Session deadline reached before creation.");
     }
     const response = await request("/conversations", fullConversationBody(this.row.id,
-      this.row.avatarAssetId ? this.row.avatarId : STOCK_FACE, this.options.palId!, this.options, seconds), this.fetcher);
+      sessionFace(this.row), this.options.palId!, this.options, seconds), this.fetcher);
     if (!response.ok) {
       // Only explicit 4xx rejections prove a conversation was not created.
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {

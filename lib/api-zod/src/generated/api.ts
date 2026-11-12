@@ -995,7 +995,11 @@ export const ListAvatarsResponseItem = zod.object({
   "description": zod.string(),
   "kind": zod.enum(['mock', 'configured']),
   "configured": zod.boolean(),
-  "languages": zod.array(zod.string())
+  "languages": zod.array(zod.string()),
+  "thumbnailUrl": zod.string().nullish().describe('Public provider stock image preview; never a private user upload.'),
+  "previewVideoUrl": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "stock": zod.boolean().optional().describe('Provider-confirmed stock entry; not an owned avatar asset or playback proof.')
 })
 export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
