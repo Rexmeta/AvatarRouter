@@ -449,20 +449,22 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
   const provision = useProvisionAvatar({ request });
   const [pid, setPid] = useState('');
   const [voice, setVoice] = useState('anna');
+  const [personaId, setPersonaId] = useState('');
   const [cost, setCost] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const sel = providers.data?.find((p) => p.id === pid);
   const voiceOk = /^[a-zA-Z0-9_-]{1,50}$/.test(voice);
+  const personaIdOk = !personaId || /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(personaId);
   const blocked = img?.consentStatus === 'pending_review';
   const imageTooSmall = pid === 'tavus' && !!img && (img.width < 512 || img.height < 512);
 
-  const close = () => { setPid(''); setCost(false); setErr(null); setVoice('anna'); onClose(); };
+  const close = () => { setPid(''); setCost(false); setErr(null); setVoice('anna'); setPersonaId(''); onClose(); };
 
   const go = () => {
     if (!img || !sel) return;
     setErr(null);
     provision.mutate(
-      { data: { imageAssetId: img.id, providerId: sel.id as 'anam' | 'tavus' | 'lemonslice' | 'simli', voiceName: voice, costConfirmed: true } },
+      { data: { imageAssetId: img.id, providerId: sel.id as 'anam' | 'tavus' | 'lemonslice' | 'simli', voiceName: voice, costConfirmed: true, ...(personaId ? { personaId } : {}) } },
       {
         onSuccess: (a) => {
           qc.invalidateQueries({ queryKey: getListAvatarAssetsQueryKey() });
@@ -505,12 +507,16 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               })}
             </div>
             {pid === 'tavus' && <div className="space-y-2 rounded border border-[hsl(var(--warn)/.4)] bg-[hsl(var(--warn)/.06)] p-3 text-xs" data-testid="tavus-image-requirements">
+              <p>{L('AvatarRouter requests Tavus AI Image Fixer during training. Your original source is kept unchanged. Correction may alter the training image and does not guarantee acceptance.', 'AvatarRouter가 학습 요청에 Tavus AI Image Fixer를 사용합니다. 원본 이미지는 유지되며 학습용 이미지가 보정될 수 있습니다. 보정 후에도 생성 성공은 보장되지 않습니다.')}</p>
               <strong>{L('Check the training image before submitting', '생성 전에 학습 이미지 구도를 확인하세요')}</strong>
               <p>{L('Use one adult subject, at least 512×512. A chest-up portrait is recommended: head and both shoulders visible, crop at or above the navel, hands and arms at or below chest height. Full-body framing and raised arms are not supported.', '성인 한 명, 최소 512×512 이미지를 사용하세요. 머리와 양쪽 어깨가 보이는 가슴 위 중심 상반신 구도를 권장합니다. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 높이 이하로 낮추세요. 전신과 들어 올린 팔은 지원하지 않습니다.')}</p>
-              <p>{L('Pixel size alone does not check pose. If rejected, edit and upload a new image version; do not submit the same image again.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 거절되면 이미지를 수정해 새 버전으로 등록하세요. 같은 이미지를 반복 제출하지 마세요.')}</p>
+              <p>{L('Pixel size alone does not check pose. If automatic correction is still rejected, upload a corrected new image version; do not automatically resubmit.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 자동 보정 후에도 거절되면 수정된 새 이미지 버전을 등록하세요. 자동 재제출하지 않습니다.')}</p>
               <a className="underline" href="https://docs.tavus.io/sections/faces/phoenix-45-image-requirements" target="_blank" rel="noreferrer">{L('Official image requirements', '공식 이미지 학습 기준')}</a>
               {imageTooSmall && <p role="alert" className="text-destructive">{L('This image is smaller than 512×512. Creation is blocked.', '이 이미지는 512×512 미만입니다. 생성이 차단됩니다.')}</p>}
             </div>}
+            <Field label={L('Persona ID — creation name', '페르소나 ID — 생성 이름')} hint={L('RoleplayX sends its persona ID here. Legacy Studio requests may leave this blank to use the image name.', 'RoleplayX는 페르소나 ID를 전달합니다. 기존 Studio 요청은 비워 두면 이미지 이름을 사용합니다.')}>
+              <input value={personaId} maxLength={128} onChange={(e) => setPersonaId(e.target.value)} data-testid="input-provision-persona-id" className="mono w-full rounded border bg-background px-3 py-2 text-sm" />
+            </Field>
             <Field label={L('Voice name', '음성 이름')} hint={L('Letters, digits, - and _. Defaults to anna.', '영문, 숫자, -, _ 사용. 기본값 anna.')}>
               <input data-testid="input-voice" value={voice} onChange={(e) => setVoice(e.target.value)} className="mono w-full rounded border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
             </Field>
@@ -524,7 +530,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               </label>
             )}
             {err && <p className="flex gap-1.5 text-sm text-destructive" data-testid="text-provision-error"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{err}</p>}
-            <button data-testid="button-submit-provision" disabled={!sel || !cost || !voiceOk || imageTooSmall || provision.isPending} onClick={go}
+            <button data-testid="button-submit-provision" disabled={!sel || !cost || !voiceOk || !personaIdOk || imageTooSmall || provision.isPending} onClick={go}
               className="w-full rounded bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition active:scale-[.98] disabled:opacity-40">
               {provision.isPending ? L('Submitting…', '제출 중…') : L('Request avatar from provider', '프로바이더에 아바타 요청')}
             </button>

@@ -13,6 +13,13 @@ import type { SessionInputPurpose } from './sessionInputPurpose';
 import type { TavusFullOptions } from './tavusFullOptions';
 
 export interface SessionInput {
+  /**
+     * RoleplayX scenario assignment display name, used as Tavus full-pipeline conversation_name. Not an identifier or authorization reference. Requires live tavus_full; omit for legacy naming.
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^(?=.*\S)[^\u0000-\u001F\u007F]+$
+     */
+  scenarioAssignmentName?: string;
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
   /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */

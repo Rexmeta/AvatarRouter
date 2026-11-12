@@ -11,6 +11,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
   pipeline: text("pipeline", { enum: ["external_audio", "tavus_full", "anam_full"] }).notNull().default("external_audio"),
   fullPipeline: jsonb("full_pipeline").$type<{
     systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
+    conversationName?: string;
     palId?: string; url?: string; token?: string;
     transcriptConversationId?: string;
     personaId?: string; tokenExpiresAt?: string; connectionIssuedAt?: string;

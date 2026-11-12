@@ -667,12 +667,17 @@ export const ListAvatarAssetsResponse = zod.array(ListAvatarAssetsResponseItem)
 /**
  * Requires assets:write on a project API key or delegation JWT, or a Clerk login. Custom live dispatch remains provider-gated.
  */
+export const provisionAvatarBodyPersonaIdMax = 128;
+
+
+export const provisionAvatarBodyPersonaIdRegExp = new RegExp('^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$');
 export const provisionAvatarBodyVoiceNameDefault = `anna`;
 export const provisionAvatarBodyVoiceNameRegExp = new RegExp('^[a-zA-Z0-9_-]{1,50}$');
 
 
 export const ProvisionAvatarBody = zod.object({
   "imageAssetId": zod.uuid(),
+  "personaId": zod.string().min(1).max(provisionAvatarBodyPersonaIdMax).regex(provisionAvatarBodyPersonaIdRegExp).optional().describe('RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients.'),
   "providerId": zod.enum(['anam', 'tavus', 'lemonslice', 'simli']),
   "voiceName": zod.string().regex(provisionAvatarBodyVoiceNameRegExp).default(provisionAvatarBodyVoiceNameDefault),
   "costConfirmed": zod.boolean().describe('Explicit confirmation of potential provider training charges')
@@ -948,6 +953,10 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
 /**
  * For mode=live the only validated catalog selection is providerId=tavus and avatarId=tavus-stock-lucy. Requires costConfirmed=true and either a project API key with sessions:create, a verified Clerk user JWT, or an optional RoleplayX delegation JWT with sessions:create. Clerk browser sessions use the avatar_playground HttpOnly owner cookie. RoleplayX identities are mapped from signed issuer/tenant/sub claims and do not need that browser cookie. HTTP 201 only means the durable renderer request was queued; poll GET /v1/sessions/{id} until rendererState=running. The signed RoleplayX JWT is short-lived, per-user and tenant-bound; no existing RoleplayX session token or private signing key is sent to AvatarRouter.
  */
+export const createSessionBodyScenarioAssignmentNameMax = 200;
+
+
+export const createSessionBodyScenarioAssignmentNameRegExp = new RegExp('^(?=.*\\S)[^\\u0000-\\u001F\\u007F]+$');
 export const createSessionBodyPipelineDefault = `external_audio`;
 export const createSessionBodyFullPipelineSystemPromptMax = 12000;
 
@@ -977,6 +986,7 @@ export const createSessionBodyPurposeDefault = `conversation`;
 export const createSessionBodyCostConfirmedDefault = false;
 
 export const CreateSessionBody = zod.object({
+  "scenarioAssignmentName": zod.string().min(1).max(createSessionBodyScenarioAssignmentNameMax).regex(createSessionBodyScenarioAssignmentNameRegExp).optional().describe('RoleplayX scenario assignment display name, used as Tavus full-pipeline conversation_name. Not an identifier or authorization reference. Requires live tavus_full; omit for legacy naming.'),
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).default(createSessionBodyPipelineDefault).describe('Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently.'),
   "fullPipeline": zod.object({
   "systemPrompt": zod.string().min(1).max(createSessionBodyFullPipelineSystemPromptMax),

@@ -59,7 +59,14 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   if (roleplay && parsed.data.fullPipeline) {
     throw new SessionProblem(400, "INVALID_PIPELINE_CONFIG", "Use roleplay or fullPipeline, not both.");
   }
-  const fullPipeline = roleplay && pipeline === "tavus_full" ? tavusRoleplayOptions(roleplay) : parsed.data.fullPipeline;
+  const baseFullPipeline = roleplay && pipeline === "tavus_full" ? tavusRoleplayOptions(roleplay) : parsed.data.fullPipeline;
+  const assignmentName = parsed.data.scenarioAssignmentName;
+  if (assignmentName !== undefined && (mode !== "live" || providerId !== "tavus" || pipeline !== "tavus_full" || !baseFullPipeline || !assignmentName.trim())) {
+    throw new SessionProblem(400, "INVALID_SCENARIO_ASSIGNMENT_NAME", "scenarioAssignmentName requires a nonblank name and a configured Tavus full-pipeline live request.");
+  }
+  const fullPipeline = baseFullPipeline ? {
+    ...baseFullPipeline, ...(assignmentName !== undefined ? { conversationName: assignmentName } : {}),
+  } : undefined;
   if (fullPipeline && !fullPipeline.systemPrompt.trim()) {
     throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "fullPipeline.systemPrompt must not be blank.");
   }

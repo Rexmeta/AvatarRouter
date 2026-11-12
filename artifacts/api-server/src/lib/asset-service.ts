@@ -100,11 +100,16 @@ export async function provisionAsset(tenant: string, input: unknown, notBefore =
     }
     const voiceName = data.voiceName ?? "anna";
     const [existing] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.tenantId, tenant), eq(avatarAssets.imageAssetId, image.id), eq(avatarAssets.providerId, providerId), eq(avatarAssets.voiceName, voiceName)));
-    if (existing) return existing; // Never repeat a possibly billed POST after failure or deletion.
+    if (existing) {
+      if (data.personaId && existing.name !== data.personaId) {
+        throw new SessionProblem(409, "AVATAR_ASSET_PERSONA_CONFLICT", "This image/provider/voice already has an asset with another creation name. Inspect or explicitly reuse the existing asset; it will not be renamed or trained again automatically.");
+      }
+      return existing; // Never repeat a possibly billed POST after failure or deletion.
+    }
     const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(avatarAssets).where(eq(avatarAssets.tenantId, tenant));
     if (count!.n >= 20) throw new SessionProblem(429, "ASSET_QUOTA_REACHED", "This tenant's preliminary provisioning quota is 20 requests. Contact the operator.");
     const [row] = await tx.insert(avatarAssets).values({
-      id: randomUUID(), tenantId: tenant, imageAssetId: image.id, name: image.name,
+      id: randomUUID(), tenantId: tenant, imageAssetId: image.id, name: data.personaId ?? image.name,
       sourceContentHash: image.contentHash, providerId, voiceName,
       creationMode: providerId === "anam" ? "one_shot" : "image_training",
       nextPollAt: notBefore,

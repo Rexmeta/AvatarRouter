@@ -27,7 +27,7 @@ Checked against official documentation on 2026-10-26. Documentation support, ada
 - [Account requirements and policies](https://docs.tavus.io/sections/faces/overview)
 - Training URL must remain downloadable for at least 24h; AvatarRouter issues a 25h signed GET URL to a private stored object. It never exposes that URL to the browser or stores it in PostgreSQL.
 - `voice_name` is required; default `anna` is the official quickstart example, not a cloned voice. No additional dialogue engine is started.
-- Fixed explicit `model_name: phoenix-4.5`, `auto_fix_training_image: false`; image transformations beyond orientation/metadata sanitation require a separate product decision.
+- Fixed explicit `model_name: phoenix-4.5`, `auto_fix_training_image: true` for new image training requests, as requested for RoleplayX base-image ingestion. Tavus AI Image Fixer may adjust only the training input; AvatarRouter preserves the source image. It does not guarantee acceptance or bypass consent/policy. Never automatically retry an existing failed or uncertain creation.
 - Poll `GET /v2/faces/{face_id}`: started → processing; completed → usable provider preview; error → failed. Completed may be watermarked and is not proof that fine-tuning is complete.
 - `DELETE /v2/faces/{face_id}?hard=true` requests permanent training/source deletion. It does not delete historical conversations; no conversations are created by this provisioning worker.
 

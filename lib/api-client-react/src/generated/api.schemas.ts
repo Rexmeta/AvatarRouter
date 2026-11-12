@@ -347,6 +347,13 @@ export const AvatarAssetInputProviderId = {
 
 export interface AvatarAssetInput {
   imageAssetId: string;
+  /**
+     * RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients.
+     * @minLength 1
+     * @maxLength 128
+     * @pattern ^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$
+     */
+  personaId?: string;
   providerId: AvatarAssetInputProviderId;
   /** @pattern ^[a-zA-Z0-9_-]{1,50}$ */
   voiceName?: string;
@@ -702,6 +709,13 @@ export interface TavusFullOptions {
 }
 
 export interface SessionInput {
+  /**
+     * RoleplayX scenario assignment display name, used as Tavus full-pipeline conversation_name. Not an identifier or authorization reference. Requires live tavus_full; omit for legacy naming.
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^(?=.*\S)[^\u0000-\u001F\u007F]+$
+     */
+  scenarioAssignmentName?: string;
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
   /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */

@@ -38,3 +38,9 @@ Stock avatars and user-owned custom avatar assets are separate reference namespa
 **Why:** The user explicitly requires persona stock selection without mixing AvatarRouter `/avatars` and `/avatar-assets`; existing custom draft values must remain compatible.
 
 **How to apply:** Resolve a reference against its own catalog. Choosing or saving a reference is not authorization to create a paid session or activate learner Live rendering.
+
+RoleplayX sends the existing base image; AvatarRouter requests training-image correction. Creation names use the persona ID, while conversation names use the RoleplayX scenario assignment name.
+
+**Why:** The user explicitly requested this division after Tavus rejected an image's framing. Do not move provider-specific image preparation back into RoleplayX.
+
+**How to apply:** Preserve the original persona image, distinguish provider-assisted training correction from guaranteed validation, and keep display names separate from internal resource IDs and authorization. Correction never authorizes retrying failed or uncertain paid creation.

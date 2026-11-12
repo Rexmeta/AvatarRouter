@@ -17,7 +17,7 @@ export function provisioningProviders(): ProvisioningProvider[] {
       id: "tavus", name: "Tavus", existingSelection: true, imageCreation: true,
       customTraining: true, realtimeRendering: true, reusableId: true,
       adapterEnabled: true, configured: !!process.env.TAVUS_API_KEY,
-      requirements: "Custom faces require Starter, Growth or Enterprise. Phoenix-4.5: JPG/PNG ≥512×512, one adult human-shaped subject, chest-up portrait recommended; crop at or above the navel, no full body, keep arms lowered and hands at/below chest height, head and both shoulders in frame. Voice and signed image URL valid ≥24h required. Dimensions do not validate pose; provider checks still apply. Early preview may be watermarked. Stock-face success does not prove custom-training entitlement.",
+      requirements: "Custom faces require Starter, Growth or Enterprise. AvatarRouter requests Tavus AI Image Fixer for image training; the original source is preserved. Phoenix-4.5: JPG/PNG ≥512×512, one adult human-shaped subject. Prefer chest-up, lowered arms. Automatic correction is not a guarantee and cannot bypass policy/consent. Voice and signed image URL valid ≥24h required. Early preview may be watermarked.",
       documentationUrl: "https://docs.tavus.io/sections/faces/image-to-face-quickstart",
       emotionControl: "Unverified; natural expressions are not a deterministic emotion-event API.",
     },
@@ -83,7 +83,7 @@ export class ImageProviderAdapter {
   async create(name: string, imageUrl: string, voiceName: string) {
     const data = await this.call("", "POST", this.provider === "anam"
       ? { displayName: name.padEnd(3, " ").slice(0, 50), imageUrl }
-      : { face_name: name, train_image_url: imageUrl, voice_name: voiceName, model_name: "phoenix-4.5", auto_fix_training_image: false });
+      : { face_name: name, train_image_url: imageUrl, voice_name: voiceName, model_name: "phoenix-4.5", auto_fix_training_image: true });
     const id = this.provider === "anam" ? data.id : data.face_id;
     if (typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(id)) throw new ProviderFailure("PROVIDER_RESPONSE_INVALID", true);
     return { id, ready: this.provider === "anam" || data.status === "completed" };

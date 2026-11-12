@@ -996,6 +996,7 @@ components:
       required: [imageAssetId, providerId, costConfirmed]
       properties:
         imageAssetId: { type: string, format: uuid }
+        personaId: { type: string, minLength: 1, maxLength: 128, pattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$", description: "RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients." }
         providerId: { type: string, enum: [anam, tavus, lemonslice, simli] }
         voiceName: { type: string, pattern: "^[a-zA-Z0-9_-]{1,50}$", default: anna }
         costConfirmed: { type: boolean, description: Explicit confirmation of potential provider training charges }
@@ -1147,6 +1148,7 @@ components:
       additionalProperties: false
       required: [providerId, avatarId, mode]
       properties:
+        scenarioAssignmentName: { type: string, minLength: 1, maxLength: 200, pattern: '^(?=.*\S)[^\u0000-\u001F\u007F]+$', description: "RoleplayX scenario assignment display name, used as Tavus full-pipeline conversation_name. Not an identifier or authorization reference. Requires live tavus_full; omit for legacy naming." }
         pipeline: { type: string, enum: [external_audio, tavus_full, anam_full], default: external_audio, description: "Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently." }
         fullPipeline: { $ref: "#/components/schemas/TavusFullOptions", description: "Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam." }
         roleplay: { $ref: "#/components/schemas/RoleplayContext" }

@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { validateImage, decodeImageBase64, publicAddress, hashImage, MAX_IMAGE_BYTES, fetchAuthorizedImage } from "./image-validation";
 import { ImageProviderAdapter, ProviderFailure, requireSupportedProvider } from "./provisioning-providers";
 import { provisioningOutcome } from "./provisioning-worker";
+import { ProvisionAvatarBody } from "@workspace/api-zod";
 
 test("fully decodes supported images, strips metadata, preserves original hash", async () => {
   const png = await sharp({ create: { width: 128, height: 256, channels: 3, background: "#507070" } }).png().toBuffer();
@@ -37,11 +38,21 @@ test("Tavus adapter uses documented image training and poll contract", async () 
     return Response.json(init?.method === "POST" ? { face_id: "testface", status: "started" } : { status: "completed" });
   }) as typeof fetch;
   const adapter = new ImageProviderAdapter("tavus", transport, () => "test-placeholder");
-  assert.deepEqual(await adapter.create("Fixture", "https://example.invalid/image", "anna"), { id: "testface", ready: false });
+  const input = ProvisionAvatarBody.parse({
+    imageAssetId: "00000000-0000-4000-8000-000000000001", providerId: "tavus", personaId: "persona_123", costConfirmed: true,
+  });
+  assert.deepEqual(await adapter.create(input.personaId!, "https://example.invalid/image", "anna"), { id: "testface", ready: false });
   assert.equal(await adapter.poll("testface"), "ready");
   await adapter.remove("testface");
-  assert.deepEqual(calls[0]!.body, { face_name: "Fixture", train_image_url: "https://example.invalid/image", voice_name: "anna", model_name: "phoenix-4.5", auto_fix_training_image: false });
+  assert.deepEqual(calls[0]!.body, { face_name: "persona_123", train_image_url: "https://example.invalid/image", voice_name: "anna", model_name: "phoenix-4.5", auto_fix_training_image: true });
   assert.equal(calls[2]!.url, "https://tavusapi.com/v2/faces/testface?hard=true");
+});
+test("persona creation names reject malformed IDs and preserve legacy request compatibility", () => {
+  const legacy = { imageAssetId: "00000000-0000-4000-8000-000000000001", providerId: "tavus", costConfirmed: true };
+  assert.equal(ProvisionAvatarBody.safeParse(legacy).success, true);
+  for (const personaId of ["", "two words", "id\nlog", "x".repeat(129)]) {
+    assert.equal(ProvisionAvatarBody.safeParse({ ...legacy, personaId }).success, false);
+  }
 });
 test("Anam adapter, auth failure, unknown status and ambiguous POST are explicit", async () => {
   const good = new ImageProviderAdapter("anam", (async () => Response.json({ id: "avatar-123" }, { status: 201 })) as typeof fetch, () => "test-placeholder");

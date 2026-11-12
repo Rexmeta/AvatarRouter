@@ -19,7 +19,7 @@ async function request(path: string, body?: unknown, fetcher: Fetcher = fetch, m
 /** No raw provider errors, prompts or room credentials may enter lifecycle logs. */
 export function fullConversationBody(id: string, face: string, palId: string, options: Options, seconds: number) {
   return {
-    face_id: face, pal_id: palId, conversation_name: `avatarrouter:${id}`,
+    face_id: face, pal_id: palId, conversation_name: options.conversationName ?? `avatarrouter:${id}`,
     require_auth: true, max_participants: 2,
     conversational_context: options.context,
     custom_greeting: options.greeting,

@@ -9,6 +9,13 @@ import type { AvatarAssetInputProviderId } from './avatarAssetInputProviderId';
 
 export interface AvatarAssetInput {
   imageAssetId: string;
+  /**
+     * RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients.
+     * @minLength 1
+     * @maxLength 128
+     * @pattern ^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$
+     */
+  personaId?: string;
   providerId: AvatarAssetInputProviderId;
   /** @pattern ^[a-zA-Z0-9_-]{1,50}$ */
   voiceName?: string;

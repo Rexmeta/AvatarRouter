@@ -39,6 +39,10 @@ test("contract preserves external audio by default and validates full options", 
   assert.equal(CreateSessionBody.parse(input).pipeline, "external_audio");
   assert.equal(CreateSessionBody.safeParse({ ...input, pipeline: "tavus_full", fullPipeline: { systemPrompt: "" } }).success, false);
   assert.equal(CreateSessionBody.safeParse({ ...input, pipeline: "tavus_full", fullPipeline: options }).success, true);
+  assert.equal(CreateSessionBody.parse({ ...input, pipeline: "tavus_full", fullPipeline: options, scenarioAssignmentName: "영업 실습 배정" }).scenarioAssignmentName, "영업 실습 배정");
+  for (const name of ["", "   ", "name\nforged", "x".repeat(201)]) {
+    assert.equal(CreateSessionBody.safeParse({ ...input, scenarioAssignmentName: name }).success, false);
+  }
   assert.equal(requiredRoleplayxScope("GET", "/api/v1/sessions/test/full-connection"), "sessions:connect");
   assert.equal(requiredRoleplayxScope("GET", "/api/v1/sessions/test/transcript"), "sessions:read");
   assert.equal(requiredRoleplayxScope("POST", "/api/v1/sessions/test/transcript"), "unrecognized:route");
@@ -52,6 +56,10 @@ test("PAL is full, isolated, voice scoped; conversation is private, capped and c
   assert.equal(body.require_auth, true);
   assert.equal(body.properties.max_call_duration, 99);
   assert.equal(body.conversation_name, "avatarrouter:a");
+  const named = fullConversationBody("a", "face", "pal", { ...options, conversationName: "상담 실습 배정 1차" }, 99);
+  assert.equal(named.conversation_name, "상담 실습 배정 1차");
+  assert.equal(named.pal_id, body.pal_id);
+  assert.equal(fullPalBody("a", "face", options).pal_name, "avatarrouter:a");
   assert.equal(JSON.stringify(body).includes("api_key"), false);
 });
 test("happy path persists provider ID and private connection; stop is idempotent", async () => {
