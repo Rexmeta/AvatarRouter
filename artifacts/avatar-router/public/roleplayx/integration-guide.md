@@ -1,8 +1,5 @@
 # AvatarRouter API-key quickstart for RoleplayX
 
-Creation failure details and required RoleplayX parser/UI behavior:
-[Provider failure integration](./provider-failures.md).
-
 **API:** 0.9 · **Recommended connection:** base URL + project API key.
 
 Anam/Tavus use the same per-session `roleplay` input: see [Roleplay context](./roleplay-context.md).
