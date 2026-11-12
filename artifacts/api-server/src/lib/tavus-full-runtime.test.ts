@@ -102,6 +102,7 @@ test("upstream rejection status survives normalization without leaking raw provi
     assert.equal(stored, `TAVUS_FULL_CREATE_FAILED:HTTP_${status}`);
     assert.equal(safeRendererError(failure).httpStatus, 502);
     assert.equal(safeRendererError(failure).providerHttpStatus, status);
+    assert.equal(safeRendererError(failure).providerReasonState, "unrecognized_reason");
     const rejection = status < 500 && status !== 408;
     assert.equal(h.rejected, rejection ? 1 : 0);
     assert.equal((await h.runtime.stop()).providerEnded, rejection);
@@ -122,6 +123,7 @@ test("explicit safe codes distinguish concurrency from credit limits; legacy fai
     let stored: string | null = null;
     await assert.rejects(h.runtime.start(), error => {
       stored = providerFailureStorageCode(error);
+      assert.equal(safeRendererError(error).providerReasonState, "safe_code");
       return true;
     });
     const failure = presentProviderFailure({ providerId: "tavus", error: stored, providerCreateState: "rejected" });

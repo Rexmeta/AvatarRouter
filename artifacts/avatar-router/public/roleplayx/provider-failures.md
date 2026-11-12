@@ -85,3 +85,24 @@ The callback names above are integration pseudocode, not new SDK methods.
 Old generic errors remain readable and have null upstream status/code. This
 change cannot recover their original upstream response. A whitelist not matching
 a code results in null, never in a raw-body fallback.
+
+## Private Worker evidence
+
+Worker failure logs and private diagnostic records also retain
+`providerReasonState`. This is not a new public Session field:
+
+- `safe_code`: an allowlisted structured provider code was retained.
+- `safe_message`: an exact, reviewed phrase was mapped to a fixed safe code.
+- `missing_reason`: JSON did not contain a supported reason field.
+- `unrecognized_reason`: a reason field existed but was not safe to retain.
+- `body_missing`, `body_too_large`, `invalid_json`, `read_timeout`, `read_failed`:
+  the bounded parser could not extract a reason.
+
+The original upstream `providerHttpStatus` remains separate from the router's
+normalized `httpStatus`. A missing code is not proof that Tavus supplied no
+explanation. No raw messages, bodies, headers or media URLs are retained, and
+unrecognized phrases are never classified by substring. An HTTP 402 without an
+explicit safe credit code still does not identify the precise billing restriction.
+These fields apply to future failures after publishing; historical missing
+details cannot be reconstructed by this change. No automatic creation retry is
+introduced.

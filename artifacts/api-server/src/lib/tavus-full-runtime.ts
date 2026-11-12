@@ -1,6 +1,7 @@
 import type { AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
-import { readSafeProviderCode, storedProviderFailure } from "./provider-session-failure";
+import { storedProviderFailure } from "./provider-session-failure";
+import { readProviderRejection } from "./provider-rejection-diagnostic";
 import { STOCK_FACE } from "./stock-policy";
 
 type Options = NonNullable<AvatarSessionRecord["fullPipeline"]>;
@@ -84,8 +85,12 @@ export class TavusFullRuntime {
     const pal = await request("/pals", fullPalBody(this.row.id,
       this.row.avatarAssetId ? this.row.avatarId : STOCK_FACE, this.options), this.fetcher);
     if (!pal.ok) {
+      const reason = await readProviderRejection(pal);
       const problem = new SessionProblem(502, "TAVUS_FULL_PAL_REJECTED", "Tavus rejected the full-pipeline persona or voice configuration.");
-      throw Object.assign(problem, { providerFailureCode: storedProviderFailure("persona_create", pal.status, await readSafeProviderCode(pal)) });
+      throw Object.assign(problem, {
+        providerFailureCode: storedProviderFailure("persona_create", pal.status, reason.code),
+        providerReasonState: reason.reasonState,
+      });
     }
     const palData = await pal.json() as { pal_id?: unknown };
     if (typeof palData.pal_id !== "string" || !palData.pal_id) {
@@ -110,8 +115,12 @@ export class TavusFullRuntime {
         this.unknown = false;
         await this.rejected();
       }
+      const reason = await readProviderRejection(response);
       const problem = new SessionProblem(502, "TAVUS_FULL_CREATE_FAILED", "Tavus did not confirm full-pipeline creation. No automatic retry.");
-      throw Object.assign(problem, { providerFailureCode: storedProviderFailure("conversation_create", response.status, await readSafeProviderCode(response)) });
+      throw Object.assign(problem, {
+        providerFailureCode: storedProviderFailure("conversation_create", response.status, reason.code),
+        providerReasonState: reason.reasonState,
+      });
     }
     const data = await response.json() as { conversation_id?: unknown; conversation_url?: unknown; meeting_token?: unknown };
     if (typeof data.conversation_id !== "string" || !data.conversation_id) {

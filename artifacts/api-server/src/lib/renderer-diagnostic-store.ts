@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { db, rendererDiagnosticRecords, sql } from "@workspace/db";
 import { logger } from "./logger";
 import { safeProviderCodes } from "./provider-session-failure";
+import { providerReasonStates } from "./provider-rejection-diagnostic";
 
 export const diagnosticStages = [
   "runtime_start", "room_create", "rtc_connect", "provider_dispatch", "provider_create",
@@ -30,6 +31,7 @@ export const diagnosticEvidence = z.strictObject({
   httpStatus: z.number().int().min(100).max(599).optional(),
   providerHttpStatus: z.number().int().min(400).max(599).optional(),
   providerErrorCode: z.enum(safeProviderCodes).optional(),
+  providerReasonState: z.enum(providerReasonStates).optional(),
   transportCode: z.enum(["ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN",
     "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "LIVE_LEASE_LOST",
     "23505", "40001", "40P01", "53300", "57P01"]).optional(),

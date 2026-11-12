@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
 import { decodeProviderFailure, providerFailureStorageCode } from "./provider-session-failure";
+import { safeProviderReasonState, type ProviderReasonState } from "./provider-rejection-diagnostic";
 
 export type RendererStage =
   | "runtime_start" | "room_create" | "rtc_connect" | "provider_dispatch"
@@ -16,6 +17,7 @@ type Sink = (failed: boolean, fields: Record<string, unknown>) => void;
 export function safeRendererError(error: unknown): {
   errorClass: string; httpStatus?: number; transportCode?: string;
   providerHttpStatus?: number; providerErrorCode?: string;
+  providerReasonState?: ProviderReasonState;
 } {
   const read = (value: unknown, key: string): unknown => {
     try { return value && (typeof value === "object" || typeof value === "function") ? Reflect.get(value, key) : undefined; }
@@ -33,6 +35,7 @@ export function safeRendererError(error: unknown): {
   const cause = read(error, "cause");
   const code = read(error, "code") ?? read(cause, "code");
   const provider = decodeProviderFailure(providerFailureStorageCode(error));
+  const reasonState = provider ? safeProviderReasonState(error) : undefined;
   return {
     errorClass: typeof constructorName === "string" && classes.includes(constructorName) ? constructorName
       : typeof name === "string" && classes.includes(name) ? name : "UnknownError",
@@ -41,6 +44,7 @@ export function safeRendererError(error: unknown): {
     ...(typeof code === "string" && codes.includes(code) ? { transportCode: code } : {}),
     ...(provider?.providerHttpStatus ? { providerHttpStatus: provider.providerHttpStatus } : {}),
     ...(provider?.providerErrorCode ? { providerErrorCode: provider.providerErrorCode } : {}),
+    ...(reasonState ? { providerReasonState: reasonState } : {}),
   };
 }
 
