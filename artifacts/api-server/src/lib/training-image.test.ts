@@ -41,37 +41,40 @@ test("request itself authorizes generation; rights attestation never pretends to
   assert.equal(imageRightsAttested({ likeness: "real_person", consentReference: "attested-record", rightsConfirmedAt: new Date() }), true);
   assert.equal(imageRightsAttested({ likeness: "real_person", consentReference: "", rightsConfirmedAt: new Date() }), false);
 });
-test("seed regeneration output, not the original, is saved and supplied to provider creation", async () => {
+for (const provider of ["tavus", "anam"] as const) test(`${provider}: even a compliant seed is regenerated, saved, signed and supplied to provider creation`, async () => {
   const seed = await sharp({ create: { width: 512, height: 640, channels: 3, background: "#336799" } }).jpeg().toBuffer();
   const copy = Buffer.from(seed);
   const generated = await sharp({ create: { width: 512, height: 640, channels: 3, background: "#7744aa" } }).png().toBuffer();
   let calls = 0, saved = false, signed = false, posted = 0;
-  const url = await prepareTrainingImage("source-fixture", "tenant-fixture", "asset-fixture", "tavus", {
+  const url = await prepareTrainingImage("source-fixture", "tenant-fixture", "asset-fixture", provider, {
     read: async path => { assert.equal(path, "source-fixture"); return seed; },
     generate: async request => {
       calls++;
       if (calls === 2) {
         assert.ok(JSON.stringify(request.contents).includes(seed.toString("base64")));
+        assert.match(JSON.stringify(request.contents), provider === "anam" ? /Anam.*1152 x 1152/ : /Tavus Phoenix 4.5/);
         return { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: generated.toString("base64") } }] } }] } as GenerateContentResponse;
       }
-      return { text: JSON.stringify({ acceptable: calls !== 1, safeAdultSubject: true, identityConsistent: true }) } as GenerateContentResponse;
+      return { text: JSON.stringify({ acceptable: true, safeAdultSubject: true, identityConsistent: true }) } as GenerateContentResponse;
     },
     save: async (tenant, id, bytes) => {
       assert.equal(tenant, "tenant-fixture"); assert.equal(id, "training-asset-fixture");
-      assert.notDeepEqual(bytes, seed); assert.deepEqual(bytes, await normalizeTrainingImage(generated, "tavus"));
+      assert.notDeepEqual(bytes, seed); assert.deepEqual(bytes, await normalizeTrainingImage(generated, provider));
       saved = true; return "private-training-fixture";
     },
     sign: async path => { assert.ok(saved); assert.equal(path, "private-training-fixture"); signed = true; return "https://example.invalid/prepared-only"; },
   });
-  const before = process.env.TAVUS_API_KEY;
-  process.env.TAVUS_API_KEY = "test-fixture";
+  const key = provider === "tavus" ? "TAVUS_API_KEY" : "ANAM_API_KEY";
+  const before = process.env[key];
+  process.env[key] = "test-fixture";
   try {
-    await new ImageProviderAdapter("tavus", async (_input, init) => {
+    const result = await new ImageProviderAdapter(provider, async (_input, init) => {
       assert.ok(saved && signed); assert.equal(calls, 3); posted++;
-      assert.equal(JSON.parse(String(init?.body)).train_image_url, url);
-      return Response.json({ face_id: "rFixture", status: "started" });
+      assert.equal(JSON.parse(String(init?.body))[provider === "tavus" ? "train_image_url" : "imageUrl"], url);
+      return Response.json(provider === "tavus" ? { face_id: "rFixture", status: "started" } : { id: "anamFixture" });
     }).create("persona-fixture", url, "voice-fixture");
-  } finally { if (before === undefined) delete process.env.TAVUS_API_KEY; else process.env.TAVUS_API_KEY = before; }
+    assert.equal(result.ready, provider === "anam");
+  } finally { if (before === undefined) delete process.env[key]; else process.env[key] = before; }
   assert.equal(posted, 1); assert.deepEqual(seed, copy);
 });
 test("AI failure never saves, signs, or submits an unverified seed", async () => {

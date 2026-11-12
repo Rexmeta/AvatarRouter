@@ -9,12 +9,20 @@ const response = (data: object) => data as GenerateContentResponse;
 const check = (acceptable = true, identityConsistent = true, safeAdultSubject = true) =>
   response({ text: JSON.stringify({ acceptable, identityConsistent, safeAdultSubject }) });
 const seed = Buffer.from("mock original seed");
-test("valid resize uses one inspection and no image generation", async () => {
+test("already compliant seed still generates exactly once and verifies the generated image", async () => {
   const calls: GenerateContentParameters[] = [];
+  const png = await sharp({ create: { width: 128, height: 128, channels: 3, background: "#777777" } }).png().toBuffer();
   const resize = Buffer.from("resized");
-  const result = await ensureTrainingPortrait(seed, resize, async b => b, async r => { calls.push(r); return check(); });
-  assert.deepEqual(result, resize); assert.equal(calls.length, 1);
+  const result = await ensureTrainingPortrait(seed, resize, async b => b, async r => {
+    calls.push(r);
+    return calls.length === 2 ? response({
+      candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: png.toString("base64") } }] } }],
+    }) : check();
+  });
+  assert.notDeepEqual(result, resize); assert.equal(calls.length, 3);
+  assert.equal(calls.filter(c => c.model === trainingImageAiStatus().imageModel).length, 1);
   assert.equal(calls[0]!.model, trainingImageAiStatus().inspectionModel);
+  assert.ok(JSON.stringify(calls[1]!.contents).includes(seed.toString("base64")));
   assert.equal(calls[0]!.config!.httpOptions!.retryOptions!.attempts, 1);
 });
 test("failed framing regenerates once from original seed, normalizes, then checks identity and final conditions", async () => {

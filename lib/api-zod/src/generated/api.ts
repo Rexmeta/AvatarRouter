@@ -427,6 +427,8 @@ export const ReportAvatarLiveValidationResponse = zod.object({
   "providerId": zod.string(),
   "providerAvatarId": zod.string().nullable(),
   "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "completionMessage": zod.string().nullish().describe('Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.'),
+  "completionMessageKo": zod.string().nullish().describe('Korean completion message; same ready-only semantics as completionMessage.'),
   "creationMode": zod.enum(['image_training', 'one_shot']),
   "capabilities": zod.object({
   "reusable": zod.boolean(),
@@ -737,6 +739,8 @@ export const ListAvatarAssetsResponseItem = zod.object({
   "providerId": zod.string(),
   "providerAvatarId": zod.string().nullable(),
   "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "completionMessage": zod.string().nullish().describe('Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.'),
+  "completionMessageKo": zod.string().nullish().describe('Korean completion message; same ready-only semantics as completionMessage.'),
   "creationMode": zod.enum(['image_training', 'one_shot']),
   "capabilities": zod.object({
   "reusable": zod.boolean(),
@@ -806,6 +810,8 @@ export const ProvisionAvatarResponse = zod.object({
   "providerId": zod.string(),
   "providerAvatarId": zod.string().nullable(),
   "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "completionMessage": zod.string().nullish().describe('Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.'),
+  "completionMessageKo": zod.string().nullish().describe('Korean completion message; same ready-only semantics as completionMessage.'),
   "creationMode": zod.enum(['image_training', 'one_shot']),
   "capabilities": zod.object({
   "reusable": zod.boolean(),
@@ -862,6 +868,8 @@ export const GetAvatarAssetResponse = zod.object({
   "providerId": zod.string(),
   "providerAvatarId": zod.string().nullable(),
   "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "completionMessage": zod.string().nullish().describe('Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.'),
+  "completionMessageKo": zod.string().nullish().describe('Korean completion message; same ready-only semantics as completionMessage.'),
   "creationMode": zod.enum(['image_training', 'one_shot']),
   "capabilities": zod.object({
   "reusable": zod.boolean(),
@@ -918,6 +926,8 @@ export const DeleteAvatarAssetResponse = zod.object({
   "providerId": zod.string(),
   "providerAvatarId": zod.string().nullable(),
   "status": zod.enum(['queued', 'submitting', 'processing', 'ready', 'failed', 'reconciliation_required', 'deleting', 'deleted']),
+  "completionMessage": zod.string().nullish().describe('Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.'),
+  "completionMessageKo": zod.string().nullish().describe('Korean completion message; same ready-only semantics as completionMessage.'),
   "creationMode": zod.enum(['image_training', 'one_shot']),
   "capabilities": zod.object({
   "reusable": zod.boolean(),

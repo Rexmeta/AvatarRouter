@@ -529,6 +529,16 @@ export interface AvatarAsset {
   /** @nullable */
   providerAvatarId: string | null;
   status: AvatarAssetStatus;
+  /**
+     * Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback.
+     * @nullable
+     */
+  completionMessage?: string | null;
+  /**
+     * Korean completion message; same ready-only semantics as completionMessage.
+     * @nullable
+     */
+  completionMessageKo?: string | null;
   creationMode: AvatarAssetCreationMode;
   capabilities: AvatarCapabilities;
   liveValidation?: AvatarLiveValidation;

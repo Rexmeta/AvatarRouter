@@ -1102,6 +1102,8 @@ components:
         providerId: { type: string }
         providerAvatarId: { type: [string, "null"] }
         status: { type: string, enum: [queued, submitting, processing, ready, failed, reconciliation_required, deleting, deleted] }
+        completionMessage: { type: [string, "null"], description: "Non-null only when the provider has confirmed avatar creation (ready with a provider ID). Poll GET /avatar-assets/{id}; HTTP 202 only means accepted. Creation does not confirm live playback." }
+        completionMessageKo: { type: [string, "null"], description: "Korean completion message; same ready-only semantics as completionMessage." }
         creationMode: { type: string, enum: [image_training, one_shot] }
         capabilities: { $ref: "#/components/schemas/AvatarCapabilities" }
         liveValidation: { $ref: "#/components/schemas/AvatarLiveValidation" }

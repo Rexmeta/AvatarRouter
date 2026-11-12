@@ -9,6 +9,7 @@ import { assetLiveVerified, requirePlaybackSession } from "./asset-live-policy";
 import { verifyFullValidationTarget } from "./tavus-full-runtime";
 import { decodeProvisioningFailure, presentProvisioningFailure } from "./provisioning-failure";
 import { imageRightsAttested } from "./image-rights";
+import { provisioningCompletion } from "./provisioning-completion";
 
 export function presentImage(row: ImageAssetRecord) {
   const { tenantId, objectPath, lineageId, consentReference, rightsConfirmedAt, ...safe } = row;
@@ -16,6 +17,7 @@ export function presentImage(row: ImageAssetRecord) {
 }
 export function presentAvatarAsset(row: AvatarAssetRecord) {
   return GetAvatarAssetResponse.parse({
+    ...provisioningCompletion(row),
     id: row.id, imageAssetId: row.imageAssetId, name: row.name,
     sourceContentHash: row.sourceContentHash, providerId: row.providerId, providerAvatarId: row.providerAvatarId,
     status: row.status, creationMode: row.creationMode,

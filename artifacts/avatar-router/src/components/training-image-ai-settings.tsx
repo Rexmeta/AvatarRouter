@@ -25,8 +25,8 @@ export function TrainingImageAISettings() {
           {!ai.modelConfigValid && <p role="alert" className="text-amber-500">{L('Training model environment variables are invalid.', '학습 모델 환경변수의 이름 형식이 올바르지 않습니다.')}</p>}
         </div>}
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{L(
-        'Original seed → training resize → Gemini inspection → regenerate only if needed → identity/framing recheck → avatar provider. Selecting a connection does not create an avatar. Calls use the selected account’s billing and limits.',
-        '원본 시드 → 학습용 리사이즈 → Gemini 검사 → 필요한 경우에만 재생성 → 얼굴·구도 재검사 → 아바타 제공자 전송. 연결 설정만으로 아바타를 생성하지 않습니다. 호출 비용과 한도는 선택된 연결 계정에 적용됩니다.',
+        'Every custom creation: seed check → Gemini generates a provider-specific image → normalization and identity/framing verification → avatar provider → completion after provider confirmation. No resize-only fallback. Calls use the selected account’s billing and limits.',
+        '모든 커스텀 생성: 시드 검사 → Gemini로 제공자별 이미지 생성 → 규격 정규화·얼굴·구도 검증 → 아바타 제공자 전송 → 제공자 확인 후 완료 안내. 단순 리사이즈 대체는 하지 않습니다. 선택된 연결 계정의 비용과 한도가 적용됩니다.',
       )}</p>
       <details className="mt-3 border-t border-border pt-3 text-xs">
         <summary className="cursor-pointer font-medium text-primary">{L('How to enter a Gemini API key securely', 'Gemini API 키 안전하게 입력하는 방법')}</summary>

@@ -508,7 +508,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               <p>{L('Use one adult subject, at least 512×512. A chest-up portrait is recommended: head and both shoulders visible, crop at or above the navel, hands and arms at or below chest height. Full-body framing and raised arms are not supported.', '성인 한 명, 최소 512×512 이미지를 사용하세요. 머리와 양쪽 어깨가 보이는 가슴 위 중심 상반신 구도를 권장합니다. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 높이 이하로 낮추세요. 전신과 들어 올린 팔은 지원하지 않습니다.')}</p>
               <p>{L('Pixel size alone does not check pose. If automatic correction is still rejected, upload a corrected new image version; do not automatically resubmit.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 자동 보정 후에도 거절되면 수정된 새 이미지 버전을 등록하세요. 자동 재제출하지 않습니다.')}</p>
               <a className="underline" href="https://docs.tavus.io/sections/faces/phoenix-45-image-requirements" target="_blank" rel="noreferrer">{L('Official image requirements', '공식 이미지 학습 기준')}</a>
-              <p>{L('The router resizes a training copy, checks it with Gemini, and regenerates from the seed only when needed. Billing follows the direct key or managed connection shown above. Tavus Image Fixer remains enabled; acceptance is not guaranteed.', '학습 사본을 리사이즈하고 Gemini로 검사하며 필요할 때만 원본 기반으로 재생성합니다. 비용은 위에 표시된 직접 키 또는 관리형 연결에 적용됩니다. Tavus Image Fixer도 유지하며 제공자 수락을 보장하지 않습니다.')}</p>
+              <p>{L('Every custom request generates a new training image with Gemini from the seed. Only provider-normalized, identity/framing-verified output is sent. Billing follows the connection above. Provider acceptance is not guaranteed.', '모든 커스텀 요청에서 원본 시드를 바탕으로 Gemini 학습 이미지를 새로 생성합니다. 제공자 규격·얼굴·구도 검증을 통과한 결과만 전송합니다. 위 연결 계정에 비용이 적용되며 제공자 수락을 보장하지 않습니다.')}</p>
             </div>}
             <Field label={L('Persona ID — creation name', '페르소나 ID — 생성 이름')} hint={L('RoleplayX sends its persona ID here. Legacy Studio requests may leave this blank to use the image name.', 'RoleplayX는 페르소나 ID를 전달합니다. 기존 Studio 요청은 비워 두면 이미지 이름을 사용합니다.')}>
               <input value={personaId} maxLength={128} onChange={(e) => setPersonaId(e.target.value)} data-testid="input-provision-persona-id" className="mono w-full rounded border bg-background px-3 py-2 text-sm" />
@@ -621,6 +621,9 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
                 <Progress status={a.status} />
               </div>
               {PENDING.has(a.status) && <p className="text-xs text-muted-foreground">{L('Provider work is asynchronous. This view refreshes every 4 seconds.', '프로바이더 작업은 비동기입니다. 4초마다 새로 고칩니다.')}</p>}
+              {a.status === 'ready' && a.completionMessage && <p role="status" className="rounded border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm" data-testid="text-avatar-completed">
+                {lang === 'ko' ? a.completionMessageKo ?? a.completionMessage : a.completionMessage}
+              </p>}
               {a.errorCode && <p className="mono rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" data-testid="text-avatar-error">{a.errorCode}</p>}
               {a.failure && <div role="alert" className="space-y-1 rounded border border-destructive/30 p-3 text-sm">
                 <p>{lang === 'ko' ? a.failure.messageKo : a.failure.message}</p>

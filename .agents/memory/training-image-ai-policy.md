@@ -3,9 +3,9 @@ name: Training image AI billing boundaries
 description: Direct Gemini credential selection, original identity preservation and paid creation boundaries.
 ---
 
-The user wants AvatarRouter to accept the original seed and automatically prepare or regenerate a provider-suitable training image without another approval step.
+The user requires every new custom avatar creation to use the received image as a seed for Gemini generation of a provider-suitable image, without another approval step. Even an already compliant seed must not skip image generation. Submit only verified generated output; announce completion only after the provider confirms creation.
 
-**Why:** The user requested automatic seed-based correction and asked to recheck custom creation and enable entering a Gemini API key.
+**Why:** The user explicitly changed conditional correction to mandatory Gemini image generation for every custom creation request.
 
 **How to apply:** Preserve the source, use a separate training copy, and verify identity/framing before dispatch. A failed AI step must never submit the original as a silent fallback or claim provider creation success.
 

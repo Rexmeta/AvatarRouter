@@ -68,11 +68,11 @@ export async function ensureTrainingPortrait(
   }
   const first = await inspect(resized, false);
   logger.info({ service: "training_image_ai", assetId: context?.assetId, provider: context?.provider,
-    source: settings.source, stage: "inspection", regenerationRequired: !first.acceptable,
+    source: settings.source, stage: "inspection", regenerationRequired: true,
   }, "Training image inspected; source image retained");
   if (!first.safeAdultSubject) throw new ProviderFailure("TRAINING_IMAGE_SUBJECT_UNSUPPORTED");
-  if (first.acceptable && first.identityConsistent) return resized;
-  // One bounded regeneration only; never create a replacement identity for an unclear face.
+  // Every accepted custom-creation job generates once, even for an already compliant seed.
+  // Never create a replacement identity for an unclear face or silently submit a resized seed.
   if (!first.identityConsistent) throw new ProviderFailure("TRAINING_IMAGE_IDENTITY_UNCERTAIN");
   let generated: Buffer;
   try {
@@ -85,6 +85,9 @@ One clothed adult subject, neutral background, facing camera, head and both shou
 Frame chest-up, with the bottom edge above the navel. No hips, exposed lower abdomen, crotch or full body.
 Relax shoulders; arms lowered below chest, hands outside the frame. No raised palms.
 Do not add text, logos or other people. Preserve the subject's visual style. Return one image, not instructions.` },
+        { text: context?.provider === "anam"
+          ? "Target: Anam custom avatar. Compose a square 1:1 portrait, head and shoulders centered with margins. The final training file will be normalized to 1152 x 1152 JPEG, no transparency, under 4.5 MB."
+          : "Target: Tavus Phoenix 4.5 training image. Compose a chest-up portrait with the crop above the navel, no raised hands or arms above chest. Keep head and both shoulders within frame and margins. Final JPEG: each edge at least 512 px, maximum 1152 x 1536 px, under 4.5 MB." },
         reference,
       ] }],
       config: { responseModalities: ["IMAGE", "TEXT"], httpOptions: { timeout: 90_000, retryOptions: { attempts: 1 } } },
