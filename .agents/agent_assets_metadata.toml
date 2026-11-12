@@ -196,3 +196,17 @@ mtime_ms = 1794461833218
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/4e500947-fbd3-4716-9c4c-72f8990dd77b/573aedcf-e420-4bd9-b36a-8b653faeefde"
 storage_version_token = "1794461997869015"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "x_kGQkal8_avHMF3bEsUr"
+uri = "file://docs/roleplayx-persona-seed-delivery.md"
+type = "text"
+title = "RoleplayX 시드 라이브 설정 구현 결과"
+description = "실제 편집기 연결 PR, 검증 결과와 운영 적용 전 제한 사항입니다."
+logical_id = "def8c4ed-323c-4734-81ec-04b50027b9b1"
+content_hash = "sha256:3053bb3767434575de83895a162db84c92195f485013a2960045d831a50c23c5"
+size = 3776
+mtime_ms = 1794465776274
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/def8c4ed-323c-4734-81ec-04b50027b9b1/72b15982-f0ee-460c-9d32-b98964b1f53c"
+storage_version_token = "1794465827965385"
+content_type = "text/markdown"
