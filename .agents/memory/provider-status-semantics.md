@@ -20,3 +20,9 @@ Self-service router budget resets must not be presented as provider billing rese
 **Why:** The user requested direct budget adjustment and reset after a paid Tavus upgrade still encountered router time limits. A reset can authorize more paid usage without changing the provider's balance or ending uncertain sessions.
 
 **How to apply:** Require explicit confirmation of added spending capacity, retain reservation/audit history and hourly attempt limits, and keep ownership, operator-only service controls, and unresolved-session fences intact.
+
+Router usage and admission reservations must be displayed separately. Never label a session's maximum duration as actual usage. Keep unused reservations held for active/unresolved sessions; release them only after confirmed cleanup.
+
+**Why:** The user reported that even short conversations increased usage by the full ten-minute maximum.
+
+**How to apply:** Calculate elapsed session time from recorded timestamps, exclude delayed cleanup after stop/end/expiry, preserve original reservations, and distinguish router elapsed time from actual speech/playback duration and provider billing.

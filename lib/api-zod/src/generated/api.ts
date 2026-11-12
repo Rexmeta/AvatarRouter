@@ -18,14 +18,16 @@ export const GetWorkspaceBudgetParams = zod.object({
 export const GetWorkspaceBudgetResponse = zod.object({
   "project": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()
 }),
   "service": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()
@@ -57,14 +59,16 @@ export const UpdateWorkspaceBudgetBody = zod.object({
 export const UpdateWorkspaceBudgetResponse = zod.object({
   "project": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()
 }),
   "service": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()
@@ -95,14 +99,16 @@ export const ResetWorkspaceBudgetBody = zod.object({
 export const ResetWorkspaceBudgetResponse = zod.object({
   "project": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()
 }),
   "service": zod.object({
   "dailySeconds": zod.int(),
-  "usedSeconds": zod.int(),
+  "usedSeconds": zod.int().describe('Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing.'),
+  "reservedSeconds": zod.int().optional().describe('Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed.'),
   "remainingSeconds": zod.int(),
   "revision": zod.int(),
   "resetAt": zod.coerce.date().nullable()

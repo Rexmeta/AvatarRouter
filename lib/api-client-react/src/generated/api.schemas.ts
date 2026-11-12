@@ -42,7 +42,10 @@ export interface BudgetReset {
 
 export interface BudgetScope {
   dailySeconds: number;
+  /** Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing. */
   usedSeconds: number;
+  /** Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed. */
+  reservedSeconds?: number;
   remainingSeconds: number;
   revision: number;
   /** @nullable */

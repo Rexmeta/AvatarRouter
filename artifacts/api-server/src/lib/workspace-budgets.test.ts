@@ -32,7 +32,8 @@ async function reservation(state: "closed" | "cleanup_pending" = "closed") {
   const [row] = await db.insert(avatarSessions).values({
     id: randomUUID(), ownerHash: owner, tenantId: projectTenant(projectId), providerId: "tavus", avatarId: "fixture",
     pipeline: "tavus_full", mode: "live", purpose: "conversation", status: "ended", rendererState: state,
-    reservedSeconds: 600, expiresAt: new Date(0), providerCreateState: state === "closed" ? "known" : "unknown",
+    reservedSeconds: 600, startedAt: new Date(Date.now() - 600_000), endedAt: new Date(),
+    expiresAt: new Date(), providerCreateState: state === "closed" ? "known" : "unknown",
   }).returning();
   return row!;
 }
@@ -91,4 +92,68 @@ test("explicit cost/reset confirmation, bounded integers and strict scopes are r
   for (const dailySeconds of [-1, 1.5, 86401]) assert.equal(UpdateWorkspaceBudgetBody.safeParse({ scope: "project", dailySeconds, revision: 0, costConfirmed: true }).success, false);
   assert.equal(UpdateWorkspaceBudgetBody.strict().safeParse({ scope: "project", dailySeconds: 1, revision: 0, costConfirmed: false }).success, false);
   assert.equal(ResetWorkspaceBudgetBody.strict().safeParse({ scope: "project", revision: 0, confirmed: false }).success, false);
+});
+
+test("a 45-second ended session uses 45 seconds, not its 10-minute reservation", async () => {
+  const row = await reservation();
+  const end = new Date();
+  await db.update(avatarSessions).set({
+    startedAt: new Date(end.getTime() - 45_000), endedAt: end,
+    expiresAt: new Date(end.getTime() + 555_000),
+  }).where(eq(avatarSessions.id, row.id));
+  const b = await workspaceBudget(owner, projectId, false);
+  assert.equal(b.project.usedSeconds, 45);
+  assert.equal(b.project.reservedSeconds, 0);
+  assert.equal(b.project.remainingSeconds, 3555);
+  assert.equal(b.service.usedSeconds, 45);
+  assert.equal(b.service.remainingSeconds, 7155);
+  assert.equal((await liveLimits(projectTenant(projectId))).userRemainingSeconds, 3555);
+});
+
+test("cleanup holds the unspent budget separately, then releases it without rewriting history", async () => {
+  const row = await reservation("cleanup_pending");
+  const end = new Date();
+  await db.update(avatarSessions).set({
+    startedAt: new Date(end.getTime() - 30_000), endedAt: end,
+    expiresAt: new Date(end.getTime() + 570_000),
+  }).where(eq(avatarSessions.id, row.id));
+  const held = await workspaceBudget(owner, projectId, false);
+  assert.equal(held.project.usedSeconds, 30);
+  assert.equal(held.project.reservedSeconds, 570);
+  assert.equal(held.project.remainingSeconds, 3000);
+  assert.equal((await liveLimits(projectTenant(projectId))).creationAllowed, false);
+  await db.update(avatarSessions).set({ rendererState: "closed", providerCreateState: "known" }).where(eq(avatarSessions.id, row.id));
+  const closed = await workspaceBudget(owner, projectId, false);
+  assert.equal(closed.project.usedSeconds, 30);
+  assert.equal(closed.project.reservedSeconds, 0);
+  assert.equal(closed.project.remainingSeconds, 3570);
+  assert.equal((await db.select().from(avatarSessions))[0]!.reservedSeconds, 600);
+});
+
+test("failed creation consumes zero seconds and cleanup delays cannot extend stopped session usage", async () => {
+  const row = await reservation();
+  await db.update(avatarSessions).set({ status: "failed", providerCreateState: "rejected" }).where(eq(avatarSessions.id, row.id));
+  assert.equal((await workspaceBudget(owner, projectId, false)).project.usedSeconds, 0);
+  const start = new Date(Date.now() - 120_000);
+  await db.update(avatarSessions).set({
+    providerCreateState: "known", startedAt: start,
+    stopRequestedAt: new Date(start.getTime() + 20_000), endedAt: new Date(),
+    expiresAt: new Date(start.getTime() + 600_000),
+  }).where(eq(avatarSessions.id, row.id));
+  const b = await workspaceBudget(owner, projectId, false);
+  assert.equal(b.project.usedSeconds, 20);
+  assert.equal(b.project.reservedSeconds, 0);
+});
+
+test("active session elapsed time increases while its unused reservation decreases", async () => {
+  const row = await reservation();
+  await db.update(avatarSessions).set({
+    status: "active", rendererState: "running", providerCreateState: "known",
+    startedAt: new Date(Date.now() - 60_000), endedAt: null,
+    expiresAt: new Date(Date.now() + 540_000),
+  }).where(eq(avatarSessions.id, row.id));
+  const b = await workspaceBudget(owner, projectId, false);
+  assert.ok(b.project.usedSeconds >= 60 && b.project.usedSeconds < 65);
+  assert.equal(b.project.usedSeconds + b.project.reservedSeconds, 600);
+  assert.equal(b.project.remainingSeconds, 3000);
 });

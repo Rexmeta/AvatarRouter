@@ -924,7 +924,8 @@ components:
       required: [dailySeconds, usedSeconds, remainingSeconds, revision, resetAt]
       properties:
         dailySeconds: { type: integer }
-        usedSeconds: { type: integer }
+        usedSeconds: { type: integer, description: "Measured router session elapsed seconds, bounded by stop/end/expiry and admission duration. Includes setup, not voiced-speech duration or provider billing." }
+        reservedSeconds: { type: integer, description: "Unused duration temporarily held by active/unresolved sessions; separate from usedSeconds. Released only when cleanup is confirmed." }
         remainingSeconds: { type: integer }
         revision: { type: integer }
         resetAt: { type: [string, "null"], format: date-time }

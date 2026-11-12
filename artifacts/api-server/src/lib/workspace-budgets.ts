@@ -10,13 +10,13 @@ import { SessionProblem } from "./session-service";
 export async function workspaceBudget(owner: string, projectId: string, operator: boolean) {
   ownedProject(await listDeveloperKeys(owner), projectId);
   const b = await budgetSnapshot(projectTenant(projectId));
-  const scope = (dailySeconds: number, usedSeconds: number, row: typeof b.project) => ({
-    dailySeconds, usedSeconds, remainingSeconds: Math.max(0, dailySeconds - usedSeconds),
+  const scope = (dailySeconds: number, usedSeconds: number, reservedSeconds: number, row: typeof b.project) => ({
+    dailySeconds, usedSeconds, reservedSeconds, remainingSeconds: Math.max(0, dailySeconds - usedSeconds - reservedSeconds),
     revision: row?.revision ?? 0, resetAt: row?.resetAt?.toISOString() ?? null,
   });
   return {
-    project: scope(b.limits.user, b.usage.user, b.project),
-    service: scope(b.limits.global, b.usage.global, b.service),
+    project: scope(b.limits.user, b.usage.actualUser, b.usage.reservedUser, b.project),
+    service: scope(b.limits.global, b.usage.actualGlobal, b.usage.reservedGlobal, b.service),
     canManageService: operator, sessionSeconds: liveSessionMs() / 1000,
     resetsAt: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1)).toISOString(),
   };

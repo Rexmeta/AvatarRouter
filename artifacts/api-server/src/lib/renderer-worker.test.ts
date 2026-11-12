@@ -631,10 +631,12 @@ test("definite insufficient-credit rejection is displayed without paid retry", a
   assert.equal(safeLiveError({ status: 402 }).status, 402);
 });
 
-test("daily reservations enforce per-tenant and global budgets including failed attempts", async () => {
+test("elapsed usage enforces per-tenant and global budgets after confirmed cleanup", async () => {
   const { w } = worker();
   await w.tick();
-  await fixture({ status: "failed", rendererState: "closed", roomName: null, tenantId: "tenant-budget", reservedSeconds: 600 });
+  await fixture({ status: "failed", rendererState: "closed", roomName: null, tenantId: "tenant-budget",
+    providerCreateState: "known", reservedSeconds: 600, startedAt: new Date(Date.now() - 600_000),
+    endedAt: new Date(), expiresAt: new Date() });
   await assert.rejects(apiA.createStockSession("new-owner", "tenant-budget", true), { code: "LIVE_USER_DAILY_BUDGET" });
   process.env.LIVE_GLOBAL_DAILY_SECONDS = "600";
   await assert.rejects(apiA.createStockSession("different", "different", true), { code: "LIVE_GLOBAL_DAILY_BUDGET" });

@@ -15,7 +15,7 @@ type Scope = 'project' | 'service';
 const httpStatus = (e: unknown) => (e as { status?: number })?.status;
 
 function Meter({ s }: { s: BudgetScope }) {
-  const pct = s.dailySeconds > 0 ? Math.min(100, (s.usedSeconds / s.dailySeconds) * 100) : 100;
+  const pct = s.dailySeconds > 0 ? Math.min(100, ((s.usedSeconds + (s.reservedSeconds ?? 0)) / s.dailySeconds) * 100) : 100;
   return <div className="mt-3 h-1.5 w-full overflow-hidden rounded-sm bg-muted"><div className="h-full origin-left bg-primary transition-transform duration-500" style={{ transform: `scaleX(${pct / 100})` }}/></div>;
 }
 
@@ -94,12 +94,14 @@ function ScopeCard({ scope, s, editable, budget, projectId, userId, onDone }: {
   const label = scope === 'project' ? t('Project budget', '프로젝트 예산') : t('Global service budget', '전체 서비스 예산');
   return <Panel title={label} aside={<span className="mono text-[10.5px] text-muted-foreground" data-testid={`text-revision-${scope}`}>rev {s.revision}</span>} className="p-0">
     <div className="p-5">
-      <dl className="grid gap-4 sm:grid-cols-3">
+      <dl className="grid gap-4 sm:grid-cols-2">
         <div><dt className="eyebrow">{t('Daily', '일일 한도')}</dt><dd className="mt-1.5 text-xl font-semibold" data-testid={`text-daily-${scope}`}>{fmtSec(s.dailySeconds)}</dd><dd className="mono text-[11px] text-muted-foreground">{s.dailySeconds}s{s.dailySeconds === 0 && ` · ${t('paused', '일시 중지')}`}</dd></div>
         <div><dt className="eyebrow">{t('Used', '사용')}</dt><dd className="mt-1.5 text-xl" data-testid={`text-used-${scope}`}>{fmtSec(s.usedSeconds)}</dd><dd className="mono text-[11px] text-muted-foreground">{s.usedSeconds}s</dd></div>
+        <div><dt className="eyebrow">{t('Temporarily reserved', '임시 확보')}</dt><dd className="mt-1.5 text-xl" data-testid={`text-reserved-${scope}`}>{fmtSec(s.reservedSeconds ?? 0)}</dd><dd className="mono text-[11px] text-muted-foreground">{s.reservedSeconds ?? 0}s</dd></div>
         <div><dt className="eyebrow">{t('Remaining', '잔여')}</dt><dd className="mt-1.5 text-xl" data-testid={`text-remaining-${scope}`}>{fmtSec(s.remainingSeconds)}</dd><dd className="mono text-[11px] text-muted-foreground">{s.remainingSeconds}s</dd></div>
       </dl>
       <Meter s={s}/>
+      <p className="mt-2 text-xs text-muted-foreground">{t('Usage is elapsed router session time, including setup, bounded by stop/end/expiry. Unspent reservations return after confirmed cleanup. Not speech-only time or provider billing.', '사용량은 준비 시간을 포함한 라우터 세션 경과 시간이며 종료 요청·종료·만료 시점으로 제한됩니다. 미사용 확보분은 정리 확인 후 반환됩니다. 발화 시간이나 제공자 청구액이 아닙니다.')}</p>
       {s.resetAt && <p className="mt-2 text-xs text-muted-foreground">{t('Last manual reset: ', '마지막 수동 초기화: ')}{fmtTime(s.resetAt)}</p>}
 
       {!editable ? <p className="mt-4 text-xs text-muted-foreground" data-testid={`text-readonly-${scope}`}>{t('Read-only. Only a trusted operator can change the service-wide budget.', '조회 전용입니다. 전체 서비스 예산은 승인된 운영자만 변경할 수 있습니다.')}</p> : <div className="mt-5 space-y-4 border-t border-card-border pt-4">
