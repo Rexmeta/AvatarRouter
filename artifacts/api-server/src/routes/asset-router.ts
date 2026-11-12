@@ -38,12 +38,17 @@ router.delete("/v1/assets/images/:id", async (req, res) => {
   const { id } = DeleteImageAssetParams.parse(req.params);
   await deleteImage(res.locals.tenantId, id); res.status(204).end();
 });
-router.get("/v1/avatar-assets", async (_req, res) => { res.json((await listAssets(res.locals.tenantId)).map(presentAvatarAsset)); });
+router.get("/v1/avatar-assets", async (_req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  res.json((await listAssets(res.locals.tenantId)).map(presentAvatarAsset));
+});
 router.post("/v1/avatar-assets", async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
   res.status(202).json(presentAvatarAsset(await provisionAsset(res.locals.tenantId, req.body)));
 });
 router.get("/v1/avatar-assets/:id", async (req, res) => {
   const { id } = GetAvatarAssetParams.parse(req.params);
+  res.set("Cache-Control", "private, no-store");
   res.json(presentAvatarAsset(await ownedAvatarAsset(res.locals.tenantId, id)));
 });
 router.post("/v1/avatar-assets/:id/live-validation", sessionOwner, async (req, res) => {

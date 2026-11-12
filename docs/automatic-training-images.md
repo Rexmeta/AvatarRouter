@@ -1,5 +1,19 @@
 # 커스텀 아바타 학습 이미지 자동 보정
 
+## 요청한 제공자로 자동 전달
+
+`providerId: tavus`는 Gemini 생성 이미지를 `POST https://tavusapi.com/v2/faces`의 `train_image_url`로 전송합니다. `providerId: anam`은 `POST https://api.anam.ai/v1/avatars`의 `imageUrl`로 전송합니다. Anam에는 JPEG를 지원하는 `imageProcessing: auto`를 사용하며 정확한 PNG 형식이 필요한 `preserve` 모드를 잘못 지정하지 않습니다. 요청 제공자를 임의로 바꾸거나 실패 시 다른 제공자로 재생성하지 않습니다.
+
+참고한 [Tavus Create PAL](https://docs.tavus.io/api-reference/pals/create-pal)은 **이미 존재하는 `default_face_id`에 대화 동작을 설정하는 API**입니다. 이미지 학습 엔드포인트가 아닙니다. 얼굴 생성은 [Create Face](https://docs.tavus.io/api-reference/faces/create-face)로 수행하고, PAL은 이후 대화 시작 흐름에서 생성된 얼굴에 연결합니다. 커스텀 얼굴 생성 요청만으로 별도 PAL이나 통화를 만들지 않습니다.
+
+```json
+{ "imageAssetId": "원본-이미지-자산-ID", "providerId": "tavus", "personaId": "persona_001" }
+```
+
+위 요청을 `POST /api/v1/avatar-assets`로 보내면 별도 `costConfirmed`나 두 번째 승인 API 호출 없이 자동 작업을 접수합니다. 생성 요청 자체가 Gemini·제공자 비용을 승인한다는 기존 계약은 유지합니다. 명시적 `costConfirmed: false`, 이미지 사용 권리 누락, 권한·요금제 제한은 우회하지 않습니다.
+
+HTTP 202로 받은 `id`를 사용해 `GET /api/v1/avatar-assets/{id}`를 조회합니다. 목록·단건 결과에는 `Cache-Control: private, no-store`를 적용합니다. `ready`에는 완료 메시지, `failed`에는 안전한 `failure`, `reconciliation_required`에는 결과 확인 필요 상태를 전달합니다. 결과가 불확실한 생성 POST는 자동 반복하지 않습니다.
+
 ## 처리 흐름
 
 1. 기존 API로 원본 시드 이미지를 등록합니다. 원본 저장본·해시는 보존합니다.

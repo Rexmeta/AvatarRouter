@@ -9,7 +9,7 @@ export function provisioningProviders(): ProvisioningProvider[] {
       id: "anam", name: "Anam", existingSelection: true, imageCreation: true,
       customTraining: false, realtimeRendering: true, reusableId: true,
       adapterEnabled: true, configured: !!process.env.ANAM_API_KEY,
-      requirements: "Router automatically prepares a separate 1152×1152 JPEG ≤4.5MB. Single-photo API plan/creation limits and provider identity rules still apply. Real-person rights attestation required, no separate router approval. Key presence is not evidence of provider authentication.",
+      requirements: "Every new custom creation uses Gemini to generate from the original seed, verifies identity/framing, and automatically sends a separate 1152×1152 JPEG ≤4.5MB to Anam. No intermediate router approval. Provider moderation/creation limits and real-person rights still apply. Key presence is not evidence of provider authentication.",
       documentationUrl: "https://anam.ai/docs/api-reference/avatars/create-avatar",
       emotionControl: "Unverified in this integration. Director Notes exist, but no real-time control is claimed.",
     },
@@ -17,7 +17,7 @@ export function provisioningProviders(): ProvisioningProvider[] {
       id: "tavus", name: "Tavus", existingSelection: true, imageCreation: true,
       customTraining: true, realtimeRendering: true, reusableId: true,
       adapterEnabled: true, configured: !!process.env.TAVUS_API_KEY,
-      requirements: "Custom faces require Starter, Growth or Enterprise. AvatarRouter requests Tavus AI Image Fixer for image training; the original source is preserved. Phoenix-4.5: JPG/PNG ≥512×512, one adult human-shaped subject. Prefer chest-up, lowered arms. Automatic correction is not a guarantee and cannot bypass policy/consent. Voice and signed image URL valid ≥24h required. Early preview may be watermarked.",
+      requirements: "Every new custom request generates with Gemini from the original seed, verifies identity/framing, then automatically sends the output to Tavus Faces with AI Image Fixer. No intermediate router approval. Phoenix-4.5: JPG/PNG ≥512×512, one adult human-shaped subject, chest-up, lowered arms. Provider plan/creation limits and rights still apply; correction cannot guarantee acceptance or bypass policy. Voice and signed image URL valid ≥24h required. Early preview may be watermarked.",
       documentationUrl: "https://docs.tavus.io/sections/faces/image-to-face-quickstart",
       emotionControl: "Unverified; natural expressions are not a deterministic emotion-event API.",
     },
@@ -82,7 +82,7 @@ export class ImageProviderAdapter {
   }
   async create(name: string, imageUrl: string, voiceName: string) {
     const data = await this.call("", "POST", this.provider === "anam"
-      ? { displayName: name.padEnd(3, " ").slice(0, 50), imageUrl }
+      ? { displayName: name.padEnd(3, " ").slice(0, 50), imageUrl, imageProcessing: "auto" }
       : { face_name: name, train_image_url: imageUrl, voice_name: voiceName, model_name: "phoenix-4.5", auto_fix_training_image: true });
     const id = this.provider === "anam" ? data.id : data.face_id;
     if (typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(id)) throw new ProviderFailure("PROVIDER_RESPONSE_INVALID", true);
