@@ -5,6 +5,7 @@ import type { AvatarAssetRecord, ImageAssetRecord } from "@workspace/db";
 import { GetSeedLiveOptionsResponse, GetSeedLiveOptionsParams } from "@workspace/api-zod";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { seedLiveOptions } from "./seed-live-options";
+import { storeProvisioningFailure } from "./provisioning-failure";
 
 const seed = {
   id: randomUUID(), tenantId: "tenant-a", contentHash: "current-hash", version: 2,
@@ -41,6 +42,20 @@ test("image changes, expiry and provider-ID changes invalidate old playback proo
     assert.equal(result.candidates[0].liveReference, null);
     assert.equal(result.canProvision, false);
   }
+});
+
+test("framing failure survives seed status projection without authorizing recreation or activation", () => {
+  const errorCode = storeProvisioningFailure("PROVIDER_TRAINING_FAILED", {
+    stage: "status", httpStatus: 200, providerCode: "training_image_framing_invalid", reasonState: "safe_message",
+  });
+  const response = GetSeedLiveOptionsResponse.parse(seedLiveOptions(seed, [asset({
+    status: "failed", errorCode,
+  })], true));
+  assert.equal(response.nextAction, "replace_image");
+  assert.equal(response.canProvision, false);
+  assert.equal(response.candidates[0].canActivate, false);
+  assert.equal(response.candidates[0].failure?.providerErrorCode, "training_image_framing_invalid");
+  assert.equal(response.candidates[0].liveReference, null);
 });
 
 test("consent and missing configuration cannot be bypassed by existing validation", () => {

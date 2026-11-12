@@ -2,10 +2,14 @@ import { db, avatarAssets, imageAssets, and, eq, sql, type AvatarAssetRecord } f
 import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers";
 import { providerImageUrl } from "./private-images";
 import { logger } from "./logger";
+import { storeProvisioningFailure, decodeProvisioningFailure } from "./provisioning-failure";
 
 export function provisioningOutcome(error: unknown, creating: boolean) {
   const issue = error instanceof ProviderFailure ? error : new ProviderFailure("PROVISIONING_INTERNAL_ERROR", creating);
-  return { code: issue.code, ambiguous: creating && issue.ambiguous, retryable: !creating && issue.retryable };
+  return {
+    code: issue.code, storedCode: storeProvisioningFailure(issue.code, issue.evidence),
+    ambiguous: creating && issue.ambiguous, retryable: !creating && issue.retryable,
+  };
 }
 export async function runProvisioningTick(options: {
   onlyId?: string;
@@ -55,10 +59,14 @@ export async function runProvisioningTick(options: {
       status: row.status === "deleting" ? "deleting"
         : outcome.ambiguous ? "reconciliation_required"
         : outcome.retryable ? row.status : "failed",
-      errorCode: outcome.code,
+      errorCode: outcome.storedCode,
       ...(row.status === "deleting" ? { deletionStatus: "manual_review" as const } : {}),
     });
-    logger.warn({ assetId: row.id, code: outcome.code }, "Avatar provisioning operation requires attention");
+    logger.warn({
+      assetId: row.id, provider: row.providerId, operation: creating ? "create" : row.status === "deleting" ? "delete" : "status",
+      code: outcome.code, evidence: decodeProvisioningFailure(outcome.storedCode),
+      providerIdPresent: !!row.providerAvatarId, creationOutcomeUncertain: outcome.ambiguous,
+    }, "Avatar provisioning operation requires attention");
   }
 }
 async function finish(row: AvatarAssetRecord, changes: Partial<typeof avatarAssets.$inferInsert>) {

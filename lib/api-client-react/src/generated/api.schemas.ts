@@ -215,10 +215,90 @@ export const SeedLiveCandidateNextAction = {
   configure_provider: 'configure_provider',
 } as const;
 
+export type AvatarProvisioningFailureStage = typeof AvatarProvisioningFailureStage[keyof typeof AvatarProvisioningFailureStage];
+
+
+export const AvatarProvisioningFailureStage = {
+  create: 'create',
+  status: 'status',
+  delete: 'delete',
+  unknown: 'unknown',
+} as const;
+
+export type AvatarProvisioningFailureCategory = typeof AvatarProvisioningFailureCategory[keyof typeof AvatarProvisioningFailureCategory];
+
+
+export const AvatarProvisioningFailureCategory = {
+  training: 'training',
+  authentication: 'authentication',
+  billing: 'billing',
+  permission_or_plan: 'permission_or_plan',
+  provider_limit: 'provider_limit',
+  input: 'input',
+  reconciliation: 'reconciliation',
+  unknown: 'unknown',
+} as const;
+
+export type AvatarProvisioningFailureReasonState = typeof AvatarProvisioningFailureReasonState[keyof typeof AvatarProvisioningFailureReasonState];
+
+
+export const AvatarProvisioningFailureReasonState = {
+  safe_code: 'safe_code',
+  safe_message: 'safe_message',
+  missing_reason: 'missing_reason',
+  unrecognized_reason: 'unrecognized_reason',
+  body_missing: 'body_missing',
+  body_too_large: 'body_too_large',
+  invalid_json: 'invalid_json',
+  read_timeout: 'read_timeout',
+  read_failed: 'read_failed',
+  not_retained: 'not_retained',
+} as const;
+
+export type AvatarProvisioningFailureNextAction = typeof AvatarProvisioningFailureNextAction[keyof typeof AvatarProvisioningFailureNextAction];
+
+
+export const AvatarProvisioningFailureNextAction = {
+  operator_reconcile: 'operator_reconcile',
+  inspect_existing_asset: 'inspect_existing_asset',
+  operator_review: 'operator_review',
+  replace_image: 'replace_image',
+} as const;
+
+export type AvatarProvisioningFailureCreationOutcome = typeof AvatarProvisioningFailureCreationOutcome[keyof typeof AvatarProvisioningFailureCreationOutcome];
+
+
+export const AvatarProvisioningFailureCreationOutcome = {
+  created: 'created',
+  not_created: 'not_created',
+  unknown: 'unknown',
+} as const;
+
+export interface AvatarProvisioningFailure {
+  code: string;
+  stage: AvatarProvisioningFailureStage;
+  category: AvatarProvisioningFailureCategory;
+  /**
+     * @minimum 100
+     * @maximum 599
+     * @nullable
+     */
+  providerHttpStatus: number | null;
+  /** @nullable */
+  providerErrorCode: string | null;
+  reasonState: AvatarProvisioningFailureReasonState;
+  message: string;
+  messageKo: string;
+  automaticRetryAllowed: false;
+  nextAction: AvatarProvisioningFailureNextAction;
+  creationOutcome: AvatarProvisioningFailureCreationOutcome;
+}
+
 export interface SeedLiveCandidate {
   avatarAssetId: string;
   status: string;
   canActivate: boolean;
+  failure?: AvatarProvisioningFailure | null;
   nextAction: SeedLiveCandidateNextAction;
   liveReference: SeedLiveReference | null;
 }
@@ -384,6 +464,7 @@ export interface AvatarAsset {
   liveValidation?: AvatarLiveValidation;
   /** @nullable */
   errorCode: string | null;
+  failure?: AvatarProvisioningFailure | null;
   deletionStatus: AvatarAssetDeletionStatus;
   createdAt: string;
   updatedAt: string;

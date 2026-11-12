@@ -1,6 +1,7 @@
 import type { AvatarAssetRecord, ImageAssetRecord } from "@workspace/db";
 import type { SeedLiveOptions, SeedLiveCandidate } from "@workspace/api-zod";
 import { assetLiveVerified } from "./asset-live-policy";
+import { presentProvisioningFailure } from "./provisioning-failure";
 
 /** Pure local projection: no provider requests, creation, URLs or private consent evidence. */
 export function seedLiveOptions(
@@ -11,18 +12,21 @@ export function seedLiveOptions(
     .filter(a => a.tenantId === image.tenantId && a.imageAssetId === image.id && a.providerId === "tavus")
     .map(a => {
       const matches = a.sourceContentHash === image.contentHash;
+      const failure = presentProvisioningFailure(a);
       let nextAction: SeedLiveCandidate["nextAction"];
       if (!consent) nextAction = "review_consent";
       else if (!configured) nextAction = "configure_provider";
       else if (!matches || a.status === "deleted" || a.status === "deleting" || a.expiresAt && a.expiresAt <= new Date()) nextAction = "replace_image";
       else if (a.status === "reconciliation_required" || a.status === "submitting") nextAction = "reconcile";
       else if (a.status === "queued" || a.status === "processing") nextAction = "wait";
+      else if (failure?.nextAction === "replace_image") nextAction = "replace_image";
       else if (assetLiveVerified(a)) nextAction = "select";
       else if (a.status === "ready" && a.providerAvatarId) nextAction = "validate";
       else nextAction = "inspect_failure";
       const canActivate = nextAction === "select";
       return {
         avatarAssetId: a.id, status: a.status, nextAction, canActivate,
+        failure,
         liveReference: canActivate ? {
           providerId: "tavus", avatarId: a.providerAvatarId!, avatarAssetId: a.id, pipeline: "tavus_full",
         } : null,

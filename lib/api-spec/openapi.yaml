@@ -967,6 +967,10 @@ components:
         avatarAssetId: { type: string, format: uuid }
         status: { type: string }
         canActivate: { type: boolean }
+        failure:
+          anyOf:
+            - { $ref: "#/components/schemas/AvatarProvisioningFailure" }
+            - { type: "null" }
         nextAction:
           type: string
           enum: [select, validate, wait, reconcile, inspect_failure, replace_image, review_consent, configure_provider]
@@ -1010,10 +1014,30 @@ components:
         capabilities: { $ref: "#/components/schemas/AvatarCapabilities" }
         liveValidation: { $ref: "#/components/schemas/AvatarLiveValidation" }
         errorCode: { type: [string, "null"] }
+        failure:
+          anyOf:
+            - { $ref: "#/components/schemas/AvatarProvisioningFailure" }
+            - { type: "null" }
         deletionStatus: { type: string, enum: [not_requested, pending, confirmed, manual_review] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: [string, "null"], format: date-time }
+    AvatarProvisioningFailure:
+      type: object
+      additionalProperties: false
+      required: [code, stage, category, providerHttpStatus, providerErrorCode, reasonState, message, messageKo, automaticRetryAllowed, nextAction, creationOutcome]
+      properties:
+        code: { type: string }
+        stage: { type: string, enum: [create, status, delete, unknown] }
+        category: { type: string, enum: [training, authentication, billing, permission_or_plan, provider_limit, input, reconciliation, unknown] }
+        providerHttpStatus: { type: [integer, "null"], minimum: 100, maximum: 599 }
+        providerErrorCode: { type: [string, "null"] }
+        reasonState: { type: string, enum: [safe_code, safe_message, missing_reason, unrecognized_reason, body_missing, body_too_large, invalid_json, read_timeout, read_failed, not_retained] }
+        message: { type: string }
+        messageKo: { type: string }
+        automaticRetryAllowed: { type: boolean, enum: [false] }
+        nextAction: { type: string, enum: [operator_reconcile, inspect_existing_asset, operator_review, replace_image] }
+        creationOutcome: { type: string, enum: [created, not_created, unknown] }
     AvatarPlaybackReport:
       type: object
       additionalProperties: false

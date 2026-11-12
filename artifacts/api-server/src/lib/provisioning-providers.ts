@@ -1,5 +1,7 @@
 import type { ProvisioningProvider } from "@workspace/api-zod";
 import { SessionProblem } from "./session-service";
+import { classifyProviderRejection, readProviderRejection } from "./provider-rejection-diagnostic";
+import type { storeProvisioningFailure } from "./provisioning-failure";
 
 export function provisioningProviders(): ProvisioningProvider[] {
   return [
@@ -15,7 +17,7 @@ export function provisioningProviders(): ProvisioningProvider[] {
       id: "tavus", name: "Tavus", existingSelection: true, imageCreation: true,
       customTraining: true, realtimeRendering: true, reusableId: true,
       adapterEnabled: true, configured: !!process.env.TAVUS_API_KEY,
-      requirements: "Custom faces require Starter, Growth or Enterprise. Phoenix-4.5 image training uses a voice and a signed image URL valid ≥24h. Early completed preview may be watermarked. Existing stock-face session success does not prove custom-training entitlement.",
+      requirements: "Custom faces require Starter, Growth or Enterprise. Phoenix-4.5: JPG/PNG ≥512×512, one adult human-shaped subject, chest-up portrait recommended; crop at or above the navel, no full body, keep arms lowered and hands at/below chest height, head and both shoulders in frame. Voice and signed image URL valid ≥24h required. Dimensions do not validate pose; provider checks still apply. Early preview may be watermarked. Stock-face success does not prove custom-training entitlement.",
       documentationUrl: "https://docs.tavus.io/sections/faces/image-to-face-quickstart",
       emotionControl: "Unverified; natural expressions are not a deterministic emotion-event API.",
     },
@@ -38,13 +40,15 @@ export function provisioningProviders(): ProvisioningProvider[] {
   ];
 }
 export class ProviderFailure extends Error {
-  constructor(public code: string, public ambiguous = false, public retryable = false) { super(code); }
+  constructor(public code: string, public ambiguous = false, public retryable = false,
+    public evidence?: Parameters<typeof storeProvisioningFailure>[1]) { super(code); }
 }
 type Transport = typeof fetch;
 export class ImageProviderAdapter {
   constructor(readonly provider: "anam" | "tavus", private transport: Transport = fetch,
     private credential: () => string | undefined = () => process.env[provider === "anam" ? "ANAM_API_KEY" : "TAVUS_API_KEY"]) {}
   private async call(path: string, method = "GET", body?: unknown) {
+    const stage = method === "POST" ? "create" : method === "DELETE" ? "delete" : "status";
     const key = this.credential();
     if (!key) throw new ProviderFailure("PROVIDER_NOT_CONFIGURED");
     let response: Response;
@@ -56,7 +60,8 @@ export class ImageProviderAdapter {
         }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000),
         redirect: "error",
       });
-    } catch { throw new ProviderFailure("PROVIDER_NETWORK_ERROR", method === "POST", true); }
+    } catch { throw new ProviderFailure("PROVIDER_NETWORK_ERROR", method === "POST", true,
+      { stage, httpStatus: null, providerCode: null, reasonState: "body_missing" }); }
     if (method === "DELETE" && response.status === 404) return {};
     if (!response.ok) {
       const code = response.status === 401 ? "PROVIDER_AUTHENTICATION_FAILED"
@@ -64,9 +69,11 @@ export class ImageProviderAdapter {
         : response.status === 429 ? "PROVIDER_RATE_LIMITED"
         : response.status === 409 ? "PROVIDER_RESOURCE_IN_USE"
         : response.status >= 500 ? "PROVIDER_UNAVAILABLE" : "PROVIDER_INPUT_REJECTED";
-      // Never log or persist provider response bodies (may contain signed URLs).
-      await response.body?.cancel();
-      throw new ProviderFailure(code, method === "POST" && response.status >= 500, response.status === 429 || response.status >= 500);
+      // Bounded allowlist extraction only. A timeout may follow an accepted paid POST.
+      const reason = await readProviderRejection(response);
+      throw new ProviderFailure(code, method === "POST" && (response.status === 408 || response.status >= 500),
+        response.status === 429 || response.status >= 500,
+        { stage, httpStatus: response.status, providerCode: reason.code, reasonState: reason.reasonState });
     }
     try {
       const text = await response.text();
@@ -84,7 +91,11 @@ export class ImageProviderAdapter {
   async poll(id: string) {
     const data = await this.call(`/${encodeURIComponent(id)}`);
     if (this.provider === "anam") return "ready" as const;
-    if (data.status === "error") throw new ProviderFailure("PROVIDER_TRAINING_FAILED");
+    if (data.status === "error") {
+      const reason = classifyProviderRejection(data);
+      throw new ProviderFailure("PROVIDER_TRAINING_FAILED", false, false,
+        { stage: "status", httpStatus: 200, providerCode: reason.code, reasonState: reason.reasonState });
+    }
     if (data.status === "completed") return "ready" as const;
     if (data.status !== "started") throw new ProviderFailure("PROVIDER_STATUS_UNKNOWN", false, true);
     return "processing" as const;

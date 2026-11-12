@@ -10,6 +10,7 @@ import type { AvatarAssetDeletionStatus } from './avatarAssetDeletionStatus';
 import type { AvatarAssetStatus } from './avatarAssetStatus';
 import type { AvatarCapabilities } from './avatarCapabilities';
 import type { AvatarLiveValidation } from './avatarLiveValidation';
+import type { AvatarProvisioningFailure } from './avatarProvisioningFailure';
 
 export interface AvatarAsset {
   id: string;
@@ -25,6 +26,7 @@ export interface AvatarAsset {
   liveValidation?: AvatarLiveValidation;
   /** @nullable */
   errorCode: string | null;
+  failure?: AvatarProvisioningFailure | null;
   deletionStatus: AvatarAssetDeletionStatus;
   createdAt: Date;
   updatedAt: Date;

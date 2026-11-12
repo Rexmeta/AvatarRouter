@@ -1,5 +1,84 @@
 # RoleplayX 페르소나 수정: 시드 이미지 → 라이브 아바타
 
+## 생성 실패를 표시하는 계약
+
+AvatarRouter의 `POST /api/v1/avatar-assets`는 **HTTP 202 접수**이며 생성 성공이 아닙니다.
+RoleplayX 서버는 반환된 자산 ID를 저장하고 같은 프로젝트 키로
+`GET /api/v1/avatar-assets/{id}`를 약 4초 간격으로 조회하세요.
+`queued/submitting/processing`에서는 “생성 중”으로 표시하고, `ready`에서만 생성 완료로 표시합니다.
+이후 별도의 실제 재생 검증이 있어야 라이브 모드 활성화가 가능합니다.
+
+실패 시 `errorCode`는 기존의 안정적인 오류 코드를 유지하며, 새 `failure`가
+실패 단계와 공개 가능한 증거를 제공합니다. 같은 정보가 시드 이미지
+`live-options.candidates[].failure`에도 포함됩니다.
+
+```json
+{
+  "status": "failed",
+  "errorCode": "PROVIDER_TRAINING_FAILED",
+  "failure": {
+    "code": "PROVIDER_TRAINING_FAILED",
+    "stage": "status",
+    "category": "training",
+    "providerHttpStatus": 200,
+    "providerErrorCode": null,
+    "reasonState": "unrecognized_reason",
+    "message": "The provider created a face reference but reported training failure. This does not establish a billing or plan problem.",
+    "messageKo": "제공자가 얼굴 참조를 발급했지만 학습 실패를 반환했습니다. 이 결과만으로 비용·요금제 문제라고 판단할 수 없습니다.",
+    "automaticRetryAllowed": false,
+    "nextAction": "inspect_existing_asset",
+    "creationOutcome": "created"
+  }
+}
+```
+
+위는 **신규 진단의 예시**이며 과거 실패에서 HTTP 200을 보존했다는 뜻은 아닙니다.
+과거 기록에는 `stage=unknown`, `providerHttpStatus=null`, `reasonState=not_retained`가
+반환될 수 있습니다. `created`는 제공자 참조가 발급됐다는 뜻이지 학습 성공이 아닙니다.
+학습 단계는 HTTP 200이어도 본문의 `status=error`로 실패할 수 있습니다.
+
+외부 앱 처리 규칙:
+- HTTP 202를 “완료”로 표시하지 말고 “요청 접수·생성 중”으로 표시합니다.
+- `failed`/`reconciliation_required`에서 폴링을 멈추고 `failure.messageKo`와 자산 ID,
+  실패 단계, 존재하는 HTTP 상태·제공자 코드만 표시합니다.
+- `failure`가 없는 구버전 서버는 `errorCode`를 표시하고 “상세 원인 미보존”으로 안내합니다.
+- 종료·편집기 닫기·새로고침 때 오류를 지우지 않습니다. 저장된 자산 ID로 상태를 다시 조회합니다.
+- 기존 이미지를 유지하되 라이브 설정 성공으로 저장하지 않습니다. 기존 정상 라이브 연결을
+  보존하려면 새 생성 후보와 활성 연결을 별도 필드로 관리합니다.
+- 실패 버튼으로 같은 `POST`를 반복하지 않습니다. 기존 자산 결과 확인은 GET만 사용합니다.
+- `creationOutcome=unknown` 또는 `nextAction=operator_reconcile`이면 운영자 확인 전
+  재생성·삭제·차단 우회를 제공하지 않습니다.
+- API 실패(권한·동의·이미지 규격 등)는 HTTP 오류 응답의 `error`/`message`를 별도로 표시합니다.
+- 저장·프록시 응답 스키마에서 `failure`를 제거하지 마세요. 앱 화면도 이를 명시적으로 소비해야 합니다.
+
+`providerHttpStatus`는 제공자의 응답이며 RoleplayX→AvatarRouter HTTP 상태가 아닙니다.
+임의의 제공자 본문·`error_message`·서명 URL은 반환하지 않습니다. 알려진 코드만 보존하며,
+낯선 문구는 `unrecognized_reason`으로 표시합니다. 비용 문제로 추정 변환하지 않습니다.
+
+### Phoenix-4.5 이미지 구도 거절
+
+이번에 확인된 Tavus 문구(배꼽 아래·전신·높이 든 팔 제한)는 검토된 고정 문구일 때만
+`failure.providerErrorCode=training_image_framing_invalid`, `category=input`,
+`nextAction=replace_image`로 전달합니다. 임의 문장에서 단어만 추출해 추정하지 않습니다.
+RoleplayX는 `messageKo`를 보여 주고 이미지 수정·새 버전 업로드로 안내하세요.
+과거 저장된 `PROVIDER_TRAINING_FAILED`에 이 코드를 추정해 소급 적용하지 않습니다.
+
+생성 버튼 앞에 다음 기준을 표시하세요:
+- 성인 한 명, 최소 512×512 JPG/PNG(라우터는 저장 시 JPEG로 정규화).
+- 가슴 위 중심 상반신 구도 권장, 머리와 양쪽 어깨가 프레임 안에 있어야 합니다.
+- 배꼽 또는 그 위에서 자르며 전신·하복부가 넓게 드러난 구도는 피합니다.
+- 손·팔은 가슴 높이 이하로 낮추고 얼굴을 가리지 않습니다.
+- 픽셀 크기는 서버에서 검사하지만 구도·자세 적합성은 보장하지 않습니다.
+
+같은 실패 이미지의 POST를 반복하지 말고, 사용자가 직접 구도를 수정해
+`previousVersionId`로 새 시드를 등록하세요. 자동 크롭이나 AI Image Fixer를
+묵시적으로 켜지 않습니다. 이미지 변경·새 유료 생성은 별도 명시적 동의가 필요합니다.
+기존 실패 자산의 제공자 ID는 삭제하거나 덮어쓰지 않습니다.
+
+이미지로 학습하는 현재 경로의 직접 기준:
+https://docs.tavus.io/sections/faces/phoenix-45-image-requirements
+동영상 학습 기준과 혼동하지 마세요.
+
 ## 구현 범위
 
 AvatarRouter API·관리 화면의 계약입니다. 외부 RoleplayX 저장소의 실제 편집기나

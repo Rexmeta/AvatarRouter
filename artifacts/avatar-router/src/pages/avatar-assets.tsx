@@ -454,6 +454,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
   const sel = providers.data?.find((p) => p.id === pid);
   const voiceOk = /^[a-zA-Z0-9_-]{1,50}$/.test(voice);
   const blocked = img?.consentStatus === 'pending_review';
+  const imageTooSmall = pid === 'tavus' && !!img && (img.width < 512 || img.height < 512);
 
   const close = () => { setPid(''); setCost(false); setErr(null); setVoice('anna'); onClose(); };
 
@@ -503,6 +504,13 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
                 );
               })}
             </div>
+            {pid === 'tavus' && <div className="space-y-2 rounded border border-[hsl(var(--warn)/.4)] bg-[hsl(var(--warn)/.06)] p-3 text-xs" data-testid="tavus-image-requirements">
+              <strong>{L('Check the training image before submitting', '생성 전에 학습 이미지 구도를 확인하세요')}</strong>
+              <p>{L('Use one adult subject, at least 512×512. A chest-up portrait is recommended: head and both shoulders visible, crop at or above the navel, hands and arms at or below chest height. Full-body framing and raised arms are not supported.', '성인 한 명, 최소 512×512 이미지를 사용하세요. 머리와 양쪽 어깨가 보이는 가슴 위 중심 상반신 구도를 권장합니다. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 높이 이하로 낮추세요. 전신과 들어 올린 팔은 지원하지 않습니다.')}</p>
+              <p>{L('Pixel size alone does not check pose. If rejected, edit and upload a new image version; do not submit the same image again.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 거절되면 이미지를 수정해 새 버전으로 등록하세요. 같은 이미지를 반복 제출하지 마세요.')}</p>
+              <a className="underline" href="https://docs.tavus.io/sections/faces/phoenix-45-image-requirements" target="_blank" rel="noreferrer">{L('Official image requirements', '공식 이미지 학습 기준')}</a>
+              {imageTooSmall && <p role="alert" className="text-destructive">{L('This image is smaller than 512×512. Creation is blocked.', '이 이미지는 512×512 미만입니다. 생성이 차단됩니다.')}</p>}
+            </div>}
             <Field label={L('Voice name', '음성 이름')} hint={L('Letters, digits, - and _. Defaults to anna.', '영문, 숫자, -, _ 사용. 기본값 anna.')}>
               <input data-testid="input-voice" value={voice} onChange={(e) => setVoice(e.target.value)} className="mono w-full rounded border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
             </Field>
@@ -516,7 +524,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               </label>
             )}
             {err && <p className="flex gap-1.5 text-sm text-destructive" data-testid="text-provision-error"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{err}</p>}
-            <button data-testid="button-submit-provision" disabled={!sel || !cost || !voiceOk || provision.isPending} onClick={go}
+            <button data-testid="button-submit-provision" disabled={!sel || !cost || !voiceOk || imageTooSmall || provision.isPending} onClick={go}
               className="w-full rounded bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition active:scale-[.98] disabled:opacity-40">
               {provision.isPending ? L('Submitting…', '제출 중…') : L('Request avatar from provider', '프로바이더에 아바타 요청')}
             </button>
@@ -570,6 +578,7 @@ function AvatarRow({ a, onOpen }: { a: AvatarAsset; onOpen: () => void }) {
 function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const { projectId, request, imageUrl } = useAssetWorkspace();
   const L = useL();
+  const { lang } = useI18n();
   const { user } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -613,6 +622,11 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
               </div>
               {PENDING.has(a.status) && <p className="text-xs text-muted-foreground">{L('Provider work is asynchronous. This view refreshes every 4 seconds.', '프로바이더 작업은 비동기입니다. 4초마다 새로 고칩니다.')}</p>}
               {a.errorCode && <p className="mono rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" data-testid="text-avatar-error">{a.errorCode}</p>}
+              {a.failure && <div role="alert" className="space-y-1 rounded border border-destructive/30 p-3 text-sm">
+                <p>{lang === 'ko' ? a.failure.messageKo : a.failure.message}</p>
+                <p className="font-mono text-xs">{a.failure.stage} · {a.failure.providerHttpStatus !== null ? `HTTP ${a.failure.providerHttpStatus}` : 'HTTP unknown'} · {a.failure.reasonState}</p>
+                <p className="text-xs">{L('Do not recreate automatically. Inspect the existing asset with the operator.', '자동 재생성하지 마세요. 운영자와 기존 자산을 확인하세요.')}</p>
+              </div>}
               {a.status === 'reconciliation_required' && <p className="text-xs text-[hsl(var(--warn))]">{L('Local and provider state disagree. An operator must reconcile before this asset can be used or deleted cleanly.', '로컬과 프로바이더 상태가 다릅니다. 운영자의 조정이 필요합니다.')}</p>}
 
               <dl className="mono grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[11.5px]">

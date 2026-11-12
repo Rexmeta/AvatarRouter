@@ -305,6 +305,11 @@ export const ReportAvatarLiveValidationBody = zod.object({
   "audioObserved": zod.boolean()
 })
 
+export const reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMin = 100;
+export const reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMax = 599;
+
+
+
 export const ReportAvatarLiveValidationResponse = zod.object({
   "id": zod.string(),
   "imageAssetId": zod.string(),
@@ -329,6 +334,19 @@ export const ReportAvatarLiveValidationResponse = zod.object({
   "validatedAt": zod.coerce.date().nullable()
 }).optional(),
   "errorCode": zod.string().nullable(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMin).max(reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -544,6 +562,11 @@ export const GetSeedLiveOptionsParams = zod.object({
   "id": zod.uuid()
 })
 
+export const getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMin = 100;
+export const getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMax = 599;
+
+
+
 export const GetSeedLiveOptionsResponse = zod.object({
   "imageAssetId": zod.uuid(),
   "imageVersion": zod.int(),
@@ -554,6 +577,19 @@ export const GetSeedLiveOptionsResponse = zod.object({
   "avatarAssetId": zod.uuid(),
   "status": zod.string(),
   "canActivate": zod.boolean(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMin).max(getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "nextAction": zod.enum(['select', 'validate', 'wait', 'reconcile', 'inspect_failure', 'replace_image', 'review_consent', 'configure_provider']),
   "liveReference": zod.union([zod.object({
   "providerId": zod.enum(['tavus']),
@@ -578,6 +614,11 @@ export const GetImageContentResponse = zod.unknown()
 /**
  * Requires assets:read on a project API key or delegation JWT, or a Clerk login; results are tenant-scoped.
  */
+export const listAvatarAssetsResponseFailureOneProviderHttpStatusMin = 100;
+export const listAvatarAssetsResponseFailureOneProviderHttpStatusMax = 599;
+
+
+
 export const ListAvatarAssetsResponseItem = zod.object({
   "id": zod.string(),
   "imageAssetId": zod.string(),
@@ -602,6 +643,19 @@ export const ListAvatarAssetsResponseItem = zod.object({
   "validatedAt": zod.coerce.date().nullable()
 }).optional(),
   "errorCode": zod.string().nullable(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(listAvatarAssetsResponseFailureOneProviderHttpStatusMin).max(listAvatarAssetsResponseFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -623,6 +677,11 @@ export const ProvisionAvatarBody = zod.object({
   "voiceName": zod.string().regex(provisionAvatarBodyVoiceNameRegExp).default(provisionAvatarBodyVoiceNameDefault),
   "costConfirmed": zod.boolean().describe('Explicit confirmation of potential provider training charges')
 })
+
+export const provisionAvatarResponseFailureOneProviderHttpStatusMin = 100;
+export const provisionAvatarResponseFailureOneProviderHttpStatusMax = 599;
+
+
 
 export const ProvisionAvatarResponse = zod.object({
   "id": zod.string(),
@@ -648,6 +707,19 @@ export const ProvisionAvatarResponse = zod.object({
   "validatedAt": zod.coerce.date().nullable()
 }).optional(),
   "errorCode": zod.string().nullable(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(provisionAvatarResponseFailureOneProviderHttpStatusMin).max(provisionAvatarResponseFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -661,6 +733,11 @@ export const ProvisionAvatarResponse = zod.object({
 export const GetAvatarAssetParams = zod.object({
   "id": zod.uuid()
 })
+
+export const getAvatarAssetResponseFailureOneProviderHttpStatusMin = 100;
+export const getAvatarAssetResponseFailureOneProviderHttpStatusMax = 599;
+
+
 
 export const GetAvatarAssetResponse = zod.object({
   "id": zod.string(),
@@ -686,6 +763,19 @@ export const GetAvatarAssetResponse = zod.object({
   "validatedAt": zod.coerce.date().nullable()
 }).optional(),
   "errorCode": zod.string().nullable(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(getAvatarAssetResponseFailureOneProviderHttpStatusMin).max(getAvatarAssetResponseFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
@@ -699,6 +789,11 @@ export const GetAvatarAssetResponse = zod.object({
 export const DeleteAvatarAssetParams = zod.object({
   "id": zod.uuid()
 })
+
+export const deleteAvatarAssetResponseFailureOneProviderHttpStatusMin = 100;
+export const deleteAvatarAssetResponseFailureOneProviderHttpStatusMax = 599;
+
+
 
 export const DeleteAvatarAssetResponse = zod.object({
   "id": zod.string(),
@@ -724,6 +819,19 @@ export const DeleteAvatarAssetResponse = zod.object({
   "validatedAt": zod.coerce.date().nullable()
 }).optional(),
   "errorCode": zod.string().nullable(),
+  "failure": zod.union([zod.object({
+  "code": zod.string(),
+  "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
+  "providerHttpStatus": zod.int().min(deleteAvatarAssetResponseFailureOneProviderHttpStatusMin).max(deleteAvatarAssetResponseFailureOneProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.string().nullable(),
+  "reasonState": zod.enum(['safe_code', 'safe_message', 'missing_reason', 'unrecognized_reason', 'body_missing', 'body_too_large', 'invalid_json', 'read_timeout', 'read_failed', 'not_retained']),
+  "message": zod.string(),
+  "messageKo": zod.string(),
+  "automaticRetryAllowed": zod.literal(false),
+  "nextAction": zod.enum(['operator_reconcile', 'inspect_existing_asset', 'operator_review', 'replace_image']),
+  "creationOutcome": zod.enum(['created', 'not_created', 'unknown'])
+}),zod.null()]).optional(),
   "deletionStatus": zod.enum(['not_requested', 'pending', 'confirmed', 'manual_review']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),

@@ -54,6 +54,12 @@ export function SeedLiveOptionsButton({ imageId, onProvision }: { imageId: strin
           {q.data.candidates.map(candidate => <div key={candidate.avatarAssetId} className="space-y-2 rounded border p-3">
             <p className="break-all font-mono text-xs">{candidate.avatarAssetId}</p>
             <p>{text(candidate.nextAction)}</p>
+            {candidate.failure && <div role="alert" className="rounded border border-destructive/30 p-2 text-xs text-destructive">
+              <p>{ko ? candidate.failure.messageKo : candidate.failure.message}</p>
+              <p className="mt-1 font-mono">{candidate.failure.code} · {candidate.failure.stage}
+                {candidate.failure.providerHttpStatus !== null ? ` · HTTP ${candidate.failure.providerHttpStatus}` : ''}</p>
+              <p>{ko ? '자동 재생성하지 마세요. 기존 자산을 운영자와 확인하세요.' : 'Do not automatically recreate. Ask the operator to inspect the existing asset.'}</p>
+            </div>}
             {candidate.liveReference && <button className="rounded border px-3 py-1.5" onClick={async () => {
               try {
                 await navigator.clipboard.writeText(JSON.stringify({

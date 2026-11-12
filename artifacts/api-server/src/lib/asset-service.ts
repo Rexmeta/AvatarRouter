@@ -6,6 +6,7 @@ import { decodeImageBase64, fetchAuthorizedImage, validateImage } from "./image-
 import { savePrivateImage, removePrivateImage } from "./private-images";
 import { requireSupportedProvider } from "./provisioning-providers";
 import { assetLiveVerified } from "./asset-live-policy";
+import { decodeProvisioningFailure, presentProvisioningFailure } from "./provisioning-failure";
 
 export function presentImage(row: ImageAssetRecord) {
   const { tenantId, objectPath, lineageId, consentReference, rightsConfirmedAt, ...safe } = row;
@@ -15,7 +16,9 @@ export function presentAvatarAsset(row: AvatarAssetRecord) {
   return GetAvatarAssetResponse.parse({
     id: row.id, imageAssetId: row.imageAssetId, name: row.name,
     sourceContentHash: row.sourceContentHash, providerId: row.providerId, providerAvatarId: row.providerAvatarId,
-    status: row.status, creationMode: row.creationMode, errorCode: row.errorCode, deletionStatus: row.deletionStatus,
+    status: row.status, creationMode: row.creationMode,
+    errorCode: decodeProvisioningFailure(row.errorCode)?.code ?? row.errorCode,
+    failure: presentProvisioningFailure(row), deletionStatus: row.deletionStatus,
     capabilities: { reusable: true, liveRendering: row.providerId === "tavus", emotionControl: "unverified", behaviorControl: "unverified", validation: assetLiveVerified(row) ? "live_verified" : row.status === "ready" ? "provisioned" : "documentation_only" },
     liveValidation: {
       status: assetLiveVerified(row) ? "validated" : "unvalidated", runtimeSupported: row.providerId === "tavus",
@@ -91,6 +94,9 @@ export async function provisionAsset(tenant: string, input: unknown, notBefore =
     }
     if (providerId === "anam" && (image.width !== image.height || image.width < 1152)) {
       throw new SessionProblem(422, "PROVIDER_IMAGE_REQUIREMENTS", "Anam requires a square source at least 1152×1152 pixels.");
+    }
+    if (providerId === "tavus" && (image.width < 512 || image.height < 512)) {
+      throw new SessionProblem(422, "PROVIDER_IMAGE_REQUIREMENTS", "Tavus Phoenix-4.5 requires at least 512×512 pixels. Use an adult chest-up portrait, cropped at or above the navel with lowered arms. Dimensions alone do not validate framing.");
     }
     const voiceName = data.voiceName ?? "anna";
     const [existing] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.tenantId, tenant), eq(avatarAssets.imageAssetId, image.id), eq(avatarAssets.providerId, providerId), eq(avatarAssets.voiceName, voiceName)));
