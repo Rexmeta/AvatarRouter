@@ -12,6 +12,7 @@ import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } fr
 import { isTrustedLiveOperator } from "../routes/live-reconciliation";
 import { flushRendererDiagnostics } from "./renderer-diagnostic-store";
 import { anamLabel, ANAM_AVATAR } from "./anam-runtime";
+import { readTavusFinalTranscript } from "./tavus-final-transcript";
 
 // Real PostgreSQL locking/leases, isolated schema. Never call a provider or touch
 // application sessions, even if workflows are concurrently running.
@@ -158,6 +159,107 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
     assert.equal(calls.filter(x => x.endsWith("/auth/session-token")).length, 1);
     assert.ok(!calls.some(x => x.includes("/engine/")));
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("late Tavus ID persisted during runtime stop survives the fresh cleanup read", async () => {
+  let starts = 0, stops = 0;
+  const w = new RendererWorker((_row, onId, before) => ({
+    async start() { await before(); starts++; },
+    async stop() {
+      stops++;
+      // Simulate a delayed create response becoming durable while stop awaits it.
+      await onId("test-late-transcript-reference");
+      return { providerEnded: true, roomDeleted: true };
+    },
+    async sendAudio() {}, async interrupt() {}, connected: () => true,
+  }));
+  workers.push(w);
+  const row = await fixture({
+    pipeline: "tavus_full", roomName: null,
+    fullPipeline: { systemPrompt: "test-private-prompt", token: "test-private-token", url: "https://test.daily.co/private" },
+  });
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "running");
+  assert.equal((await get(row.id)).providerConversationId, null);
+  await apiA.closeStockSession(row.ownerHash, row.id);
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  const closed = await get(row.id);
+  assert.equal(starts, 1);
+  assert.equal(stops, 1);
+  assert.equal(closed.providerConversationId, null);
+  assert.equal(closed.providerCreateState, "known");
+  assert.deepEqual(closed.fullPipeline, { systemPrompt: "", transcriptConversationId: "test-late-transcript-reference" });
+});
+
+test("reclaimed Tavus cleanup preserves transcript reference across PAL retry and worker restart", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousKey = process.env.TAVUS_API_KEY;
+  let allowPalDelete = false;
+  let createAttempts = 0, endRequests = 0, transcriptReads = 0;
+  const makeWorker = () => {
+    const w = new RendererWorker(() => {
+      createAttempts++;
+      throw new Error("Reclaimed cleanup must not create a provider session");
+    });
+    workers.push(w);
+    return w;
+  };
+  const row = await fixture({
+    pipeline: "tavus_full", roomName: null, rendererState: "running",
+    workerId: "test-previous-worker", leaseExpiresAt: new Date(0),
+    providerConversationId: "test-reclaimed-call", providerCreateState: "known",
+    stopRequestedAt: new Date(), stopStatus: "ended",
+    fullPipeline: { systemPrompt: "test-private-prompt", token: "test-private-token", palId: "test-owned-pal" },
+  });
+  process.env.TAVUS_API_KEY = "test-only-placeholder";
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url === "https://tavusapi.com/v2/conversations/test-reclaimed-call/end" && init?.method === "POST") {
+      endRequests++;
+      return Response.json({});
+    }
+    if (url === "https://tavusapi.com/v2/conversations/test-reclaimed-call" && init?.method === "GET") {
+      return Response.json({ status: "ended" });
+    }
+    if (url === "https://tavusapi.com/v2/pals/test-owned-pal" && init?.method === "DELETE") {
+      return Response.json({}, { status: allowPalDelete ? 200 : 403 });
+    }
+    if (url === "https://tavusapi.com/v2/conversations/test-reclaimed-call?verbose=true" && init?.method === "GET") {
+      transcriptReads++;
+      return Response.json({
+        conversation_id: "test-reclaimed-call", status: "ended",
+        events: [{ event_type: "application.transcription_ready", properties: { transcript: [] } }],
+      });
+    }
+    assert.fail("Unexpected network path in isolated provider mock");
+  };
+  try {
+    const first = makeWorker();
+    await first.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "maintenance_pending");
+    assert.equal((await get(row.id)).providerConversationId, null);
+    assert.deepEqual((await get(row.id)).fullPipeline, {
+      systemPrompt: "", transcriptConversationId: "test-reclaimed-call", palId: "test-owned-pal",
+    });
+    await first.shutdown();
+    allowPalDelete = true;
+    await db.update(avatarSessions).set({ cleanupRetryAt: new Date(0) }).where(eq(avatarSessions.id, row.id));
+    const restarted = makeWorker();
+    await restarted.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    const closed = await get(row.id);
+    assert.equal(createAttempts, 0);
+    assert.equal(endRequests, 1); // Maintenance retry must not re-end the paid call.
+    assert.deepEqual(closed.fullPipeline, { systemPrompt: "", transcriptConversationId: "test-reclaimed-call" });
+    const transcript = await readTavusFinalTranscript(closed, row.ownerHash, row.tenantId!);
+    assert.equal(transcript.status, "ready");
+    assert.equal(transcriptReads, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousKey === undefined) delete process.env.TAVUS_API_KEY;
+    else process.env.TAVUS_API_KEY = previousKey;
+  }
 });
 
 test("full-pipeline private connection is owner/tenant scoped and rejects external audio controls", async () => {
