@@ -13,7 +13,7 @@ const definitions = [
   },
   {
     id: "tavus", name: "Tavus", runtime: "Node.js",
-    description: "Conversational video rendering using LiveKit transport and echo mode.",
+    description: "Native full-pipeline dialogue, voice and video via Daily, or external-audio rendering via LiveKit.",
     keys: ["TAVUS_API_KEY"], implemented: true,
   },
   {
@@ -30,14 +30,16 @@ const definitions = [
 
 export function getProviders(environment: NodeJS.ProcessEnv = process.env) {
   return definitions.map((p) => {
-    const missing = [...(p.id === "anam" ? [] : transportKeys), ...p.keys].filter((key) => !environment[key]);
+    // Tavus native full pipeline does not use LiveKit. Renderer admission checks
+    // transport credentials separately; catalog availability is not a credit check.
+    const missing = [...(["anam", "tavus"].includes(p.id) ? [] : transportKeys), ...p.keys].filter((key) => !environment[key]);
     return {
       id: p.id, name: p.name, description: p.description,
       status: missing.length ? "unconfigured" as const : p.implemented ? "available" as const : "unavailable" as const,
-      runtime: p.runtime, modes: p.id === "anam" ? ["full_pipeline"] : ["renderer"], externalAudio: p.id !== "anam",
-      sourceUrl: p.id === "anam" ? "https://anam.ai/docs/javascript-sdk/authentication" : `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
+      runtime: p.runtime, modes: p.id === "anam" ? ["full_pipeline"] : p.id === "tavus" ? ["full_pipeline", "renderer"] : ["renderer"], externalAudio: p.id !== "anam",
+      sourceUrl: p.id === "anam" ? "https://anam.ai/docs/javascript-sdk/authentication" : p.id === "tavus" ? "https://docs.tavus.io/" : `https://docs.livekit.io/agents/models/avatar/plugins/${p.id}/`,
       validation: p.id === "tavus"
-        ? "Stock Lucy - Home LiveKit echo test enabled; sign-in and credit confirmation required. Custom image avatars and Gemini bridge remain unverified."
+        ? "Full pipeline supports isolated persona/scenario context, voice selection, native audio/video and final transcripts when available. Renderer requires LiveKit separately. API credentials do not verify plan, balance or playback; upgraded accounts remain subject to provider and router budgets."
         : p.id === "anam" ? "Development probe (2026-11-09): native video playback and confirmed provider cleanup verified. Real microphone and audible dialogue validation pending; production credentials not verified. Custom Anam assets are not enabled."
         : p.implemented
         ? "Official plugin installed; live provider and Gemini bridge validation pending."
@@ -55,8 +57,8 @@ export function getAvatars() {
   }];
   avatars.push({
     id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy - Home (Tavus stock)",
-    description: "Official plugin stock face r4067604db72. No upload or training; bounded LiveKit echo session.",
-    kind: "configured", configured: Boolean(process.env.TAVUS_API_KEY && transportKeys.every(key => process.env[key])), languages: [],
+    description: "Stock face for native full-pipeline roleplay or LiveKit external-audio rendering. No upload or training required.",
+    kind: "configured", configured: Boolean(process.env.TAVUS_API_KEY), languages: [],
   });
   avatars.push({
     id: ANAM_AVATAR, providerId: "anam", name: "Anam saved persona",

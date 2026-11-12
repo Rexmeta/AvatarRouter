@@ -180,6 +180,81 @@ export interface ImageAsset {
   createdAt: string;
 }
 
+export type SeedLiveReferenceProviderId = typeof SeedLiveReferenceProviderId[keyof typeof SeedLiveReferenceProviderId];
+
+
+export const SeedLiveReferenceProviderId = {
+  tavus: 'tavus',
+} as const;
+
+export type SeedLiveReferencePipeline = typeof SeedLiveReferencePipeline[keyof typeof SeedLiveReferencePipeline];
+
+
+export const SeedLiveReferencePipeline = {
+  tavus_full: 'tavus_full',
+} as const;
+
+export interface SeedLiveReference {
+  providerId: SeedLiveReferenceProviderId;
+  avatarId: string;
+  avatarAssetId: string;
+  pipeline: SeedLiveReferencePipeline;
+}
+
+export type SeedLiveCandidateNextAction = typeof SeedLiveCandidateNextAction[keyof typeof SeedLiveCandidateNextAction];
+
+
+export const SeedLiveCandidateNextAction = {
+  select: 'select',
+  validate: 'validate',
+  wait: 'wait',
+  reconcile: 'reconcile',
+  inspect_failure: 'inspect_failure',
+  replace_image: 'replace_image',
+  review_consent: 'review_consent',
+  configure_provider: 'configure_provider',
+} as const;
+
+export interface SeedLiveCandidate {
+  avatarAssetId: string;
+  status: string;
+  canActivate: boolean;
+  nextAction: SeedLiveCandidateNextAction;
+  liveReference: SeedLiveReference | null;
+}
+
+export type SeedLiveOptionsProviderId = typeof SeedLiveOptionsProviderId[keyof typeof SeedLiveOptionsProviderId];
+
+
+export const SeedLiveOptionsProviderId = {
+  tavus: 'tavus',
+} as const;
+
+export type SeedLiveOptionsNextAction = typeof SeedLiveOptionsNextAction[keyof typeof SeedLiveOptionsNextAction];
+
+
+export const SeedLiveOptionsNextAction = {
+  select: 'select',
+  validate: 'validate',
+  wait: 'wait',
+  reconcile: 'reconcile',
+  inspect_failure: 'inspect_failure',
+  replace_image: 'replace_image',
+  review_consent: 'review_consent',
+  configure_provider: 'configure_provider',
+  provision: 'provision',
+} as const;
+
+export interface SeedLiveOptions {
+  imageAssetId: string;
+  imageVersion: number;
+  providerId: SeedLiveOptionsProviderId;
+  /** Local prerequisites only. Explicit cost consent and provider entitlement still required. Never automatically create from this flag. */
+  canProvision: boolean;
+  nextAction: SeedLiveOptionsNextAction;
+  candidates: SeedLiveCandidate[];
+}
+
 export type AvatarAssetInputProviderId = typeof AvatarAssetInputProviderId[keyof typeof AvatarAssetInputProviderId];
 
 
@@ -1089,6 +1164,8 @@ export type GetDeveloperWorkspace200 = {
 
 export type GetLiveLimitsParams = {
   providerId?: GetLiveLimitsProviderId;
+  /** Optional pipeline-specific configuration check. Tavus full uses Daily and needs no LiveKit credentials. Omit for the legacy renderer check. Does not verify provider billing or credits. */
+  pipeline?: GetLiveLimitsPipeline;
 };
 
 export type GetLiveLimitsProviderId = typeof GetLiveLimitsProviderId[keyof typeof GetLiveLimitsProviderId];
@@ -1097,6 +1174,15 @@ export type GetLiveLimitsProviderId = typeof GetLiveLimitsProviderId[keyof typeo
 export const GetLiveLimitsProviderId = {
   tavus: 'tavus',
   anam: 'anam',
+} as const;
+
+export type GetLiveLimitsPipeline = typeof GetLiveLimitsPipeline[keyof typeof GetLiveLimitsPipeline];
+
+
+export const GetLiveLimitsPipeline = {
+  external_audio: 'external_audio',
+  tavus_full: 'tavus_full',
+  anam_full: 'anam_full',
 } as const;
 
 export type CompareRendererDiagnosticsParams = {

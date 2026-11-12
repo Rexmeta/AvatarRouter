@@ -4,13 +4,22 @@ import { useI18n } from '@/lib/i18n';
 import { ErrorState, PageHead, Panel, Pill, Skel } from '@/components/bits';
 
 export default function Providers() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const q = useListProviders({ query: { staleTime: 0, refetchOnMount: 'always' } });
   const setup = useGetSetup();
   return (
     <div>
       <PageHead index="03 / providers" title={t('prov.title')} lede={t('prov.lede')} />
       <p className="mb-6 rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground" data-testid="provider-status-note">{t('prov.statusNote')}</p>
+      <div className="mb-6 rounded-md border p-4 text-sm" data-testid="tavus-paid-plan-note">
+        <h2 className="font-semibold">Tavus · RoleplayX</h2>
+        <p className="mt-2 text-muted-foreground">{lang === 'ko'
+          ? 'Full pipeline은 Tavus의 대화·음성·영상을 함께 사용하며 LiveKit 설정이 필요하지 않습니다. Gemini 음성을 동시에 실행하지 마세요. 유료 업그레이드가 라우터 예산·정리 제한을 해제하거나 실제 잔액·연결 성공을 보장하지는 않습니다.'
+          : 'Full pipeline uses Tavus dialogue, voice and video together without LiveKit. Do not run Gemini voice simultaneously. A paid upgrade does not remove router budgets or cleanup limits, or verify balance and playback.'}</p>
+        <a className="mt-2 inline-block text-primary underline" href={`${import.meta.env.BASE_URL}roleplayx/tavus-paid-plan.md`} target="_blank" rel="noreferrer">
+          {lang === 'ko' ? '유료 계정·RoleplayX 연동 안내' : 'Paid account and RoleplayX integration guide'}
+        </a>
+      </div>
       {q.isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skel key={i} className="h-56" />)}</div>
       ) : q.isError ? (

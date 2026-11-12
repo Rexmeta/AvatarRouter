@@ -4,14 +4,14 @@ import { AccessToken } from "livekit-server-sdk";
 import { db, avatarAssets, imageAssets, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql, type AvatarSessionRecord } from "@workspace/db";
 import { requireLiveAsset } from "./asset-live-policy";
 import { getOwnedSession, SessionProblem } from "./session-service";
-import { STOCK_AVATAR, stockConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
+import { STOCK_AVATAR, livePipelineConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
 import { saveRendererAudio } from "./private-images";
 import { liveCapacityFence, liveReadiness } from "./live-admission";
 import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
 
 export { LIVE_SESSION_MS } from "./stock-policy";
 
-export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = "tavus") {
+export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = "tavus", pipeline?: "external_audio" | "tavus_full" | "anam_full") {
   const limits = dailyLimits();
   const [usage] = await db.select({
     user: sql<number>`coalesce(sum(${avatarSessions.reservedSeconds}) filter (where ${avatarSessions.tenantId} = ${tenant}), 0)::int`,
@@ -37,7 +37,7 @@ export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = 
     eq(avatarSessions.mode,"live"),eq(avatarSessions.tenantId,tenant),sql`${avatarSessions.startedAt} > now() - interval '1 hour'`,
   ));
   const readiness = liveReadiness({
-    configured: providerId === "anam" ? !!process.env.ANAM_API_KEY : stockConfigured(), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
+    configured: livePipelineConfigured(providerId, pipeline), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
     userRemainingSeconds: Math.max(0, limits.user - usage!.user),
     globalRemainingSeconds: Math.max(0, limits.global - usage!.global), cleanupPending: pending!.count,
     serviceBusy: capacity!.blocked > 0, serviceCleanupRequired: capacity!.cleanup > 0, recentAttempts: recent!.count,
@@ -60,7 +60,12 @@ export async function createStockSession(owner: string, tenant: string, costConf
   roleplay?: NonNullable<AvatarSessionRecord["fullPipeline"]>["roleplay"]) {
   if (roleplay && !nativeAnam) throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires anam_full.");
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
-  if (nativeAnam ? !process.env.ANAM_API_KEY : !stockConfigured()) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED", nativeAnam ? "Configure the Anam server API key." : "LiveKit and Tavus server credentials must be configured.");
+  const provider = nativeAnam ? "anam" : "tavus";
+  const pipeline = nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio";
+  if (!livePipelineConfigured(provider, pipeline)) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED",
+    nativeAnam ? "Configure the Anam server API key." : fullPipeline
+      ? "Configure the Tavus server API key. Full pipeline uses Daily, not LiveKit."
+      : "LiveKit and Tavus server credentials must be configured.");
   if (nativeAnam && (assetId || purpose !== "conversation" || fullPipeline && roleplay)) throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "Native Anam requires the registered template and a single conversation context, not a custom asset.");
   const row = await db.transaction(async tx => {
     // Admission, reservation and capacity are serialized across ALL API processes.
@@ -75,7 +80,7 @@ export async function createStockSession(owner: string, tenant: string, costConf
         throw new SessionProblem(409, "CONSENT_REVIEW_REQUIRED", "Source consent must remain verified before live transmission.");
       }
     }
-    const limits = await liveLimits(tenant, nativeAnam ? "anam" : "tavus");
+    const limits = await liveLimits(tenant, provider, pipeline);
     if (!limits.workerReady) throw new SessionProblem(503, "LIVE_WORKER_UNAVAILABLE", "The renderer worker is unavailable. No paid session was requested.");
     if (limits.userRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "Your daily live time budget is exhausted. It resets at 00:00 UTC.");
     if (limits.globalRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_GLOBAL_DAILY_BUDGET", "The service daily live time budget is exhausted. It resets at 00:00 UTC.");

@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { setSelectedAsset, useSelectedAsset } from '@/lib/selected-asset';
 import { cn } from '@/lib/utils';
 import { useAssetWorkspace } from '@/lib/workspace-assets';
+import { SeedLiveOptionsButton } from '@/components/seed-live-options';
 
 const MAX_BYTES = 4.5 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -389,6 +390,7 @@ function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision
           <Pill value={img.consentStatus === 'pending_review' ? 'pending' : 'ok'} label={consentLabel(img.consentStatus, L)} />
         </div>
         {img.previousVersionId && <div className="mono text-[10.5px] text-muted-foreground">{L('supersedes', '이전 버전')} {img.previousVersionId.slice(0, 8)}</div>}
+        <SeedLiveOptionsButton imageId={img.id} onProvision={onProvision} />
         {blocked && <p className="text-[11.5px] text-[hsl(var(--warn))]">{L('Avatar creation blocked until an operator verifies consent.', '운영자가 동의를 확인할 때까지 아바타 생성이 차단됩니다.')}</p>}
         <div className="flex gap-2 pt-1">
           <button data-testid={`button-provision-${img.id}`} onClick={onProvision} disabled={blocked}

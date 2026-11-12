@@ -1,6 +1,8 @@
 import express, { Router, type IRouter } from "express";
 import rateLimit from "express-rate-limit";
-import { GetAvatarAssetParams, DeleteImageAssetParams, ListProvisioningProvidersResponse, ReportAvatarLiveValidationBody } from "@workspace/api-zod";
+import { GetAvatarAssetParams, DeleteImageAssetParams, ListProvisioningProvidersResponse, ReportAvatarLiveValidationBody, GetSeedLiveOptionsResponse, GetSeedLiveOptionsParams } from "@workspace/api-zod";
+import { seedLiveOptions } from "../lib/seed-live-options";
+import { db, avatarAssets, eq, and, desc } from "@workspace/db";
 import { sessionOwner } from "../middlewares/session-owner";
 import { recordAssetPlayback } from "../lib/asset-service";
 import { assetTenant } from "../middlewares/asset-tenant";
@@ -15,6 +17,16 @@ router.use(["/v1/assets", "/v1/avatar-assets"], assetTenant, limit);
 router.get("/v1/assets/images", async (_req, res) => { res.json((await listImages(res.locals.tenantId)).map(presentImage)); });
 router.post("/v1/assets/images", express.json({ limit: "6100kb" }), async (req, res) => {
   res.status(201).json(presentImage(await ingestImage(res.locals.tenantId, req.body)));
+});
+router.get("/v1/assets/images/:id/live-options", async (req, res) => {
+  const { id } = GetSeedLiveOptionsParams.parse(req.params);
+  const image = await ownedImage(res.locals.tenantId, id);
+  const assets = await db.select().from(avatarAssets).where(and(
+    eq(avatarAssets.tenantId, res.locals.tenantId), eq(avatarAssets.imageAssetId, id),
+    eq(avatarAssets.providerId, "tavus"),
+  )).orderBy(desc(avatarAssets.createdAt));
+  res.set("Cache-Control", "private, no-store");
+  res.json(GetSeedLiveOptionsResponse.parse(seedLiveOptions(image, assets, !!process.env.TAVUS_API_KEY)));
 });
 router.get("/v1/assets/images/:id/content", async (req, res) => {
   const { id } = DeleteImageAssetParams.parse(req.params);

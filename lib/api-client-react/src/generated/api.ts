@@ -55,6 +55,7 @@ import type {
   Readiness,
   RendererDiagnosticComparison,
   RendererDiagnosticSession,
+  SeedLiveOptions,
   ServiceKeyCheck,
   Session,
   SessionEvent,
@@ -1659,6 +1660,101 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteImageAssetMutationOptions(options), queryClient);
     }
+
+export const getGetSeedLiveOptionsUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/assets/images/${id}/live-options`
+}
+
+export const getSeedLiveOptions = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<SeedLiveOptions> => {
+
+  return customFetch<SeedLiveOptions>(getGetSeedLiveOptionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeedLiveOptionsQueryKey = (id: string,) => {
+    return [
+    `/api/v1/assets/images/${id}/live-options`
+    ] as const;
+    }
+
+
+export const getGetSeedLiveOptionsQueryOptions = <TData = Awaited<ReturnType<typeof getSeedLiveOptions>>, TError = ErrorType<void>>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeedLiveOptionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeedLiveOptions>>> = ({ signal }) => getSeedLiveOptions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSeedLiveOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getSeedLiveOptions>>>
+export type GetSeedLiveOptionsQueryError = ErrorType<void>
+
+
+export function useGetSeedLiveOptions<TData = Awaited<ReturnType<typeof getSeedLiveOptions>>, TError = ErrorType<void>>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSeedLiveOptions>>,
+          TError,
+          Awaited<ReturnType<typeof getSeedLiveOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSeedLiveOptions<TData = Awaited<ReturnType<typeof getSeedLiveOptions>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSeedLiveOptions>>,
+          TError,
+          Awaited<ReturnType<typeof getSeedLiveOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSeedLiveOptions<TData = Awaited<ReturnType<typeof getSeedLiveOptions>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetSeedLiveOptions<TData = Awaited<ReturnType<typeof getSeedLiveOptions>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSeedLiveOptions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSeedLiveOptionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetImageContentUrl = (id: string,) => {
 

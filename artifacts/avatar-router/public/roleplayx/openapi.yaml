@@ -272,6 +272,24 @@ paths:
         - ServiceApiKey: []
       responses:
         "204": { description: Image bytes and source record deleted; rejects referenced images }
+  /v1/assets/images/{id}/live-options:
+    get:
+      operationId: getSeedLiveOptions
+      tags: [Avatar Assets]
+      security:
+        - ClerkSessionJWT: []
+        - ServiceApiKey: []
+        - RoleplayXDelegationJWT: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: "Project-owned seed image bindings and next actions. Read-only; no upstream request or paid operation. Not a session admission or provider balance check."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SeedLiveOptions" }
+        "404":
+          description: "Image not found in the authenticated project."
   /v1/assets/images/{id}/content:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -399,6 +417,10 @@ paths:
       operationId: getLiveLimits
       parameters:
         - { name: providerId, in: query, schema: { type: string, enum: [tavus, anam], default: tavus } }
+        - name: pipeline
+          in: query
+          description: "Optional pipeline-specific configuration check. Tavus full uses Daily and needs no LiveKit credentials. Omit for the legacy renderer check. Does not verify provider billing or credits."
+          schema: { type: string, enum: [external_audio, tavus_full, anam_full] }
       tags: [RoleplayX LiveKit]
       security:
         - ClerkSessionJWT: []
@@ -929,6 +951,41 @@ components:
         likeness: { type: string, enum: [synthetic, real_person] }
         consentStatus: { type: string, enum: [not_required, pending_review, verified] }
         createdAt: { type: string, format: date-time }
+    SeedLiveReference:
+      type: object
+      additionalProperties: false
+      required: [providerId, avatarId, avatarAssetId, pipeline]
+      properties:
+        providerId: { type: string, enum: [tavus] }
+        avatarId: { type: string }
+        avatarAssetId: { type: string, format: uuid }
+        pipeline: { type: string, enum: [tavus_full] }
+    SeedLiveCandidate:
+      type: object
+      required: [avatarAssetId, status, canActivate, nextAction, liveReference]
+      properties:
+        avatarAssetId: { type: string, format: uuid }
+        status: { type: string }
+        canActivate: { type: boolean }
+        nextAction:
+          type: string
+          enum: [select, validate, wait, reconcile, inspect_failure, replace_image, review_consent, configure_provider]
+        liveReference:
+          anyOf:
+            - { $ref: "#/components/schemas/SeedLiveReference" }
+            - { type: "null" }
+    SeedLiveOptions:
+      type: object
+      required: [imageAssetId, imageVersion, providerId, canProvision, nextAction, candidates]
+      properties:
+        imageAssetId: { type: string, format: uuid }
+        imageVersion: { type: integer }
+        providerId: { type: string, enum: [tavus] }
+        canProvision: { type: boolean, description: "Local prerequisites only. Explicit cost consent and provider entitlement still required. Never automatically create from this flag." }
+        nextAction:
+          type: string
+          enum: [select, validate, wait, reconcile, inspect_failure, replace_image, review_consent, configure_provider, provision]
+        candidates: { type: array, items: { $ref: "#/components/schemas/SeedLiveCandidate" } }
     AvatarAssetInput:
       type: object
       additionalProperties: false

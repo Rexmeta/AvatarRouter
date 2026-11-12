@@ -12,6 +12,15 @@ export function stockConfigured(environment: NodeJS.ProcessEnv = process.env) {
   return STOCK_KEYS.every(key => !!environment[key]);
 }
 
+export function livePipelineConfigured(
+  provider: "tavus" | "anam", pipeline?: "external_audio" | "tavus_full" | "anam_full",
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  if (provider === "anam") return (pipeline === undefined || pipeline === "anam_full") && !!environment.ANAM_API_KEY;
+  if (pipeline === "anam_full") return false;
+  return pipeline === "tavus_full" ? !!environment.TAVUS_API_KEY : stockConfigured(environment);
+}
+
 export function dailyLimits() {
   const seconds = (key: string, fallback: number) => {
     const value = Number(process.env[key] ?? fallback);

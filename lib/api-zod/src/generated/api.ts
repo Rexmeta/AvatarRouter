@@ -540,6 +540,31 @@ export const DeleteImageAssetParams = zod.object({
 export const DeleteImageAssetResponse = zod.void()
 
 
+export const GetSeedLiveOptionsParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const GetSeedLiveOptionsResponse = zod.object({
+  "imageAssetId": zod.uuid(),
+  "imageVersion": zod.int(),
+  "providerId": zod.enum(['tavus']),
+  "canProvision": zod.boolean().describe('Local prerequisites only. Explicit cost consent and provider entitlement still required. Never automatically create from this flag.'),
+  "nextAction": zod.enum(['select', 'validate', 'wait', 'reconcile', 'inspect_failure', 'replace_image', 'review_consent', 'configure_provider', 'provision']),
+  "candidates": zod.array(zod.object({
+  "avatarAssetId": zod.uuid(),
+  "status": zod.string(),
+  "canActivate": zod.boolean(),
+  "nextAction": zod.enum(['select', 'validate', 'wait', 'reconcile', 'inspect_failure', 'replace_image', 'review_consent', 'configure_provider']),
+  "liveReference": zod.union([zod.object({
+  "providerId": zod.enum(['tavus']),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.uuid(),
+  "pipeline": zod.enum(['tavus_full'])
+}),zod.null()])
+}))
+})
+
+
 /**
  * Requires assets:read on a project API key or delegation JWT, or a Clerk login; never emits a public object URL.
  */
@@ -755,7 +780,8 @@ export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 export const getLiveLimitsQueryProviderIdDefault = `tavus`;
 
 export const GetLiveLimitsQueryParams = zod.object({
-  "providerId": zod.enum(['tavus', 'anam']).default(getLiveLimitsQueryProviderIdDefault)
+  "providerId": zod.enum(['tavus', 'anam']).default(getLiveLimitsQueryProviderIdDefault),
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional().describe('Optional pipeline-specific configuration check. Tavus full uses Daily and needs no LiveKit credentials. Omit for the legacy renderer check. Does not verify provider billing or credits.')
 })
 
 export const GetLiveLimitsResponse = zod.object({

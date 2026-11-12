@@ -31,8 +31,11 @@ router.get("/v1/providers", (_req, res) => { res.json(ListProvidersResponse.pars
 router.get("/v1/avatars", (_req, res) => { res.json(ListAvatarsResponse.parse(getAvatars())); });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
 router.get("/v1/live-limits", assetTenant, async (req, res): Promise<void> => {
-  const { providerId } = GetLiveLimitsQueryParams.parse(req.query);
-  res.json(GetLiveLimitsResponse.parse(await liveLimits(res.locals.tenantId, providerId)));
+  const { providerId, pipeline } = GetLiveLimitsQueryParams.parse(req.query);
+  if (pipeline && (providerId === "anam" ? pipeline !== "anam_full" : pipeline === "anam_full")) {
+    throw new SessionProblem(400, "INVALID_PIPELINE_CONFIG", "Provider and pipeline do not match.");
+  }
+  res.json(GetLiveLimitsResponse.parse(await liveLimits(res.locals.tenantId, providerId, pipeline)));
 });
 router.get("/v1/sessions", async (_req, res): Promise<void> => {
   const rows = await listOwnedSessions(res.locals.ownerHash);

@@ -168,3 +168,31 @@ mtime_ms = 1794450816588
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/adf270fc-f044-4534-9dd4-14966b141942/3bc2d6db-ac3d-4007-bc7e-8faccfd1f20e"
 storage_version_token = "1794451053761742"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "Qa6sljHp-op-NyXa6LX0G"
+uri = "file://artifacts/avatar-router/public/roleplayx/tavus-paid-plan.md"
+type = "text"
+title = "Tavus 유료 계정 · RoleplayX 연동 안내"
+description = "full pipeline 사전 확인, 페르소나·시나리오 요청, Gemini 중복 음성 방지와 플랜·예산 제한 안내입니다."
+logical_id = "03473524-28ac-41a5-8a21-8eba77a7f0c8"
+content_hash = "sha256:4e50cc4c5fea8d98d547cd51086e9fc910450768e572644de551f53c1f9a09ed"
+size = 5017
+mtime_ms = 1794458109024
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/03473524-28ac-41a5-8a21-8eba77a7f0c8/be67936e-3c9f-4433-817d-54b301d89c2e"
+storage_version_token = "1794458262883012"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "YE06pivBXT0_TkWlkXpnh"
+uri = "file://docs/persona-seed-live.md"
+type = "text"
+title = "RoleplayX 페르소나 시드 이미지 → 라이브 적용 가이드"
+description = "새 시드별 상태 API, 생성·검증·저장 절차, 이미지 교체와 중복 과금 방지, 외부 편집기 적용 계약입니다."
+logical_id = "4e500947-fbd3-4716-9c4c-72f8990dd77b"
+content_hash = "sha256:cc6743fe4f4b0df36139967b85a36aed2c2910d75113044638f3153489c91482"
+size = 7759
+mtime_ms = 1794458514882
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/4e500947-fbd3-4716-9c4c-72f8990dd77b/5fca716e-9cf3-4af5-9dd4-f8cc1fedc9f9"
+storage_version_token = "1794458687042825"
+content_type = "text/markdown"

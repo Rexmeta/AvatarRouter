@@ -17,7 +17,9 @@ Daily SDK, 대화 기록/평가 연결은 RoleplayX 측에서 아래 계약에 �
 서버에서 기존 Base URL + 프로젝트 API 키로 `GET /auth/check`를 호출합니다.
 `integration.features`에 `tavus_full_pipeline`, `daily_private_connection`이 있는지 확인하세요.
 구버전 운영 서버에 배포되지 않았다면 기능이 없다고 표시하고 생성하지 마세요.
-`GET /live-limits`에서 생성 가능 여부, 워커, 예산, cleanupPending을 확인하세요.
+`GET /live-limits?providerId=tavus&pipeline=tavus_full`에서 생성 가능 여부, 워커, 예산, cleanupPending을 확인하세요.
+네이티브 full pipeline에는 Tavus 서버 키가 필요하며 LiveKit 키는 필요하지 않습니다.
+유료 계정의 기능·제약은 [유료 계정 안내](tavus-paid-plan.md)를 참고하세요.
 기능 표시는 구현 유무이지 실제 재생 성공이나 요금제 보장이 아닙니다.
 
 필요 권한: `sessions:create`, `sessions:read`, `sessions:connect`, `sessions:end`.
