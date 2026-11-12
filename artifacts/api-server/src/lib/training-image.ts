@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { ProviderFailure } from "./provisioning-providers";
 import { readPrivateImage, savePrivateImage, providerImageUrl, removePrivateImage, privateImagePath } from "./private-images";
 import { ensureTrainingPortrait } from "./gemini-training-image";
+import type { TrainingImageGenerate } from "./training-image-ai-config";
 
 /** Preserve the source; never distort the subject or invent consent/identity evidence. */
 export async function normalizeTrainingImage(bytes: Buffer, provider: "tavus" | "anam") {
@@ -28,13 +29,18 @@ export async function normalizeTrainingImage(bytes: Buffer, provider: "tavus" | 
   throw new ProviderFailure("TRAINING_IMAGE_PREPARATION_FAILED");
 }
 export const trainingImageId = (id: string) => `training-${id}`;
-export async function prepareTrainingImage(sourcePath: string, tenant: string, assetId: string, provider: "tavus" | "anam") {
+export async function prepareTrainingImage(sourcePath: string, tenant: string, assetId: string, provider: "tavus" | "anam", dependencies: {
+  read?: typeof readPrivateImage;
+  save?: typeof savePrivateImage;
+  sign?: typeof providerImageUrl;
+  generate?: TrainingImageGenerate;
+} = {}) {
   try {
-    const source = await readPrivateImage(sourcePath);
+    const source = await (dependencies.read ?? readPrivateImage)(sourcePath);
     const resized = await normalizeTrainingImage(source, provider);
-    const bytes = await ensureTrainingPortrait(source, resized, b => normalizeTrainingImage(b, provider));
-    const path = await savePrivateImage(tenant, trainingImageId(assetId), bytes);
-    return await providerImageUrl(path);
+    const bytes = await ensureTrainingPortrait(source, resized, b => normalizeTrainingImage(b, provider), dependencies.generate, { assetId, provider });
+    const path = await (dependencies.save ?? savePrivateImage)(tenant, trainingImageId(assetId), bytes);
+    return await (dependencies.sign ?? providerImageUrl)(path);
   } catch (error) {
     if (error instanceof ProviderFailure) throw error;
     throw new ProviderFailure("TRAINING_IMAGE_PREPARATION_FAILED");

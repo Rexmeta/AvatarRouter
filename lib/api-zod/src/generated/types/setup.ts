@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.9.0
  */
 import type { SetupCheck } from './setupCheck';
+import type { TrainingImageAI } from './trainingImageAI';
 
 export interface Setup {
   checks: SetupCheck[];
   stage: string;
   roleplayxStatus: string;
   bridgeStatus: string;
+  trainingImageAI?: TrainingImageAI;
 }

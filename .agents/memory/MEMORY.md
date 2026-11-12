@@ -11,3 +11,4 @@
 - [Unified avatar boundary](unified-avatar-boundary.md) — provider-specific context, media and history differences belong inside AvatarRouter, not partner apps.
 - [SDK bundle isolation](sdk-bundle-isolation.md) — inline provider code can evaluate browser prerequisites before media starts; distinguish import-time probes from activity.
 - [Offline regression boundaries](offline-regression-boundaries.md) — block external provider HTTP but allow loopback route tests; encode NODE_OPTIONS preloads safely.
+- [Training image AI](training-image-ai-policy.md) — preserve original identity, verify regenerated output before dispatch, and never silently switch Gemini billing accounts.

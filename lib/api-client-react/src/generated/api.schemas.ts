@@ -1311,11 +1311,31 @@ export interface SetupCheck {
   description: string;
 }
 
+export type TrainingImageAISource = typeof TrainingImageAISource[keyof typeof TrainingImageAISource];
+
+
+export const TrainingImageAISource = {
+  direct: 'direct',
+  replit: 'replit',
+  unconfigured: 'unconfigured',
+} as const;
+
+export interface TrainingImageAI {
+  source: TrainingImageAISource;
+  /** Credential presence and model syntax only. No provider call or quota validation. */
+  configured: boolean;
+  inspectionModel: string;
+  imageModel: string;
+  modelConfigValid: boolean;
+  credentialValidated: false;
+}
+
 export interface Setup {
   checks: SetupCheck[];
   stage: string;
   roleplayxStatus: string;
   bridgeStatus: string;
+  trainingImageAI?: TrainingImageAI;
 }
 
 export interface ApiFailure {

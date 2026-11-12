@@ -1,4 +1,5 @@
 import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
+import { trainingImageAiStatus } from "./training-image-ai-config";
 
 /**
  * Catalog metadata is grounded in official LiveKit documentation.
@@ -89,6 +90,7 @@ export function getSetupStatus() {
     TAVUS_API_KEY: "Tavus provider API key.",
   };
   return {
+    trainingImageAI: trainingImageAiStatus(),
     checks: Object.entries(descriptions).map(([key, description]) => ({
       key, configured: Boolean(process.env[key]), description,
     })),

@@ -128,6 +128,8 @@ export * from './tavusFullConnection';
 export * from './tavusFullConnectionPipeline';
 export * from './tavusFullConnectionTransport';
 export * from './tavusFullOptions';
+export * from './trainingImageAI';
+export * from './trainingImageAISource';
 export * from './updateDeveloperKeyScopesInput';
 export * from './usage';
 export * from './workspaceBudget';

@@ -22,6 +22,7 @@ import { setSelectedAsset, useSelectedAsset } from '@/lib/selected-asset';
 import { cn } from '@/lib/utils';
 import { useAssetWorkspace } from '@/lib/workspace-assets';
 import { SeedLiveOptionsButton } from '@/components/seed-live-options';
+import { TrainingImageAISettings } from '@/components/training-image-ai-settings';
 
 const MAX_BYTES = 4.5 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -38,6 +39,7 @@ export default function AvatarAssets() {
   const { user, isLoaded } = useUser();
   const L = useL();
   const head = (
+    <>
     <PageHead
       index="02b / avatar assets"
       title={L('Avatar assets', '아바타 에셋')}
@@ -46,6 +48,8 @@ export default function AvatarAssets() {
         '권리를 보유한 원본 이미지를 업로드하고 프로바이더에 재사용 가능한 아바타 생성을 요청하세요. 여기의 모든 상태는 서버와 프로바이더가 실제로 보고한 값입니다.',
       )}
     />
+    <TrainingImageAISettings />
+    </>
   );
   if (!isLoaded) return <div>{head}<div className="grid gap-6 lg:grid-cols-2"><Skel className="h-80" /><Skel className="h-80" /></div></div>;
   if (!user) {
@@ -504,7 +508,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               <p>{L('Use one adult subject, at least 512×512. A chest-up portrait is recommended: head and both shoulders visible, crop at or above the navel, hands and arms at or below chest height. Full-body framing and raised arms are not supported.', '성인 한 명, 최소 512×512 이미지를 사용하세요. 머리와 양쪽 어깨가 보이는 가슴 위 중심 상반신 구도를 권장합니다. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 높이 이하로 낮추세요. 전신과 들어 올린 팔은 지원하지 않습니다.')}</p>
               <p>{L('Pixel size alone does not check pose. If automatic correction is still rejected, upload a corrected new image version; do not automatically resubmit.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 자동 보정 후에도 거절되면 수정된 새 이미지 버전을 등록하세요. 자동 재제출하지 않습니다.')}</p>
               <a className="underline" href="https://docs.tavus.io/sections/faces/phoenix-45-image-requirements" target="_blank" rel="noreferrer">{L('Official image requirements', '공식 이미지 학습 기준')}</a>
-              <p>{L('The router resizes a training copy, checks it with Gemini, and regenerates from the seed only when needed. Gemini uses Replit credits. Tavus Image Fixer remains enabled; provider acceptance is not guaranteed.', '학습 사본을 리사이즈하고 Gemini로 검사하며 필요할 때만 원본 기반으로 재생성합니다. Gemini는 Replit 크레딧을 사용합니다. Tavus Image Fixer도 유지하며 제공자 수락을 보장하지 않습니다.')}</p>
+              <p>{L('The router resizes a training copy, checks it with Gemini, and regenerates from the seed only when needed. Billing follows the direct key or managed connection shown above. Tavus Image Fixer remains enabled; acceptance is not guaranteed.', '학습 사본을 리사이즈하고 Gemini로 검사하며 필요할 때만 원본 기반으로 재생성합니다. 비용은 위에 표시된 직접 키 또는 관리형 연결에 적용됩니다. Tavus Image Fixer도 유지하며 제공자 수락을 보장하지 않습니다.')}</p>
             </div>}
             <Field label={L('Persona ID — creation name', '페르소나 ID — 생성 이름')} hint={L('RoleplayX sends its persona ID here. Legacy Studio requests may leave this blank to use the image name.', 'RoleplayX는 페르소나 ID를 전달합니다. 기존 Studio 요청은 비워 두면 이미지 이름을 사용합니다.')}>
               <input value={personaId} maxLength={128} onChange={(e) => setPersonaId(e.target.value)} data-testid="input-provision-persona-id" className="mono w-full rounded border bg-background px-3 py-2 text-sm" />

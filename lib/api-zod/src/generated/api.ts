@@ -1614,7 +1614,15 @@ export const GetSetupResponse = zod.object({
 })),
   "stage": zod.string(),
   "roleplayxStatus": zod.string(),
-  "bridgeStatus": zod.string()
+  "bridgeStatus": zod.string(),
+  "trainingImageAI": zod.object({
+  "source": zod.enum(['direct', 'replit', 'unconfigured']),
+  "configured": zod.boolean().describe('Credential presence and model syntax only. No provider call or quota validation.'),
+  "inspectionModel": zod.string(),
+  "imageModel": zod.string(),
+  "modelConfigValid": zod.boolean(),
+  "credentialValidated": zod.literal(false)
+}).optional()
 })
 
 

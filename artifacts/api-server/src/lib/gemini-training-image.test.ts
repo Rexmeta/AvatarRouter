@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import type { GenerateContentResponse, GenerateContentParameters } from "@google/genai";
-import { ensureTrainingPortrait } from "./gemini-training-image";
+import { ensureTrainingPortrait, trainingAiImagePart } from "./gemini-training-image";
+import { trainingImageAiStatus } from "./training-image-ai-config";
 
 const response = (data: object) => data as GenerateContentResponse;
 const check = (acceptable = true, identityConsistent = true, safeAdultSubject = true) =>
@@ -13,7 +14,7 @@ test("valid resize uses one inspection and no image generation", async () => {
   const resize = Buffer.from("resized");
   const result = await ensureTrainingPortrait(seed, resize, async b => b, async r => { calls.push(r); return check(); });
   assert.deepEqual(result, resize); assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.model, "gemini-3.8-flash");
+  assert.equal(calls[0]!.model, trainingImageAiStatus().inspectionModel);
   assert.equal(calls[0]!.config!.httpOptions!.retryOptions!.attempts, 1);
 });
 test("failed framing regenerates once from original seed, normalizes, then checks identity and final conditions", async () => {
@@ -27,11 +28,41 @@ test("failed framing regenerates once from original seed, normalizes, then check
     }) : check();
   });
   assert.equal(calls.length, 3); assert.equal(normalized, 1);
-  assert.equal(calls[1]!.model, "gemini-3-pro-image");
+  assert.equal(calls[1]!.model, trainingImageAiStatus().imageModel);
   const edit = JSON.stringify(calls[1]!.contents);
   assert.ok(edit.includes(seed.toString("base64"))); assert.ok(!edit.includes(Buffer.from("initial resize").toString("base64")));
   assert.equal((await sharp(result).metadata()).format, "jpeg");
   assert.ok(JSON.stringify(calls[2]!.contents).includes(seed.toString("base64")));
+});
+test("large analysis references are bounded together; PNG MIME is retained and source remains unchanged", async () => {
+  const { randomBytes } = await import("node:crypto");
+  const original = await sharp(randomBytes(1400 * 1400 * 3), { raw: { width: 1400, height: 1400, channels: 3 } }).png().toBuffer();
+  assert.ok(original.length > 1_500_000);
+  const copy = Buffer.from(original);
+  const a = await trainingAiImagePart(original), b = await trainingAiImagePart(original);
+  assert.ok(JSON.stringify([a, b]).length < 8_000_000);
+  assert.equal(a.inlineData.mimeType, "image/jpeg");
+  assert.deepEqual(original, copy);
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#777" } }).png().toBuffer();
+  assert.equal((await trainingAiImagePart(png)).inlineData.mimeType, "image/png");
+});
+test("provider errors retain safe Gemini categories and never leak upstream message bodies", async () => {
+  for (const [status, code] of [[401, "AUTHENTICATION_FAILED"], [403, "PERMISSION_DENIED"],
+    [404, "MODEL_UNAVAILABLE"], [429, "QUOTA_EXCEEDED"], [503, "SERVICE_UNAVAILABLE"]] as const) {
+    await assert.rejects(ensureTrainingPortrait(seed, seed, async b => b, async () => {
+      throw Object.assign(Error("private seed URL and secret"), { status });
+    }), e => {
+      assert.equal((e as { code: string }).code, `TRAINING_IMAGE_AI_${code}`);
+      assert.doesNotMatch(String(e), /private seed|secret/); return true;
+    });
+  }
+});
+test("blocked generation stops before normalization or avatar submission", async () => {
+  let calls = 0;
+  await assert.rejects(ensureTrainingPortrait(seed, seed, async () => assert.fail(), async () =>
+    ++calls === 1 ? check(false) : response({ promptFeedback: { blockReason: "SAFETY" } })),
+  { code: "TRAINING_IMAGE_AI_CONTENT_BLOCKED" });
+  assert.equal(calls, 2);
 });
 test("unsafe/unclear original, malformed verdict and quota failure never silently proceed", async () => {
   for (const [reply, code] of [[check(true, true, false), "TRAINING_IMAGE_SUBJECT_UNSUPPORTED"],

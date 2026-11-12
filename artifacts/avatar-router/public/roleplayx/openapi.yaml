@@ -1565,6 +1565,17 @@ components:
         stage: { type: string }
         roleplayxStatus: { type: string }
         bridgeStatus: { type: string }
+        trainingImageAI: { $ref: "#/components/schemas/TrainingImageAI" }
+    TrainingImageAI:
+      type: object
+      required: [source, configured, inspectionModel, imageModel, modelConfigValid, credentialValidated]
+      properties:
+        source: { type: string, enum: [direct, replit, unconfigured] }
+        configured: { type: boolean, description: "Credential presence and model syntax only. No provider call or quota validation." }
+        inspectionModel: { type: string }
+        imageModel: { type: string }
+        modelConfigValid: { type: boolean }
+        credentialValidated: { type: boolean, const: false }
     SetupCheck:
       type: object
       required: [key, configured, description]
