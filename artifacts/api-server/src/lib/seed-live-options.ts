@@ -2,12 +2,13 @@ import type { AvatarAssetRecord, ImageAssetRecord } from "@workspace/db";
 import type { SeedLiveOptions, SeedLiveCandidate } from "@workspace/api-zod";
 import { assetLiveVerified } from "./asset-live-policy";
 import { presentProvisioningFailure } from "./provisioning-failure";
+import { imageRightsAttested } from "./image-rights";
 
 /** Pure local projection: no provider requests, creation, URLs or private consent evidence. */
 export function seedLiveOptions(
   image: ImageAssetRecord, assets: AvatarAssetRecord[], configured: boolean,
 ): SeedLiveOptions {
-  const consent = image.likeness !== "real_person" || image.consentStatus === "verified";
+  const consent = imageRightsAttested(image);
   const candidates: SeedLiveCandidate[] = assets
     .filter(a => a.tenantId === image.tenantId && a.imageAssetId === image.id && a.providerId === "tavus")
     .map(a => {
@@ -32,11 +33,13 @@ export function seedLiveOptions(
         } : null,
       };
     });
-  const canProvision = consent && configured && candidates.length === 0;
+  const retryLocalPreparation = candidates.length > 0 && candidates.every(c =>
+    c.status === "failed" && c.failure?.creationOutcome === "not_created" && c.failure.code.startsWith("TRAINING_IMAGE_"));
+  const canProvision = consent && configured && (candidates.length === 0 || retryLocalPreparation);
   const priority: SeedLiveCandidate["nextAction"][] = ["select", "reconcile", "wait", "validate", "inspect_failure", "replace_image"];
   return {
     imageAssetId: image.id, imageVersion: image.version, providerId: "tavus", canProvision,
-    nextAction: !consent ? "review_consent" : !configured ? "configure_provider"
+    nextAction: !consent ? "review_consent" : !configured ? "configure_provider" : retryLocalPreparation ? "provision"
       : priority.find(action => candidates.some(c => c.nextAction === action)) ?? "provision",
     candidates,
   };

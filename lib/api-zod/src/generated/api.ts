@@ -614,7 +614,7 @@ export const ListImageAssetsResponseItem = zod.object({
   "version": zod.int(),
   "previousVersionId": zod.string().nullable(),
   "likeness": zod.enum(['synthetic', 'real_person']),
-  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
+  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified', 'attested']),
   "createdAt": zod.coerce.date()
 })
 export const ListImageAssetsResponse = zod.array(ListImageAssetsResponseItem)
@@ -653,7 +653,7 @@ export const IngestImageResponse = zod.object({
   "version": zod.int(),
   "previousVersionId": zod.string().nullable(),
   "likeness": zod.enum(['synthetic', 'real_person']),
-  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified']),
+  "consentStatus": zod.enum(['not_required', 'pending_review', 'verified', 'attested']),
   "createdAt": zod.coerce.date()
 })
 
@@ -790,7 +790,7 @@ export const ProvisionAvatarBody = zod.object({
   "personaId": zod.string().min(1).max(provisionAvatarBodyPersonaIdMax).regex(provisionAvatarBodyPersonaIdRegExp).optional().describe('RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients.'),
   "providerId": zod.enum(['anam', 'tavus', 'lemonslice', 'simli']),
   "voiceName": zod.string().regex(provisionAvatarBodyVoiceNameRegExp).default(provisionAvatarBodyVoiceNameDefault),
-  "costConfirmed": zod.boolean().describe('Explicit confirmation of potential provider training charges')
+  "costConfirmed": zod.boolean().optional().describe('Optional legacy field. The explicit creation request authorizes training charges without further router approval. An explicit false rejects creation.')
 })
 
 export const provisionAvatarResponseFailureOneProviderHttpStatusMin = 100;

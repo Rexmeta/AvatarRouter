@@ -13,4 +13,5 @@ export const ImageAssetConsentStatus = {
   not_required: 'not_required',
   pending_review: 'pending_review',
   verified: 'verified',
+  attested: 'attested',
 } as const;

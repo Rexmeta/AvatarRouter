@@ -18,8 +18,11 @@ function privateFile(objectPath: string, prefix = "avatar-images") {
   const [bucket, ...name] = objectPath.replace(/^\//, "").split("/");
   return storage.bucket(bucket!).file(name.join("/"));
 }
+export function privateImagePath(tenant: string, id: string) {
+  return `${process.env.PRIVATE_OBJECT_DIR?.replace(/\/$/, "")}/avatar-images/${tenant}/${id}.jpg`;
+}
 export async function savePrivateImage(tenant: string, id: string, bytes: Buffer) {
-  const path = `${process.env.PRIVATE_OBJECT_DIR?.replace(/\/$/, "")}/avatar-images/${tenant}/${id}.jpg`;
+  const path = privateImagePath(tenant, id);
   await privateFile(path).save(bytes, { resumable: false, contentType: "image/jpeg", metadata: { cacheControl: "private, no-store" } });
   return path;
 }

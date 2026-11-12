@@ -29,7 +29,13 @@ Rights confirmation and a consent-reference string are attestations, not verifie
 
 **Why:** A caller's checkbox cannot establish whether a real person consented or whether a provider's identity requirements were met.
 
-**How to apply:** Hold real-person provisioning for independent trusted review of the evidence and provider rules. Never expose self-approval through the ordinary tenant API.
+**How to apply:** Require the existing source-rights attestation and real-person consent reference, but do not add a router operator-approval queue. Record new real-person attestations as `attested`, never self-upgrade them to independently `verified`. Provider identity and policy checks remain authoritative.
+
+Creation requests authorize automatic source preparation and submission, without an intermediate approval step. Resize first; if training framing is unsuitable, use Gemini with the original seed, then check the final portrait and identity consistency before provider submission.
+
+**Why:** The user explicitly requested: "중간에 승인절차 없이 요청 오면 바로 작업해서 생성시켜" and requested Gemini regeneration when simple resizing cannot satisfy training conditions.
+
+**How to apply:** Preserve the original, bound paid AI calls, and distinguish a known local preparation failure from an uncertain provider POST. Only an explicit new request may repeat a known pre-submission preparation failure; never automatically retry ambiguous avatar creation.
 
 Diagnose the first lifecycle failure separately from the final reconciliation state. Keep diagnostics allowlisted and best-effort; never enable raw SDK payload/error logging to investigate paid creation.
 

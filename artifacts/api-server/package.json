@@ -15,6 +15,7 @@
     "@clerk/express": "^2.1.83",
     "@clerk/shared": "^4.41.1",
     "@google-cloud/storage": "^8.4.0",
+    "@google/genai": "^3.1.0",
     "@livekit/agents": "1.9.4",
     "@livekit/agents-plugin-tavus": "1.9.4",
     "@livekit/rtc-node": "1.2.1",

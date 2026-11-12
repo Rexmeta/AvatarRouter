@@ -1040,7 +1040,7 @@ components:
         version: { type: integer }
         previousVersionId: { type: [string, "null"] }
         likeness: { type: string, enum: [synthetic, real_person] }
-        consentStatus: { type: string, enum: [not_required, pending_review, verified] }
+        consentStatus: { type: string, enum: [not_required, pending_review, verified, attested] }
         createdAt: { type: string, format: date-time }
     SeedLiveReference:
       type: object
@@ -1084,13 +1084,13 @@ components:
     AvatarAssetInput:
       type: object
       additionalProperties: false
-      required: [imageAssetId, providerId, costConfirmed]
+      required: [imageAssetId, providerId]
       properties:
         imageAssetId: { type: string, format: uuid }
         personaId: { type: string, minLength: 1, maxLength: 128, pattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$", description: "RoleplayX persona ID used verbatim as the provider creation name. It is not an authorization or tenant identifier. Omit only for legacy clients." }
         providerId: { type: string, enum: [anam, tavus, lemonslice, simli] }
         voiceName: { type: string, pattern: "^[a-zA-Z0-9_-]{1,50}$", default: anna }
-        costConfirmed: { type: boolean, description: Explicit confirmation of potential provider training charges }
+        costConfirmed: { type: boolean, description: "Optional legacy field. The explicit creation request authorizes training charges without further router approval. An explicit false rejects creation." }
     AvatarAsset:
       type: object
       required: [id, imageAssetId, name, sourceContentHash, providerId, providerAvatarId, status, creationMode, capabilities, errorCode, createdAt, updatedAt, expiresAt, deletionStatus]

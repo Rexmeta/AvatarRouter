@@ -3,6 +3,7 @@ import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers"
 import { providerImageUrl } from "./private-images";
 import { logger } from "./logger";
 import { storeProvisioningFailure, decodeProvisioningFailure } from "./provisioning-failure";
+import { prepareTrainingImage, removeTrainingImage } from "./training-image";
 
 export function provisioningOutcome(error: unknown, creating: boolean) {
   const issue = error instanceof ProviderFailure ? error : new ProviderFailure("PROVISIONING_INTERNAL_ERROR", creating);
@@ -15,6 +16,8 @@ export async function runProvisioningTick(options: {
   onlyId?: string;
   adapter?: ImageProviderAdapter;
   signImage?: typeof providerImageUrl;
+  prepareImage?: typeof prepareTrainingImage;
+  removePreparedImage?: typeof removeTrainingImage;
 } = {}) {
   const row = await db.transaction(async tx => {
     const [job] = await tx.select().from(avatarAssets).where(sql`
@@ -30,20 +33,31 @@ export async function runProvisioningTick(options: {
       await tx.update(avatarAssets).set({ status: "reconciliation_required", errorCode: "SUBMISSION_INTERRUPTED", leaseUntil: null, updatedAt: new Date() }).where(eq(avatarAssets.id, job.id));
       return undefined;
     }
+    const leaseUntil = new Date(Date.now() + 300_000);
     await tx.update(avatarAssets).set({
       status: job.status === "queued" ? "submitting" : job.status,
-      leaseUntil: new Date(Date.now() + 120_000), updatedAt: new Date(),
+      leaseUntil, updatedAt: new Date(),
     }).where(eq(avatarAssets.id, job.id));
-    return job;
+    return { ...job, leaseUntil };
   });
   if (!row) return;
   const creating = row.status === "queued";
   const adapter = options.adapter ?? new ImageProviderAdapter(row.providerId);
+  let dispatched = false;
   try {
     if (creating) {
       const [source] = await db.select().from(imageAssets).where(and(eq(imageAssets.id, row.imageAssetId), eq(imageAssets.tenantId, row.tenantId)));
       if (!source) throw new ProviderFailure("SOURCE_IMAGE_MISSING");
-      const signedUrl = await (options.signImage ?? providerImageUrl)(source.objectPath);
+      const signedUrl = options.signImage
+        ? await options.signImage(source.objectPath) // Existing test adapters only.
+        : await (options.prepareImage ?? prepareTrainingImage)(source.objectPath, row.tenantId, row.id, row.providerId);
+      const [owned] = await db.select({ id: avatarAssets.id }).from(avatarAssets).where(and(
+        eq(avatarAssets.id, row.id), eq(avatarAssets.status, "submitting"),
+        eq(avatarAssets.leaseUntil, row.leaseUntil),
+        sql`${avatarAssets.leaseUntil} > now()`,
+      )).limit(1);
+      if (!owned) return; // Long AI/storage calls may outlive ownership; never dispatch after lease loss.
+      dispatched = true;
       const result = await adapter.create(row.name, signedUrl, row.voiceName);
       await finish(row, { providerAvatarId: result.id, status: result.ready ? "ready" : "processing", errorCode: null });
     } else if (row.status === "processing") {
@@ -51,10 +65,11 @@ export async function runProvisioningTick(options: {
       await finish(row, { status: await adapter.poll(row.providerAvatarId), errorCode: null });
     } else if (row.status === "deleting") {
       if (row.providerAvatarId) await adapter.remove(row.providerAvatarId);
+      await (options.removePreparedImage ?? removeTrainingImage)(row.tenantId, row.id);
       await finish(row, { status: "deleted", deletionStatus: "confirmed", errorCode: null, providerAvatarId: null });
     }
   } catch (error) {
-    const outcome = provisioningOutcome(error, creating);
+    const outcome = provisioningOutcome(error, creating && dispatched);
     await finish(row, {
       status: row.status === "deleting" ? "deleting"
         : outcome.ambiguous ? "reconciliation_required"

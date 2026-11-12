@@ -32,7 +32,7 @@ test("private storage, duplicate/version handling, tenant isolation, provisionin
     await assert.rejects(provisionAsset(other, { imageAssetId: image.id, providerId: "tavus", costConfirmed: true }), /not found/);
     await assert.rejects(provisionAsset(tenant, { imageAssetId: image.id, providerId: "lemonslice", costConfirmed: true }), /not implemented/);
     const real = await ingestImage(tenant, { ...input, likeness: "real_person", consentReference: "test-reference-no-real-person" }); owned.push(real.id);
-    await assert.rejects(provisionAsset(tenant, { imageAssetId: real.id, providerId: "tavus", costConfirmed: true }), /operator must review/);
+    assert.equal((await provisionAsset(tenant, { imageAssetId: real.id, providerId: "tavus" }, heldUntil)).status, "queued");
     const changed = await sharp({ create: { width: 1152, height: 1152, channels: 3, background: "#707077" } }).png().toBuffer();
     const version = await ingestImage(tenant, { ...input, imageBase64: changed.toString("base64"), previousVersionId: image.id }); owned.push(version.id);
     assert.equal(version.version, 2); assert.equal(version.previousVersionId, image.id);

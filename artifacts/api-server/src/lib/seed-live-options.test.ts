@@ -66,6 +66,14 @@ test("consent and missing configuration cannot be bypassed by existing validatio
   assert.equal(seedLiveOptions(seed, [asset()], false).nextAction, "configure_provider");
   assert.equal(seedLiveOptions(seed, [], false).canProvision, false);
 });
+test("attested real-person sources need no operator approval; only known local failures allow explicit re-preparation", () => {
+  const attested = { ...seed, likeness: "real_person", consentStatus: "attested", rightsConfirmedAt: new Date(), consentReference: "fixture-attestation" } as ImageAssetRecord;
+  assert.equal(seedLiveOptions(attested, [], true).canProvision, true);
+  const failed = asset({ status: "failed", providerAvatarId: null, errorCode: "TRAINING_IMAGE_REGENERATION_FAILED" });
+  const options = seedLiveOptions(attested, [failed], true);
+  assert.equal(options.canProvision, true); assert.equal(options.nextAction, "provision");
+  assert.equal(seedLiveOptions(attested, [failed, asset({ status: "processing" })], true).canProvision, false);
+});
 
 test("queued, failed and uncertain work never authorize duplicate provisioning", () => {
   for (const [status, action] of [

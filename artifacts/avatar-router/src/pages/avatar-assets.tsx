@@ -318,10 +318,10 @@ function IngestPanel({ images }: { images: ImageAsset[] }) {
 
         {likeness === 'real_person' && (
           <div className="rounded border border-[hsl(var(--warn)/.4)] bg-[hsl(var(--warn)/.06)] p-3 text-[12.5px]" data-testid="note-real-person">
-            <div className="mb-1 flex items-center gap-1.5 font-semibold"><ShieldAlert className="h-4 w-4 text-[hsl(var(--warn))]" /> {L('Held for operator review', '운영자 검토 대기')}</div>
+            <div className="mb-1 flex items-center gap-1.5 font-semibold"><ShieldAlert className="h-4 w-4 text-[hsl(var(--warn))]" /> {L('Consent attestation', '초상권 동의 확인')}</div>
             {L(
-              'Real-person images are stored with consent status pending_review. The server refuses to create an avatar from them until an operator verifies the consent evidence. Provide the reference your application holds.',
-              '실존 인물 이미지는 pending_review 동의 상태로 저장됩니다. 운영자가 동의 증빙을 확인하기 전까지 서버는 아바타 생성을 거부합니다. 애플리케이션이 보관 중인 증빙 참조를 입력하세요.',
+              'Provide your consent record reference. Requests proceed without separate router approval. This attestation is not identity verification or provider approval.',
+              '동의 기록 참조를 입력하세요. 요청은 별도 라우터 승인 없이 진행됩니다. 이 진술은 신원 검증이나 제공자 승인을 의미하지 않습니다.',
             )}
           </div>
         )}
@@ -359,7 +359,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 /* ---------------- image card ---------------- */
 
 function consentLabel(s: string, L: (a: string, b: string) => string) {
-  return s === 'not_required' ? L('consent n/a', '동의 불필요') : s === 'pending_review' ? L('pending review', '검토 대기') : L('consent verified', '동의 확인됨');
+  return s === 'not_required' ? L('consent n/a', '동의 불필요') : s === 'verified' ? L('consent verified', '동의 검증됨') : L('consent attested', '동의 진술 접수');
 }
 
 function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision: () => void; avatars: AvatarAsset[] }) {
@@ -370,7 +370,6 @@ function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision
   const del = useDeleteImageAsset({ request });
   const [confirm, setConfirm] = useState(false);
   const linked = avatars.filter((a) => a.imageAssetId === img.id && a.status !== 'deleted').length;
-  const blocked = img.consentStatus === 'pending_review';
 
   return (
     <article className="group overflow-hidden rounded border bg-background" data-testid={`card-image-${img.id}`}>
@@ -391,9 +390,8 @@ function ImageCard({ img, onProvision, avatars }: { img: ImageAsset; onProvision
         </div>
         {img.previousVersionId && <div className="mono text-[10.5px] text-muted-foreground">{L('supersedes', '이전 버전')} {img.previousVersionId.slice(0, 8)}</div>}
         <SeedLiveOptionsButton imageId={img.id} onProvision={onProvision} />
-        {blocked && <p className="text-[11.5px] text-[hsl(var(--warn))]">{L('Avatar creation blocked until an operator verifies consent.', '운영자가 동의를 확인할 때까지 아바타 생성이 차단됩니다.')}</p>}
         <div className="flex gap-2 pt-1">
-          <button data-testid={`button-provision-${img.id}`} onClick={onProvision} disabled={blocked}
+          <button data-testid={`button-provision-${img.id}`} onClick={onProvision}
             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition active:scale-[.97] disabled:opacity-35">
             <Wand2 className="h-3.5 w-3.5" /> {L('Provision', '프로비저닝')}
           </button>
@@ -450,15 +448,12 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
   const [pid, setPid] = useState('');
   const [voice, setVoice] = useState('anna');
   const [personaId, setPersonaId] = useState('');
-  const [cost, setCost] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const sel = providers.data?.find((p) => p.id === pid);
   const voiceOk = /^[a-zA-Z0-9_-]{1,50}$/.test(voice);
   const personaIdOk = !personaId || /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(personaId);
-  const blocked = img?.consentStatus === 'pending_review';
-  const imageTooSmall = pid === 'tavus' && !!img && (img.width < 512 || img.height < 512);
 
-  const close = () => { setPid(''); setCost(false); setErr(null); setVoice('anna'); setPersonaId(''); onClose(); };
+  const close = () => { setPid(''); setErr(null); setVoice('anna'); setPersonaId(''); onClose(); };
 
   const go = () => {
     if (!img || !sel) return;
@@ -484,15 +479,12 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
           <DialogTitle>{L('Provision avatar', '아바타 프로비저닝')}</DialogTitle>
           <DialogDescription>{img ? `${img.name} · v${img.version} · ${img.contentHash.slice(0, 12)}` : ''}</DialogDescription>
         </DialogHeader>
-        {blocked ? (
-          <p className="rounded border border-[hsl(var(--warn)/.4)] bg-[hsl(var(--warn)/.06)] p-3 text-sm">{L('Consent is pending operator review. The server will reject this request.', '동의가 운영자 검토 대기 중입니다. 서버가 요청을 거부합니다.')}</p>
-        ) : (
           <div className="space-y-4">
             <div className="space-y-2">
               {providers.isLoading ? <Skel className="h-32" /> : providers.isError ? <ErrorState onRetry={() => providers.refetch()} /> : providers.data?.map((p) => {
                 const why = providerBlock(p, L);
                 return (
-                  <button key={p.id} type="button" disabled={!!why} data-testid={`button-provider-${p.id}`} onClick={() => { setPid(p.id); setCost(false); }}
+                  <button key={p.id} type="button" disabled={!!why} data-testid={`button-provider-${p.id}`} onClick={() => { setPid(p.id); }}
                     className={cn('flex w-full items-start gap-3 rounded border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55', pid === p.id ? 'border-primary bg-primary/5' : 'hover:bg-muted')}>
                     <span className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', pid === p.id ? 'bg-primary' : 'bg-muted-foreground/40')} />
                     <span className="min-w-0 flex-1">
@@ -512,7 +504,7 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               <p>{L('Use one adult subject, at least 512×512. A chest-up portrait is recommended: head and both shoulders visible, crop at or above the navel, hands and arms at or below chest height. Full-body framing and raised arms are not supported.', '성인 한 명, 최소 512×512 이미지를 사용하세요. 머리와 양쪽 어깨가 보이는 가슴 위 중심 상반신 구도를 권장합니다. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 높이 이하로 낮추세요. 전신과 들어 올린 팔은 지원하지 않습니다.')}</p>
               <p>{L('Pixel size alone does not check pose. If automatic correction is still rejected, upload a corrected new image version; do not automatically resubmit.', '해상도만으로 자세 적합 여부를 검사할 수 없습니다. 자동 보정 후에도 거절되면 수정된 새 이미지 버전을 등록하세요. 자동 재제출하지 않습니다.')}</p>
               <a className="underline" href="https://docs.tavus.io/sections/faces/phoenix-45-image-requirements" target="_blank" rel="noreferrer">{L('Official image requirements', '공식 이미지 학습 기준')}</a>
-              {imageTooSmall && <p role="alert" className="text-destructive">{L('This image is smaller than 512×512. Creation is blocked.', '이 이미지는 512×512 미만입니다. 생성이 차단됩니다.')}</p>}
+              <p>{L('The router resizes a training copy, checks it with Gemini, and regenerates from the seed only when needed. Gemini uses Replit credits. Tavus Image Fixer remains enabled; provider acceptance is not guaranteed.', '학습 사본을 리사이즈하고 Gemini로 검사하며 필요할 때만 원본 기반으로 재생성합니다. Gemini는 Replit 크레딧을 사용합니다. Tavus Image Fixer도 유지하며 제공자 수락을 보장하지 않습니다.')}</p>
             </div>}
             <Field label={L('Persona ID — creation name', '페르소나 ID — 생성 이름')} hint={L('RoleplayX sends its persona ID here. Legacy Studio requests may leave this blank to use the image name.', 'RoleplayX는 페르소나 ID를 전달합니다. 기존 Studio 요청은 비워 두면 이미지 이름을 사용합니다.')}>
               <input value={personaId} maxLength={128} onChange={(e) => setPersonaId(e.target.value)} data-testid="input-provision-persona-id" className="mono w-full rounded border bg-background px-3 py-2 text-sm" />
@@ -521,21 +513,19 @@ function ProvisionDialog({ img, onClose }: { img: ImageAsset | null; onClose: ()
               <input data-testid="input-voice" value={voice} onChange={(e) => setVoice(e.target.value)} className="mono w-full rounded border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
             </Field>
             {sel && (
-              <label className="flex cursor-pointer items-start gap-2.5 rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
-                <input type="checkbox" data-testid="checkbox-cost" checked={cost} onChange={(e) => setCost(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
+              <div className="rounded border border-primary/40 bg-primary/5 p-3 text-[12.5px]">
                 <span>
                   <strong>{L('Potential provider charges.', '프로바이더 요금 발생 가능.')}</strong>{' '}
-                  {L(`${sel.name} may bill your account for avatar ${sel.customTraining ? 'training' : 'creation'}. AvatarRouter does not estimate or refund this cost. I confirm.`, `${sel.name}가 아바타 ${sel.customTraining ? '학습' : '생성'} 비용을 청구할 수 있습니다. AvatarRouter는 이 비용을 추정하거나 환불하지 않습니다. 확인합니다.`)}
+                  {L(`${sel.name} may bill for creation. Sending the request starts preparation and submission without another approval.`, `${sel.name} 생성 비용이 발생할 수 있습니다. 요청하면 추가 승인 없이 보정·제공자 전송이 시작됩니다.`)}
                 </span>
-              </label>
+              </div>
             )}
             {err && <p className="flex gap-1.5 text-sm text-destructive" data-testid="text-provision-error"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{err}</p>}
-            <button data-testid="button-submit-provision" disabled={!sel || !cost || !voiceOk || !personaIdOk || imageTooSmall || provision.isPending} onClick={go}
+            <button data-testid="button-submit-provision" disabled={!sel || !voiceOk || !personaIdOk || provision.isPending} onClick={go}
               className="w-full rounded bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition active:scale-[.98] disabled:opacity-40">
               {provision.isPending ? L('Submitting…', '제출 중…') : L('Request avatar from provider', '프로바이더에 아바타 요청')}
             </button>
           </div>
-        )}
       </DialogContent>
     </Dialog>
   );

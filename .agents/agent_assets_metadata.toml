@@ -224,3 +224,17 @@ mtime_ms = 1794468269367
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/8e490bb8-7787-4ea3-885b-40f24c7a83b5/238a1c94-c45c-4ae6-b7d6-766e1a6aa3cb"
 storage_version_token = "1794468672701473"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "OqmIEI2VEES99Y92aAqkP"
+uri = "file://docs/automatic-training-images.md"
+type = "text"
+title = "Gemini 자동 학습 이미지 보정 가이드"
+description = "승인 없는 자동 처리, 원본 보존, Gemini 비용, RoleplayX 오류 코드와 재시도 정책"
+logical_id = "7da08eb5-4cdb-4f63-a1de-3a311db568f5"
+content_hash = "sha256:3659676b753baf8cf7469f594b5ed9bd50fb26ab0bfbd39cd1ef4ee47d3d19b3"
+size = 4256
+mtime_ms = 1794471170670
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/7da08eb5-4cdb-4f63-a1de-3a311db568f5/e0fc3565-72a1-43e5-84a8-e35626d8e95b"
+storage_version_token = "1794471442761113"
+content_type = "text/markdown"

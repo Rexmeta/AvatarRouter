@@ -225,6 +225,7 @@ export const ImageAssetConsentStatus = {
   not_required: 'not_required',
   pending_review: 'pending_review',
   verified: 'verified',
+  attested: 'attested',
 } as const;
 
 export interface ImageAsset {
@@ -419,8 +420,8 @@ export interface AvatarAssetInput {
   providerId: AvatarAssetInputProviderId;
   /** @pattern ^[a-zA-Z0-9_-]{1,50}$ */
   voiceName?: string;
-  /** Explicit confirmation of potential provider training charges */
-  costConfirmed: boolean;
+  /** Optional legacy field. The explicit creation request authorizes training charges without further router approval. An explicit false rejects creation. */
+  costConfirmed?: boolean;
 }
 
 export type AvatarAssetStatus = typeof AvatarAssetStatus[keyof typeof AvatarAssetStatus];

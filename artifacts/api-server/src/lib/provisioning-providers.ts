@@ -9,7 +9,7 @@ export function provisioningProviders(): ProvisioningProvider[] {
       id: "anam", name: "Anam", existingSelection: true, imageCreation: true,
       customTraining: false, realtimeRendering: true, reusableId: true,
       adapterEnabled: true, configured: !!process.env.ANAM_API_KEY,
-      requirements: "Single-photo API on all plans, creation limits apply. Square image ≥1152px; JPEG/PNG/WebP ≤4.5MB. Key presence does not prove authentication (last operator test: HTTP 401). Real-person consent review required.",
+      requirements: "Router automatically prepares a separate 1152×1152 JPEG ≤4.5MB. Single-photo API plan/creation limits and provider identity rules still apply. Real-person rights attestation required, no separate router approval. Key presence is not evidence of provider authentication.",
       documentationUrl: "https://anam.ai/docs/api-reference/avatars/create-avatar",
       emotionControl: "Unverified in this integration. Director Notes exist, but no real-time control is claimed.",
     },

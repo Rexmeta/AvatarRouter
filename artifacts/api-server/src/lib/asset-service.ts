@@ -8,6 +8,7 @@ import { requireSupportedProvider } from "./provisioning-providers";
 import { assetLiveVerified, requirePlaybackSession } from "./asset-live-policy";
 import { verifyFullValidationTarget } from "./tavus-full-runtime";
 import { decodeProvisioningFailure, presentProvisioningFailure } from "./provisioning-failure";
+import { imageRightsAttested } from "./image-rights";
 
 export function presentImage(row: ImageAssetRecord) {
   const { tenantId, objectPath, lineageId, consentReference, rightsConfirmedAt, ...safe } = row;
@@ -76,7 +77,7 @@ export async function ingestImage(tenant: string, input: unknown) {
         contentHash: validated.contentHash, objectPath, width: validated.width, height: validated.height,
         byteLength: validated.bytes.length, lineageId, previousVersionId: prior?.id,
         version: (latest?.version ?? 0) + 1, likeness: data.likeness,
-        consentReference: data.consentReference, consentStatus: data.likeness === "real_person" ? "pending_review" : "not_required",
+        consentReference: data.consentReference, consentStatus: data.likeness === "real_person" ? "attested" : "not_required",
       }).returning();
       return row!;
     } catch (error) { await removePrivateImage(objectPath); throw error; }
@@ -84,26 +85,25 @@ export async function ingestImage(tenant: string, input: unknown) {
 }
 export async function provisionAsset(tenant: string, input: unknown, notBefore = new Date()) {
   const data = ProvisionAvatarBody.strict().parse(input);
-  if (!data.costConfirmed) throw new SessionProblem(400, "COST_CONFIRMATION_REQUIRED", "Confirm potential provider training charges first.");
+  if (data.costConfirmed === false) throw new SessionProblem(400, "COST_CONFIRMATION_REQUIRED", "Creation was explicitly denied by the caller.");
   const providerId = requireSupportedProvider(data.providerId);
   return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${tenant}))`);
     const [image] = await tx.select().from(imageAssets).where(and(eq(imageAssets.id, data.imageAssetId), eq(imageAssets.tenantId, tenant))).for("update");
     if (!image) throw new SessionProblem(404, "IMAGE_NOT_FOUND", "Image not found.");
-    if (image.likeness === "real_person" && image.consentStatus !== "verified") {
-      throw new SessionProblem(409, "CONSENT_REVIEW_REQUIRED", "An operator must review real-person consent and provider identity requirements before transmission.");
-    }
-    if (providerId === "anam" && (image.width !== image.height || image.width < 1152)) {
-      throw new SessionProblem(422, "PROVIDER_IMAGE_REQUIREMENTS", "Anam requires a square source at least 1152×1152 pixels.");
-    }
-    if (providerId === "tavus" && (image.width < 512 || image.height < 512)) {
-      throw new SessionProblem(422, "PROVIDER_IMAGE_REQUIREMENTS", "Tavus Phoenix-4.5 requires at least 512×512 pixels. Use an adult chest-up portrait, cropped at or above the navel with lowered arms. Dimensions alone do not validate framing.");
-    }
+    if (!imageRightsAttested(image)) throw new SessionProblem(409, "RIGHTS_CONFIRMATION_REQUIRED", "Provide the real-person consent reference before transmission. No router operator approval is required.");
     const voiceName = data.voiceName ?? "anna";
     const [existing] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.tenantId, tenant), eq(avatarAssets.imageAssetId, image.id), eq(avatarAssets.providerId, providerId), eq(avatarAssets.voiceName, voiceName)));
     if (existing) {
       if (data.personaId && existing.name !== data.personaId) {
         throw new SessionProblem(409, "AVATAR_ASSET_PERSONA_CONFLICT", "This image/provider/voice already has an asset with another creation name. Inspect or explicitly reuse the existing asset; it will not be renamed or trained again automatically.");
+      }
+      // An explicit new request may retry a LOCAL AI/storage failure, never an uncertain provider POST.
+      if (existing.status === "failed" && !existing.providerAvatarId && existing.errorCode?.startsWith("TRAINING_IMAGE_")) {
+        const [requeued] = await tx.update(avatarAssets).set({
+          status: "queued", errorCode: null, leaseUntil: null, nextPollAt: notBefore, updatedAt: new Date(),
+        }).where(eq(avatarAssets.id, existing.id)).returning();
+        return requeued!;
       }
       return existing; // Never repeat a possibly billed POST after failure or deletion.
     }

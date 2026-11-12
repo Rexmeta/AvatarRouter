@@ -14,7 +14,7 @@ export const imageAssets = pgTable("image_assets", {
   previousVersionId: text("previous_version_id"),
   version: integer("version").notNull(),
   likeness: text("likeness", { enum: ["synthetic", "real_person"] }).notNull(),
-  consentStatus: text("consent_status", { enum: ["not_required", "pending_review", "verified"] }).notNull(),
+  consentStatus: text("consent_status", { enum: ["not_required", "pending_review", "verified", "attested"] }).notNull(),
   consentReference: text("consent_reference"),
   rightsConfirmedAt: timestamp("rights_confirmed_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
