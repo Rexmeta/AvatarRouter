@@ -82,7 +82,7 @@ Provider discovery (`/api/v1/providers`, `/api/v1/avatars`, `/api/v1/setup`) sta
 
 - API origin is the AvatarRouter service origin; OpenAPI `servers` base path is `/api`. Logical API paths shown below are prefixed `/api`, e.g. `/api/v1/sessions`.
 - Provider: the fixed stock catalog entry `providerId: "tavus"`, `avatarId: "tavus-stock-lucy"`.
-- `POST /api/v1/sessions` with `mode: "live"` requires `costConfirmed: true`, `sessions:create` and provider/LiveKit configuration. The API reserves one 120-second session. HTTP **201 means queued**, not video-ready.
+- `POST /api/v1/sessions` with `mode: "live"` requires `costConfirmed: true`, `sessions:create` and configuration for the selected pipeline. The API reserves the current `/live-limits.sessionSeconds`. Tavus full uses Daily rather than LiveKit. HTTP **201 means queued**, not video-ready.
 - The RoleplayX BFF mints a fresh, short-lived, narrowly scoped JWT server-side for each protected request. The signed issuer, tenant and user bind ownership; no Clerk token or browser-owner cookie is shared.
 - Poll `GET /api/v1/sessions/{id}` every 1–2 seconds with `sessions:read`. Wait for `status: "active"`, `rendererState: "running"`, `stopRequested: false` and `cleanupPending: false` before joining LiveKit. Check `GET /api/v1/live-limits` with `live-limits:read` for `workerReady`.
 - `GET /api/v1/sessions/{id}/connection` returns a **short-lived, room-scoped, subscribe-only** LiveKit token. Keep it in memory, never put it in URLs/storage/logs, and never publish tracks with it.
@@ -96,7 +96,7 @@ Provider discovery (`/api/v1/providers`, `/api/v1/avatars`, `/api/v1/setup`) sta
 
 - Exactly one concurrent global stock live session; renderer capacity and daily reservations are database-coordinated.
 - Default reserved live-time budgets: **600 seconds/mapped tenant/day** and **3600 seconds/global/day**, resetting at **00:00 UTC**. The legacy `user*` limit fields refer to a personal tenant for Clerk and a shared organization tenant for RoleplayX, not a separate per-RoleplayX-user budget. Operator settings `LIVE_USER_DAILY_SECONDS` and `LIVE_GLOBAL_DAILY_SECONDS` are nonnegative integer seconds; zero disables live admission.
-- Each attempt reserves the full **120 seconds**. Failed attempts are not automatically refunded. These are service time limits, not dollar budgets or a quote of provider credits. Provider credits are reported `unknown`; Tavus/LiveKit can still charge according to their own account/usage terms.
+- Each attempt reserves the full configured `sessionSeconds`. Failed attempts are not automatically refunded. These are service time limits, not dollar budgets or a quote of provider credits. Owner-confirmed accounting resets preserve the reservation/session records and cannot clear provider cleanup. Provider credits are reported `unknown`.
 - Check `workerReady` before admission. The Renderer Worker also has a separately configured health route at `/api/renderer-health`; it is operational health, not a browser API.
 - Never automatically retry a timed-out audio/interrupt command. Inspect the session status and events.
 - Never retry an ambiguous paid conversation-create POST or force-clear cleanup warnings. `LIVE_CREATE_RECONCILIATION_REQUIRED`, `cleanup_pending`, or `cleanupPending: true` means stop admission and reconcile the remote provider conversation and LiveKit room. An operator must verify cleanup.
@@ -109,7 +109,7 @@ Provider discovery (`/api/v1/providers`, `/api/v1/avatars`, `/api/v1/setup`) sta
 1. Keep the RoleplayX login/session flow unchanged. Select one authorized test account and tenant. Resolve its stable opaque user subject and verify membership against RoleplayX's own authorization store.
 2. Generate a test RS256 key pair in RoleplayX. Keep its private key on the RoleplayX server; publish its public JWK. Register matching public issuer/JWKS URL, audience and client ID in AvatarRouter development.
 3. Have the RoleplayX BFF mint a 45-second proof for the authenticated user and tenant with a unique `jti` and only `live-limits:read`. Verify that two users in different tenants cannot see one another's sessions before granting create/connect scopes.
-4. Check `GET /api/v1/live-limits` for `workerReady`, no cleanup warning and at least 120 remaining user/global seconds.
+4. Check `GET /api/v1/live-limits` for `workerReady`, no cleanup warning and enough remaining project/global seconds for the returned `sessionSeconds`.
 5. Obtain the test operator's consent to potential Tavus/LiveKit usage. Create **one** `tavus-stock-lucy` session with `costConfirmed: true` and `sessions:create`.
 6. Poll with `sessions:read` until ready, request one LiveKit subscribe-only token with `sessions:connect`, and show the real remote track in a test-only RoleplayX panel.
 7. Send the labelled synthetic one-second tone with `sessions:audio`; this tests PCM plumbing, not Korean speech or Gemini dialogue.

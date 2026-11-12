@@ -12,6 +12,9 @@ import { StartWorkspaceLiveCheckBody, GetWorkspaceLiveCheckResponse, GetWorkspac
 import { workspaceProbeIdentity, workspaceProbeState, startWorkspaceProbe, sendWorkspaceProbeSample } from "../lib/workspace-live-check";
 import { closeStockSession, liveConnection, ownedLiveSession } from "../lib/live-sessions";
 import { presentSession } from "../lib/session-service";
+import { GetWorkspaceBudgetResponse, UpdateWorkspaceBudgetBody, ResetWorkspaceBudgetBody } from "@workspace/api-zod";
+import { workspaceBudget, mutateWorkspaceBudget } from "../lib/workspace-budgets";
+import { isTrustedLiveOperator } from "../lib/live-operator-access";
 
 const router = Router();
 const owner: RequestHandler = (req, res, next) => {
@@ -30,6 +33,17 @@ router.use("/v1/developer", owner, rateLimit({ windowMs: 60_000, limit: 60, vali
 router.get("/v1/developer/keys", async (_req, res) => {
   res.json(ListDeveloperKeysResponse.parse(await listDeveloperKeys(res.locals.developerOwner)));
 });
+router.get("/v1/developer/workspaces/:projectId/budget", async (req, res) => {
+  res.json(GetWorkspaceBudgetResponse.parse(await workspaceBudget(res.locals.developerOwner, String(req.params.projectId), isTrustedLiveOperator(getAuth(req).userId!))));
+});
+router.patch("/v1/developer/workspaces/:projectId/budget", async (req, res) => {
+  const input = UpdateWorkspaceBudgetBody.strict().parse(req.body);
+  res.json(GetWorkspaceBudgetResponse.parse(await mutateWorkspaceBudget(res.locals.developerOwner, String(req.params.projectId), input, isTrustedLiveOperator(getAuth(req).userId!), false)));
+});
+router.post("/v1/developer/workspaces/:projectId/budget/reset", async (req, res) => {
+  const input = ResetWorkspaceBudgetBody.strict().parse(req.body);
+  res.json(GetWorkspaceBudgetResponse.parse(await mutateWorkspaceBudget(res.locals.developerOwner, String(req.params.projectId), input, isTrustedLiveOperator(getAuth(req).userId!), true)));
+});
 router.get("/v1/developer/workspaces/:projectId", async (req, res): Promise<void> => {
   res.json(GetDeveloperWorkspaceResponse.parse(await developerWorkspace(res.locals.developerOwner, String(req.params.projectId))));
 });
@@ -38,9 +52,9 @@ router.get("/v1/developer/workspaces/:projectId/live-check", async (req, res) =>
   res.json(GetWorkspaceLiveCheckResponse.parse(await workspaceProbeState(identity)));
 });
 router.post("/v1/developer/workspaces/:projectId/live-check", async (req, res) => {
-  StartWorkspaceLiveCheckBody.strict().parse(req.body);
+  const input = StartWorkspaceLiveCheckBody.strict().parse(req.body);
   const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));
-  res.status(201).json(GetWorkspaceLiveCheckResponse.parse(await startWorkspaceProbe(identity)));
+  res.status(201).json(GetWorkspaceLiveCheckResponse.parse(await startWorkspaceProbe(identity, input.maxSeconds)));
 });
 router.get("/v1/developer/workspaces/:projectId/live-check/:id/connection", async (req, res) => {
   const identity = await workspaceProbeIdentity(res.locals.developerOwner, String(req.params.projectId));

@@ -20,11 +20,12 @@ before(async () => {
   await pool.query(`CREATE SCHEMA ${schema}`);
   pool.on("connect", client => { void client.query(`SET search_path TO ${schema}`); });
   await pool.query(`SET search_path TO ${schema}`);
-  for (const table of ["avatar_sessions", "avatar_session_events", "renderer_workers", "renderer_commands", "integration_api_keys"]) {
+  for (const table of ["live_budget_settings", "avatar_sessions", "avatar_session_events", "renderer_workers", "renderer_commands", "integration_api_keys"]) {
     await pool.query(`CREATE TABLE ${table} (LIKE public.${table} INCLUDING ALL)`);
   }
 });
 beforeEach(async () => {
+  Object.assign(process.env, { TAVUS_LIVE_SESSION_SECONDS: "120", LIVE_USER_DAILY_SECONDS: "600", LIVE_GLOBAL_DAILY_SECONDS: "3600" });
   await pool.query("TRUNCATE avatar_sessions, avatar_session_events, renderer_workers, renderer_commands, integration_api_keys");
 });
 after(async () => {
@@ -43,11 +44,15 @@ async function fixture(values: Partial<typeof avatarSessions.$inferInsert> = {})
   return row!;
 }
 
-test("consent requires exact true and 120 seconds; identity and custom assets cannot be supplied", () => {
+test("consent requires exact true and bounded seconds; identity and custom assets cannot be supplied", () => {
   assert.deepEqual(StartWorkspaceLiveCheckBody.strict().parse({ costConfirmed: true, maxSeconds: 120 }), { costConfirmed: true, maxSeconds: 120 });
-  for (const input of [{}, { costConfirmed: false, maxSeconds: 120 }, { costConfirmed: true, maxSeconds: 121 }, { costConfirmed: true }, { costConfirmed: true, maxSeconds: 120, tenantId: "injected" }]) {
+  for (const input of [{}, { costConfirmed: false, maxSeconds: 120 }, { costConfirmed: true, maxSeconds: 7201 }, { costConfirmed: true, maxSeconds: 0 }, { costConfirmed: true }, { costConfirmed: true, maxSeconds: 120, tenantId: "injected" }]) {
     assert.equal(StartWorkspaceLiveCheckBody.strict().safeParse(input).success, false);
   }
+});
+
+test("stale duration consent cannot silently authorize a longer paid diagnostic", async () => {
+  await assert.rejects(startWorkspaceProbe(identity, 119), { code: "LIVE_DURATION_CONSENT_CHANGED" });
 });
 
 test("diagnostic identity requires project ownership and uses the integration namespace, never personal Studio", async () => {

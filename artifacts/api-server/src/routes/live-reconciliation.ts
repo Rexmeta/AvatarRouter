@@ -11,12 +11,8 @@ import { SessionProblem } from "../lib/session-service";
 import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } from "../lib/live-session-operator";
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { compareRendererDiagnostics, listRendererDiagnosticSessions } from "../lib/renderer-diagnostic-query";
-import { liveOperatorBootstrap } from "../lib/live-operator-bootstrap";
-
-export function isTrustedLiveOperator(userId: string, configured = process.env.LIVE_SESSION_OPERATOR_IDS ?? "") {
-  const allowed = new Set(configured.split(",").map(value => value.trim()).filter(Boolean));
-  return allowed.has(userId) || liveOperatorBootstrap.has(userId);
-}
+import { isTrustedLiveOperator } from "../lib/live-operator-access";
+export { isTrustedLiveOperator } from "../lib/live-operator-access";
 
 const trustedOperator: RequestHandler = (req, res, next) => {
   res.set("Cache-Control", "private, no-store");

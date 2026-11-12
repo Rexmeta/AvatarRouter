@@ -10,6 +10,7 @@ import { useI18n } from '@/lib/i18n';
 import { useState } from 'react';
 import { LiveAdmissionNotice } from '@/components/live-admission-notice';
 import { WorkspaceLiveCheckPanel } from '@/components/workspace-live-check-panel';
+import { WorkspaceBudgetPanel } from '@/components/workspace-budget-panel';
 import { useWorkspaceLiveCheck } from '@/lib/use-workspace-live-check';
 
 function LiveCheckSection({ projectId }: { projectId: string }) {
@@ -45,12 +46,8 @@ export default function Workspace() {
     {!pending && <LiveAdmissionNotice limits={w.limits}/>}
     {!!pending && <div role="alert" className="console-note console-warning flex items-start gap-3"><AlertTriangle size={18} className="shrink-0"/><div><strong>{t('Previous session cleanup needs confirmation','이전 세션의 생성·종료 결과 확인이 필요합니다')}</strong><p className="mt-2">{t(`${pending} unresolved session(s). An operator must verify cleanup. Viewing this screen or refreshing does not clear the paid-start block.`,`${pending}개 세션이 미확인 상태입니다. 운영자의 확인·정리가 필요하며, 화면 새로고침이나 설정 변경으로 유료 연결 차단이 해제되지 않습니다.`)}</p><span className="mono text-xs">avatar_provider_cleanup_required</span><Link href="/operator/live-reconciliation" className="mt-3 block text-sm underline">{t('Operator: manage termination & cleanup','운영자: 종료·정리 관리 화면 열기')}</Link><p className="mt-1 text-xs text-muted-foreground">{t('A trusted operator account is required; a project API key cannot perform operator actions.','승인된 운영자 계정이 필요합니다. 프로젝트 API 키만으로는 운영자 작업을 수행할 수 없습니다.')}</p></div></div>}
     {section === 'settings' ? <Panel className="p-5"><dl className="space-y-5 text-sm"><div><dt className="eyebrow">{t('Workspace name','워크스페이스 이름')}</dt><dd className="mt-2">{w.projectName}</dd></div><div><dt className="eyebrow">Project ID</dt><dd className="mono mt-2 break-all">{w.projectId}</dd></div><div><dt className="eyebrow">{t('Access boundary','접근 범위')}</dt><dd className="mt-2">{t('Interactive project owner only. No member sharing or operator grants are implied.','로그인한 프로젝트 소유자만 관리합니다. 멤버 공유나 운영자 권한 부여 기능은 제공하지 않습니다.')}</dd></div></dl><Link className="arw-button mt-6" href={`${base}/keys`}>{t('Manage keys & permissions','키·권한 관리')}<ArrowRight size={14}/></Link><p className="mt-4 text-xs text-muted-foreground">{t('Project rename and deletion are not currently supported. Revoking a key does not terminate existing provider sessions.','프로젝트 이름 변경·삭제는 현재 지원하지 않습니다. 키 폐기는 기존 제공자 세션의 종료를 의미하지 않습니다.')}</p></Panel> : section === 'limits' ? <>
-      <Panel className="p-5"><h2 className="mb-5 font-semibold">{t('Daily live admission budget','일일 라이브 연결 허용 시간')}</h2><dl className="grid gap-5 sm:grid-cols-3">
-        <div><dt className="eyebrow">{t('Project remaining','프로젝트 잔여')}</dt><dd className="mt-2 text-xl">{w.limits.userRemainingSeconds}s / {w.limits.userDailySeconds}s</dd></div>
-        <div><dt className="eyebrow">{t('Max session','세션 최대')}</dt><dd className="mt-2 text-xl">{w.limits.sessionSeconds}s</dd></div>
-        <div><dt className="eyebrow">{t('Worker','워커')}</dt><dd className="mt-2"><Pill value={w.limits.workerReady ? 'ready' : 'unavailable'}/></dd></div>
-      </dl><p className="mt-5 text-sm text-muted-foreground">{t('Internal admission budget, not a provider balance or billing quote. Read-only here. Resets: ','내부 연결 허용 시간이며 제공자 잔액·실제 청구액이 아닙니다. 이 화면에서는 조회만 가능합니다. 초기화: ')}{fmtTime(w.limits.resetsAt)}</p></Panel>
-      <div className="console-note">{t('Provider billing: not connected / unknown. Connected duration is not confirmed billable duration.','제공자 청구·잔액: 미연동 / 확인 불가. 연결 시간은 확정 청구 시간이 아닙니다.')}</div>
+      <WorkspaceBudgetPanel key={`${user.id}:${projectId}`} projectId={projectId} userId={user.id}/>
+      <div className="console-note mt-5 flex items-center gap-2">{t('Worker','워커')} <Pill value={w.limits.workerReady ? 'ready' : 'unavailable'}/></div>
     </> : <>
       {section !== 'sessions' && <div className="mb-6 grid gap-4 sm:grid-cols-3">{[
         [t('Recent sessions · max 200','최근 세션 · 최대 200'),w.sessions.length],

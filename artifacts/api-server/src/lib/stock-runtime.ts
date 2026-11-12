@@ -11,7 +11,7 @@ export { STOCK_FACE, STOCK_PAL, STOCK_AVATAR, STOCK_KEYS, stockConfigured, safeL
 export function liveRoomOptions(name: string) {
   // Renderer/provider participants may be agents, not a human participant.
   // Give the viewer the whole bounded session to join; the worker still enforces
-  // the independent 120-second provider/room cleanup deadline.
+  // the independently configured provider/room cleanup deadline.
   const seconds = LIVE_SESSION_MS / 1000;
   return { name, emptyTimeout: seconds, departureTimeout: seconds, maxParticipants: 3 };
 }
@@ -109,7 +109,7 @@ export class StockRuntime {
     await this.stage("room_create", () => client.createRoom(liveRoomOptions(this.roomName)));
     if (this.closed) return;
     const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
-      identity: "avatar-router-renderer", ttl: 150,
+      identity: "avatar-router-renderer", ttl: LIVE_SESSION_MS / 1000 + 30,
     });
     token.kind = "agent";
     token.addGrant({ roomJoin: true, room: this.roomName, canPublish: true, canSubscribe: true, canPublishData: true });

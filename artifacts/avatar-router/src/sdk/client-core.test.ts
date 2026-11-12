@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createClientWithDriver, type ClientOptions, type CleanupState, type SessionCleanupStatus } from './client-core';
+import { clientDeadlineMs, createClientWithDriver, type ClientOptions, type CleanupState, type SessionCleanupStatus } from './client-core';
+
+test('Tavus obeys ten-minute server expiry instead of stopping at 120s; Anam stays bounded', () => {
+  const now = Date.now(), expiry = new Date(now + 600_000).toISOString();
+  assert.equal(clientDeadlineMs(expiry, 'tavus_full', now), 600_000);
+  assert.equal(clientDeadlineMs(expiry, 'external_audio', now), 600_000);
+  assert.equal(clientDeadlineMs(expiry, 'anam_full', now), 120_000);
+  assert.throws(() => clientDeadlineMs('invalid', 'tavus_full', now), /CLIENT_EXPIRED/);
+  assert.throws(() => clientDeadlineMs(new Date(now - 1).toISOString(), 'tavus_full', now), /CLIENT_EXPIRED/);
+});
 
 function fixture(overrides: Partial<ClientOptions> = {}, expiresAt = new Date(Date.now() + 90_000).toISOString()) {
   const order: string[] = [];

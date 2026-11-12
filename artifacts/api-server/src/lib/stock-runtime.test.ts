@@ -3,6 +3,16 @@ import assert from "node:assert/strict";
 import { stockConfigured, validateLiveAudio, safeLiveError, STOCK_AVATAR, STOCK_FACE, STOCK_PAL, StockRuntime, terminateResources, liveRoomOptions } from "./stock-runtime";
 import { createStockSession } from "./live-sessions";
 import { RendererDiagnostics } from "./renderer-diagnostics";
+import { liveSessionMs, LIVE_SESSION_MS } from "./stock-policy";
+
+test("Tavus duration is configurable while Anam remains separately bounded", () => {
+  assert.equal(liveSessionMs("tavus", { TAVUS_LIVE_SESSION_SECONDS: "600" }), 600_000);
+  assert.equal(liveSessionMs("anam", { TAVUS_LIVE_SESSION_SECONDS: "600" }), 120_000);
+  assert.equal(liveSessionMs("tavus", {}), 120_000);
+  for (const value of ["0", "-1", "1.5", "7201", "invalid"]) {
+    assert.throws(() => liveSessionMs("tavus", { TAVUS_LIVE_SESSION_SECONDS: value }));
+  }
+});
 
 test("stock configuration is explicit and never invents a trained face", () => {
   assert.equal(STOCK_AVATAR, "tavus-stock-lucy");
@@ -16,7 +26,7 @@ test("stock configuration is explicit and never invents a trained face", () => {
 });
 test("agent-only room does not expire before a bounded viewer join window", () => {
   assert.deepEqual(liveRoomOptions("isolated-room"), {
-    name: "isolated-room",emptyTimeout:120,departureTimeout:120,maxParticipants:3,
+    name: "isolated-room",emptyTimeout:LIVE_SESSION_MS / 1000,departureTimeout:LIVE_SESSION_MS / 1000,maxParticipants:3,
   });
 });
 test("stock allocation rejects missing cost permission before creating resources", async () => {

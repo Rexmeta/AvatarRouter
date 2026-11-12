@@ -12,10 +12,13 @@ export interface LiveLimits {
   creationAllowed?: boolean;
   /** Safe admission reason codes. No other project's identifiers, resource references, or reconciliation records. */
   blockingReasons?: string[];
+  /** Router project daily reservation budget, not provider credits or subscription entitlement. */
   userDailySeconds: number;
+  /** Router service-wide daily reservation budget, not provider credits. */
   globalDailySeconds: number;
   userRemainingSeconds: number;
   globalRemainingSeconds: number;
+  /** Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap. */
   sessionSeconds: number;
   cleanupPending: number;
   workerReady: boolean;

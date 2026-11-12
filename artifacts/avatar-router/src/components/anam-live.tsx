@@ -4,9 +4,10 @@ import { useAuth } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient, type DialogueMessage } from '@/sdk/avatarrouter-client';
 import { SessionTranscript } from './session-transcript';
-import { LogIn, MessagesSquare, Mic, Play, Radio, Square } from 'lucide-react';
+import { CheckCircle2, LogIn, MessagesSquare, Mic, Play, Radio, Square } from 'lucide-react';
 import {
-  useCreateSession, useGetSession, useGetLiveLimits, useListAvatars, useListSessions,
+  useCreateSession, useReportAvatarLiveValidation, getGetAvatarAssetQueryKey, getListAvatarAssetsQueryKey, type AvatarAsset,
+  useGetSession, useGetLiveLimits, useListAvatars, useListSessions,
   getSession, createClientConnection, endSession, listSessions,
   getGetSessionQueryKey, getGetLiveLimitsQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey,
 } from '@workspace/api-client-react';
@@ -16,11 +17,11 @@ import { cn } from '@/lib/utils';
 import { AnamRoleplayFields } from '@/components/anam-roleplay-fields';
 import { emptyRoleplayDraft, prepareRoleplay } from '@/lib/anam-roleplay-input';
 import { accountIsCurrent, anamRecoverySessions, needsAnamRecovery, loadAnamRecovery, endLateAnamCreation } from '@/lib/anam-session-recovery';
+import { emptyEvidence, observe, canReport, type Evidence } from '@/lib/live-validation-evidence';
 import { hasConfirmedAnamStop, requestAnamStop, confirmAnamStop, type AnamStopState } from '@/lib/anam-stop-state';
 
 const POLL_MS = 2000;
 const QUEUE_TIMEOUT_MS = 90_000;
-const STOP_DEADLINE_S = 120;
 
 type Phase = 'idle' | 'creating' | 'queued' | 'token' | 'connecting' | 'connected' | 'playing' | 'stopping' | 'stop_unconfirmed' | 'ended' | 'error' | 'recovered';
 
@@ -35,28 +36,33 @@ export function AnamLivePanel() {
   return <NativeLivePanel providerId="anam" />;
 }
 
-export function NativeLivePanel({ providerId }: { providerId: 'anam' | 'tavus' }) {
+export function NativeLivePanel({ providerId, asset }: { providerId: 'anam' | 'tavus'; asset?: AvatarAsset }) {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const uid = isSignedIn ? userId ?? null : null;
   const account = useRef(uid);
   account.current = uid;
   if (!isLoaded) return null;
+  // Only a ready Tavus custom asset with a provider avatar ID may be targeted.
+  const target = providerId === 'tavus' && asset && asset.providerId === 'tavus' && asset.status === 'ready' && asset.providerAvatarId ? asset : undefined;
+  if (asset && !target) return <p role="alert">Custom validation requires a ready Tavus asset with its current provider avatar ID.</p>;
   // Account changes unmount the old view before any old metadata can be shown.
-  return <AnamLiveSession key={`${providerId}:${uid ?? 'signed-out'}`} providerId={providerId} uid={uid} account={account} />;
+  return <AnamLiveSession key={`${providerId}:${uid ?? 'signed-out'}:${target ? `${target.id}:${target.providerAvatarId}` : 'stock'}`} providerId={providerId} uid={uid} account={account} asset={target} />;
 }
 
-function AnamLiveSession({ uid, account, providerId }: { uid: string | null; account: { current: string | null }; providerId: 'anam' | 'tavus' }) {
+function AnamLiveSession({ uid, account, providerId, asset }: { uid: string | null; account: { current: string | null }; providerId: 'anam' | 'tavus'; asset?: AvatarAsset }) {
   const providerName = providerId === 'anam' ? 'Anam' : 'Tavus';
-  const PERSONA_ID = providerId === 'anam' ? 'anam-persona-default' : 'tavus-stock-lucy';
-  const VIDEO_ID = `${providerId}-live-video`;
+  const custom = providerId === 'tavus' && asset?.providerAvatarId ? asset : undefined;
+  const PERSONA_ID = custom?.providerAvatarId ?? (providerId === 'anam' ? 'anam-persona-default' : 'tavus-stock-lucy');
+  const VIDEO_ID = `${providerId}-${custom ? `asset-${custom.id}` : 'live'}-video`;
   const L = useL();
   const qc = useQueryClient();
 
-  const limitsParams = { providerId };
+  const limitsParams = providerId === 'tavus' ? { providerId, pipeline: 'tavus_full' as const } : { providerId };
   const limits = useGetLiveLimits(limitsParams, {
     query: { queryKey: [...getGetLiveLimitsQueryKey(limitsParams), uid], enabled: !!uid, refetchInterval: 5000, staleTime: 0 },
   });
   const avatars = useListAvatars();
+  const STOP_DEADLINE_S = limits.data?.sessionSeconds ?? 120;
   const persona = avatars.data?.find((a) => a.id === PERSONA_ID);
 
   const [sid, setSid] = useState('');
@@ -111,6 +117,15 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
     qc.invalidateQueries({ queryKey: getGetUsageQueryKey() });
   }, [qc]);
 
+  /* Validation evidence (custom Tavus only). Never reported automatically. */
+  const [evidence, setEvidence] = useState<Evidence>(emptyEvidence);
+  const [heard, setHeard] = useState(false);
+  const [reportState, setReportState] = useState<{ kind: 'ok' | 'fail'; msg?: string; sid: string } | null>(null);
+  const reportInFlight = useRef(false);
+  const reportedSid = useRef('');
+  const report = useReportAvatarLiveValidation({ mutation: { gcTime: 0 } });
+  const resetEvidence = useCallback(() => { setEvidence(emptyEvidence()); setHeard(false); setReportState(null); }, []);
+  useEffect(() => { resetEvidence(); }, [sid, resetEvidence]);
   /* SDK teardown: never throws, never logs raw SDK detail */
   const stopClient = useCallback(async () => {
     const c = clientRef.current;
@@ -182,6 +197,7 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
     const run = ++runRef.current;
     const live = () => isCurrent() && runRef.current === run;
     setErr(null); setAck(false); setDeadline(null); setTokenExp(null); setStopState(null); setMessages([]);
+    resetEvidence();
     setPhase('creating');
 
     let id = '';
@@ -195,6 +211,7 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
       const ns = await create.mutateAsync({ data: {
         providerId, avatarId: PERSONA_ID, pipeline: providerId === 'anam' ? 'anam_full' : 'tavus_full', mode: 'live', costConfirmed: true,
         ...context,
+        ...(custom ? { avatarAssetId: custom.id, purpose: 'validation' as const } : {}),
       } });
       id = ns.id;
     } catch (e) {
@@ -303,6 +320,48 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
     }
   }, [recovered, s, phase]);
 
+  /* Sample the actual media element: decoded frames, advancing time, unmuted live audio track. */
+  useEffect(() => {
+    if (!custom || phase !== 'playing') return;
+    const video = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
+    if (!video) return;
+    let alive = true;
+    const sample = () => {
+      if (!alive) return;
+      const src = video.srcObject instanceof MediaStream ? video.srcObject : null;
+      const liveAudio = !!src?.getAudioTracks().some((tr) => tr.readyState === 'live' && tr.enabled);
+      setEvidence((prev) => observe(prev, { readyState: video.readyState, videoWidth: video.videoWidth, currentTime: video.currentTime, muted: video.muted || video.volume === 0, liveAudio }));
+    };
+    type RVFC = (cb: () => void) => number;
+    const rvfc = (video as unknown as { requestVideoFrameCallback?: RVFC }).requestVideoFrameCallback?.bind(video);
+    const loop = () => { sample(); if (alive && rvfc) rvfc(loop); };
+    if (rvfc) rvfc(loop);
+    video.addEventListener('timeupdate', sample);
+    return () => { alive = false; video.removeEventListener('timeupdate', sample); };
+  }, [custom, phase, VIDEO_ID]);
+
+  const reportTarget = { uid, assetId: custom?.id ?? '', providerAvatarId: custom?.providerAvatarId ?? null, sid };
+  const reportable = !!custom && !recovered && phase === 'playing' && reportedSid.current !== sid
+    && canReport(reportTarget, s, evidence, heard, account.current);
+  const submitReport = async () => {
+    if (!custom || !reportable || reportInFlight.current) return;
+    reportInFlight.current = true;
+    const id = sid; const assetId = custom.id;
+    const still = () => isCurrent() && sidRef.current === id;
+    try {
+      await report.mutateAsync({ id: assetId, data: { sessionId: id, videoObserved: true, audioObserved: true } });
+      reportedSid.current = id;
+      qc.invalidateQueries({ queryKey: getGetAvatarAssetQueryKey(assetId) });
+      qc.invalidateQueries({ queryKey: getListAvatarAssetsQueryKey() });
+      if (still()) setReportState({ kind: 'ok', sid: id });
+    } catch (e) {
+      if (still()) setReportState({ kind: 'fail', msg: errMsg(e), sid: id });
+    } finally {
+      reportInFlight.current = false;
+      report.reset();
+    }
+  };
+
   /* router deadline timer */
   useEffect(() => {
     if (!deadline) return;
@@ -375,9 +434,9 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
   ];
 
   return (
-    <div id={providerId} className="rise mb-8">
+    <div id={custom ? 'tavus-asset' : providerId} className="rise mb-8">
       <Panel
-        title={<span className="flex items-center gap-2"><Radio className="h-3.5 w-3.5 text-primary" />{providerName} · {L('AvatarRouter live conversation', 'AvatarRouter 라이브 대화')}</span>}
+        title={<span className="flex items-center gap-2"><Radio className="h-3.5 w-3.5 text-primary" />{providerName} · {custom ? L('custom avatar validation', '커스텀 아바타 검증') : L('AvatarRouter live conversation', 'AvatarRouter 라이브 대화')}</span>}
         aside={<span className="mono text-[10.5px] text-muted-foreground">{L('Managed voice + dialogue', '라우터가 음성·대화 연동 관리')}</span>}
       >
         {!uid ? (
@@ -413,8 +472,8 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
             <div className="space-y-4 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="break-all text-lg font-bold" data-testid="text-anam-persona">{persona?.name ?? (avatars.isLoading ? '…' : providerName)}</div>
-                  <div className="mono break-all text-[10.5px] text-muted-foreground">{providerId} · {persona?.id ?? PERSONA_ID}{persona && !persona.configured ? ` · ${L('not configured', '미설정')}` : ''}</div>
+                  <div className="break-all text-lg font-bold" data-testid="text-anam-persona">{custom ? custom.name : persona?.name ?? (avatars.isLoading ? '…' : providerName)}</div>
+                  <div className="mono break-all text-[10.5px] text-muted-foreground">{providerId} · {custom ? `${PERSONA_ID} · ${L('validation', '검증')}` : persona?.id ?? PERSONA_ID}{!custom && persona && !persona.configured ? ` · ${L('not configured', '미설정')}` : ''}</div>
                 </div>
                 {stopUnconfirmed
                   ? <Pill value="failed" label={L('Stop unconfirmed', '종료 확인 필요')} />
@@ -538,6 +597,28 @@ function AnamLiveSession({ uid, account, providerId }: { uid: string | null; acc
                 <div className="rounded border border-[hsl(var(--warn))]/40 bg-[hsl(var(--warn))]/5 p-3" data-testid="text-anam-error">
                   <div className="mono text-[11px] uppercase tracking-wider text-[hsl(var(--warn))]">{L('status', '상태')}</div>
                   <p className="mt-1 text-sm">{err}</p>
+                </div>
+              )}
+              {custom && (
+                <div className="space-y-2 rounded border border-primary/40 p-3 text-xs" data-testid="panel-asset-validation">
+                  <div className="eyebrow">{L('Playback evidence', '재생 증거')}</div>
+                  <p className="text-muted-foreground">{L('Validation session over Tavus full pipeline (Daily, no LiveKit). Connected or playing alone is not evidence; the report needs moving frames, an unmuted live audio track, and your confirmation.',
+                    'Tavus 전체 파이프라인(Daily, LiveKit 불필요) 검증 세션입니다. 연결·재생 상태만으로는 증거가 아니며, 움직이는 프레임·음소거되지 않은 라이브 오디오 트랙·관리자 확인이 필요합니다.')}</p>
+                  <ul className="mono space-y-0.5 text-[11px]">
+                    <li data-testid="status-evidence-video">{evidence.video ? '[x]' : '[ ]'} {L('video frames advancing', '영상 프레임 진행')}</li>
+                    <li data-testid="status-evidence-audio">{evidence.audio ? '[x]' : '[ ]'} {L('unmuted live audio track', '음소거 아닌 라이브 오디오 트랙')}</li>
+                  </ul>
+                  <label className="flex items-start gap-2">
+                    <input type="checkbox" data-testid="checkbox-heard-voice" checked={heard} disabled={phase !== 'playing' || !evidence.video || !evidence.audio}
+                      onChange={(e) => setHeard(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
+                    <span>{L('I heard the avatar speak back in this session.', '이 세션에서 아바타의 응답 음성을 직접 들었습니다.')}</span>
+                  </label>
+                  <button type="button" data-testid="button-report-validation" disabled={!reportable || report.isPending} onClick={() => void submitReport()}
+                    className="inline-flex items-center gap-2 rounded bg-primary px-3 py-1.5 font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {report.isPending ? L('Reporting…', '기록 중…') : L('Report playback validated', '재생 검증 기록')}
+                  </button>
+                  {reportState?.sid === sid && reportState.kind === 'ok' && <p role="status" className="text-primary" data-testid="text-report-success">{L('Playback report recorded for this asset.', '이 에셋의 재생 검증이 기록되었습니다.')}</p>}
+                  {reportState?.sid === sid && reportState.kind === 'fail' && <p role="alert" className="text-destructive" data-testid="text-report-error">{L('Report not recorded', '기록 실패')}: {reportState.msg}</p>}
                 </div>
               )}
               {messages.length > 0 && <section className="space-y-2 text-sm" aria-live="polite">

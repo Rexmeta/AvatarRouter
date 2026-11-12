@@ -8,6 +8,22 @@ type Options = NonNullable<AvatarSessionRecord["fullPipeline"]>;
 type Fetcher = typeof fetch;
 const base = "https://tavusapi.com/v2";
 
+/** Read-only corroboration, not creation or playback proof. Never return raw provider data. */
+export async function verifyFullValidationTarget(conversationId: string, faceId: string, fetcher: Fetcher = fetch) {
+  try {
+    const response = await fetcher(`${base}/conversations/${encodeURIComponent(conversationId)}`, {
+      method: "GET", headers: { "x-api-key": process.env.TAVUS_API_KEY! },
+      redirect: "error", signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) {
+      const data = await response.json() as { conversation_id?: unknown; face_id?: unknown; status?: unknown };
+      if (data.conversation_id === conversationId && data.face_id === faceId && data.status === "active") return;
+    }
+  } catch { /* Missing, stale, transport or malformed evidence never validates an asset. */ }
+  throw new SessionProblem(409, "LIVE_VALIDATION_PROVIDER_EVIDENCE_REQUIRED",
+    "Tavus must confirm this active conversation uses the current face ID. No paid creation was retried; playback validation was not saved.");
+}
+
 async function request(path: string, body?: unknown, fetcher: Fetcher = fetch, method = "POST") {
   return fetcher(`${base}${path}`, {
     method, headers: { "x-api-key": process.env.TAVUS_API_KEY!, "Content-Type": "application/json" },

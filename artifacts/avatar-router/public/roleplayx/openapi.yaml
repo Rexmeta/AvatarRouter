@@ -15,6 +15,58 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       RoleplayX owns dialogue in external_audio mode; Tavus owns dialogue in explicit tavus_full mode.
 paths:
+  /v1/developer/workspaces/{projectId}/budget:
+    get:
+      operationId: getWorkspaceBudget
+      security: [{ ClerkSessionJWT: [] }]
+      description: Interactive workspace owner only. API keys cannot manage or reset budgets.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Current router budgets and revision tokens.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceBudget" }
+        "403": { description: Interactive owner required. }
+    patch:
+      operationId: updateWorkspaceBudget
+      security: [{ ClerkSessionJWT: [] }]
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetUpdate" }
+      responses:
+        "200":
+          description: Budget saved with an audit entry. Existing reservations are retained.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceBudget" }
+        "403": { description: Global changes require a trusted operator. }
+        "409": { description: Stale revision; refresh before confirming. }
+  /v1/developer/workspaces/{projectId}/budget/reset:
+    post:
+      operationId: resetWorkspaceBudget
+      security: [{ ClerkSessionJWT: [] }]
+      description: Resets only router accounting with an auditable cutoff; never deletes sessions, provider usage or cleanup fences.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetReset" }
+      responses:
+        "200":
+          description: Reset saved without creating a session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceBudget" }
+        "403": { description: Interactive owner required; service reset requires operator. }
+        "409": { description: Stale revision or active/unresolved session. }
   /v1/developer/workspaces/{projectId}/live-check:
     parameters:
       - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -127,8 +179,11 @@ paths:
       description: >-
         Requires assets:write and the original validation-session owner. Records a trusted
         client playback report, not independent provider certification. The server requires
-        a running, unexpired validation session for this exact asset revision and a completed
-        audio command. Never call until the client has observed video frames and audible output.
+        a running, leased, unexpired validation session for this exact asset revision.
+        external_audio additionally requires a completed renderer audio command.
+        tavus_full instead requires read-only provider evidence that the active conversation
+        uses the exact current face ID; no LiveKit or renderer audio upload is needed.
+        Never call until the trusted client has observed moving video and audible returned output.
       security: [{ ClerkSessionJWT: [] }, { ServiceApiKey: [] }, { RoleplayXDelegationJWT: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -847,6 +902,41 @@ components:
         RoleplayX HTTPS JWKS URL. Lifetime is at most 60 seconds. It binds iss, aud, client_id, opaque sub,
         tenant_id, jti, iat, exp and a least-privilege scope claim. No RoleplayX session JWT or signing secret is shared.
   schemas:
+    BudgetUpdate:
+      type: object
+      additionalProperties: false
+      required: [scope, dailySeconds, revision, costConfirmed]
+      properties:
+        scope: { type: string, enum: [project, service] }
+        dailySeconds: { type: integer, minimum: 0, maximum: 86400 }
+        revision: { type: integer, minimum: 0 }
+        costConfirmed: { type: boolean, enum: [true] }
+    BudgetReset:
+      type: object
+      additionalProperties: false
+      required: [scope, revision, confirmed]
+      properties:
+        scope: { type: string, enum: [project, service] }
+        revision: { type: integer, minimum: 0 }
+        confirmed: { type: boolean, enum: [true] }
+    BudgetScope:
+      type: object
+      required: [dailySeconds, usedSeconds, remainingSeconds, revision, resetAt]
+      properties:
+        dailySeconds: { type: integer }
+        usedSeconds: { type: integer }
+        remainingSeconds: { type: integer }
+        revision: { type: integer }
+        resetAt: { type: [string, "null"], format: date-time }
+    WorkspaceBudget:
+      type: object
+      required: [project, service, canManageService, sessionSeconds, resetsAt]
+      properties:
+        project: { $ref: "#/components/schemas/BudgetScope" }
+        service: { $ref: "#/components/schemas/BudgetScope" }
+        canManageService: { type: boolean }
+        sessionSeconds: { type: integer }
+        resetsAt: { type: string, format: date-time }
     CreateDeveloperKeyInput:
       type: object
       additionalProperties: false
@@ -900,6 +990,7 @@ components:
         apiVersion: { type: string }
         features: { type: array, items: { type: string } }
         customLiveProviders: { type: array, items: { type: string } }
+        customValidationPipelines: { type: array, items: { type: string, enum: [external_audio, tavus_full] }, description: "Supported custom playback validation transports; not proof of provider credits or observed playback." }
         assetNamespace: { type: string, const: project }
         stockAvatarId: { type: string, description: Stock session reference; not an owned avatar asset UUID. }
         stockCatalogPath: { type: string, const: /avatars }
@@ -1155,7 +1246,7 @@ components:
         providerId: { type: string, enum: [mock, anam, tavus] }
         avatarId: { type: string, minLength: 1, maxLength: 160 }
         avatarAssetId: { type: string, format: uuid, description: "Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable." }
-        purpose: { type: string, enum: [conversation, validation], default: conversation, description: "Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID." }
+        purpose: { type: string, enum: [conversation, validation], default: conversation, description: "Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID." }
         costConfirmed: { type: boolean, default: false, description: "Required for every live session including validation. Provider/LiveKit usage may consume credits." }
         mode: { type: string, enum: [mock, live] }
     Session:
@@ -1206,11 +1297,11 @@ components:
           type: array
           description: Safe admission reason codes. No other project's identifiers, resource references, or reconciliation records.
           items: { type: string }
-        userDailySeconds: { type: integer }
-        globalDailySeconds: { type: integer }
+        userDailySeconds: { type: integer, description: "Router project daily reservation budget, not provider credits or subscription entitlement." }
+        globalDailySeconds: { type: integer, description: "Router service-wide daily reservation budget, not provider credits." }
         userRemainingSeconds: { type: integer }
         globalRemainingSeconds: { type: integer }
-        sessionSeconds: { type: integer }
+        sessionSeconds: { type: integer, description: "Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap." }
         cleanupPending: { type: integer }
         workerReady: { type: boolean }
         providerCredits: { type: string, enum: [unknown] }
@@ -1430,7 +1521,7 @@ components:
       required: [costConfirmed, maxSeconds]
       properties:
         costConfirmed: { type: boolean, enum: [true] }
-        maxSeconds: { type: integer, enum: [120] }
+        maxSeconds: { type: integer, minimum: 1, maximum: 7200, description: "Must equal the latest limits.sessionSeconds. Stale cost consent is rejected before paid creation." }
     WorkspaceLiveCheck:
       type: object
       required: [session, cleanupConfirmed, sampleAttempted, limits]

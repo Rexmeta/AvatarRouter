@@ -15,8 +15,8 @@ export function LiveAdmissionNotice({ limits }: {limits: LiveLimits | undefined}
     LIVE_CAPACITY_REACHED: ['Another live session occupies service capacity. Wait until its termination is confirmed.','다른 라이브 세션이 서비스 연결 용량을 사용 중입니다. 종료가 확인될 때까지 기다리세요.'],
     LIVE_WORKER_UNAVAILABLE: ['The renderer is not ready. An operator must restore its heartbeat before starting.','렌더러 워커가 준비되지 않았습니다. 운영자가 실행·상태 갱신을 복구해야 합니다.'],
     LIVE_NOT_CONFIGURED: ['AvatarRouter operator credentials are incomplete. External apps do not need provider keys.','AvatarRouter 운영 서버의 제공자 설정이 미완료입니다. 외부 앱에 제공자 키를 추가할 필요는 없습니다.'],
-    LIVE_USER_DAILY_BUDGET: ['Project daily time budget is exhausted. Check its reset time.','프로젝트 일일 연결 허용 시간이 소진됐습니다. 초기화 시각을 확인하세요.'],
-    LIVE_GLOBAL_DAILY_BUDGET: ['Service daily time budget is exhausted. Check its reset time.','서비스 전체 일일 연결 허용 시간이 소진됐습니다. 초기화 시각을 확인하세요.'],
+    LIVE_USER_DAILY_BUDGET: ['The project router budget cannot reserve another full session. This is not a Tavus balance or free-plan error.','프로젝트의 라우터 시간 예산으로 다음 세션 전체 시간을 예약할 수 없습니다. Tavus 잔액 소진이나 무료 요금제 오류가 아닙니다.'],
+    LIVE_GLOBAL_DAILY_BUDGET: ['The service router budget cannot reserve another full session. This is not a Tavus balance or free-plan error.','서비스 전체의 라우터 시간 예산으로 다음 세션 전체 시간을 예약할 수 없습니다. Tavus 잔액 소진이나 무료 요금제 오류가 아닙니다.'],
     LIVE_USER_QUOTA_REACHED: ['Five attempts have been made within one hour. Wait for that window to pass.','최근 1시간에 5회 시도했습니다. 제한 시간이 지난 후 상태를 다시 확인하세요.'],
   };
   return <div className="console-note console-warning mb-6 flex gap-3" role="alert" data-testid="notice-live-admission">

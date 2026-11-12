@@ -4,7 +4,17 @@ export const STOCK_FACE = "r4067604db72";
 export const STOCK_PAL = "pb87e71797da";
 export const STOCK_AVATAR = "tavus-stock-lucy";
 export const STOCK_KEYS = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "TAVUS_API_KEY"];
-export const LIVE_SESSION_MS = 120_000;
+/** Internal Tavus safety cap, not the provider's subscription entitlement. */
+export function liveSessionMs(provider: "tavus" | "anam" = "tavus", environment: NodeJS.ProcessEnv = process.env) {
+  // Anam template/token policy remains independently bounded.
+  if (provider === "anam") return 120_000;
+  const seconds = Number(environment.TAVUS_LIVE_SESSION_SECONDS ?? 120);
+  if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 7200) {
+    throw new Error("TAVUS_LIVE_SESSION_SECONDS must be an integer between 1 and 7200.");
+  }
+  return seconds * 1000;
+}
+export const LIVE_SESSION_MS = liveSessionMs();
 export const LEASE_MS = 20_000;
 export const HEARTBEAT_MS = 3_000;
 

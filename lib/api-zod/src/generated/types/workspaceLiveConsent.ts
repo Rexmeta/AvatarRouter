@@ -5,9 +5,13 @@
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
  * OpenAPI spec version: 0.9.0
  */
-import type { WorkspaceLiveConsentMaxSeconds } from './workspaceLiveConsentMaxSeconds';
 
 export interface WorkspaceLiveConsent {
   costConfirmed: true;
-  maxSeconds: WorkspaceLiveConsentMaxSeconds;
+  /**
+     * Must equal the latest limits.sessionSeconds. Stale cost consent is rejected before paid creation.
+     * @minimum 1
+     * @maximum 7200
+     */
+  maxSeconds: number;
 }

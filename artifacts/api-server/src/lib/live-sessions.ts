@@ -4,26 +4,24 @@ import { AccessToken } from "livekit-server-sdk";
 import { db, avatarAssets, imageAssets, avatarSessions, avatarSessionEvents, rendererCommands, rendererWorkers, and, eq, sql, type AvatarSessionRecord } from "@workspace/db";
 import { requireLiveAsset } from "./asset-live-policy";
 import { getOwnedSession, SessionProblem } from "./session-service";
-import { STOCK_AVATAR, livePipelineConfigured, LIVE_SESSION_MS, dailyLimits } from "./stock-policy";
+import { STOCK_AVATAR, livePipelineConfigured, liveSessionMs } from "./stock-policy";
 import { saveRendererAudio } from "./private-images";
 import { liveCapacityFence, liveReadiness } from "./live-admission";
 import { ANAM_AVATAR, ANAM_PERSONA_ID } from "./anam-runtime";
+import { budgetSnapshot } from "./live-budget-policy";
 
 export { LIVE_SESSION_MS } from "./stock-policy";
 
-export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = "tavus", pipeline?: "external_audio" | "tavus_full" | "anam_full") {
-  const limits = dailyLimits();
-  const [usage] = await db.select({
-    user: sql<number>`coalesce(sum(${avatarSessions.reservedSeconds}) filter (where ${avatarSessions.tenantId} = ${tenant}), 0)::int`,
-    global: sql<number>`coalesce(sum(${avatarSessions.reservedSeconds}), 0)::int`,
-  }).from(avatarSessions).where(and(eq(avatarSessions.mode, "live"), sql`${avatarSessions.startedAt} >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC'`));
-  const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(avatarSessions).where(and(
+export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = "tavus", pipeline?: "external_audio" | "tavus_full" | "anam_full", reader: Pick<typeof db, "select"> = db) {
+  const { limits, usage } = await budgetSnapshot(tenant, reader);
+  const sessionMs = liveSessionMs(providerId);
+  const [pending] = await reader.select({ count: sql<number>`count(*)::int` }).from(avatarSessions).where(and(
     eq(avatarSessions.mode, "live"), eq(avatarSessions.tenantId, tenant),
     sql`(${avatarSessions.rendererState} in ('cleanup_pending', 'reconciliation_required', 'stopping') or ${avatarSessions.error} in ('LIVE_CLEANUP_PENDING', 'LIVE_CREATE_RECONCILIATION_REQUIRED') or
       (${avatarSessions.status} = 'active' and (${avatarSessions.expiresAt} <= now() or (${avatarSessions.workerId} is not null and ${avatarSessions.leaseExpiresAt} <= now()))))`,
   ));
-  const [worker] = await db.select({ id: rendererWorkers.id }).from(rendererWorkers).where(sql`${rendererWorkers.heartbeatAt} > now() - interval '10 seconds'`).limit(1);
-  const [capacity] = await db.select({
+  const [worker] = await reader.select({ id: rendererWorkers.id }).from(rendererWorkers).where(sql`${rendererWorkers.heartbeatAt} > now() - interval '10 seconds'`).limit(1);
+  const [capacity] = await reader.select({
     blocked: sql<number>`count(*)::int`,
     cleanup: sql<number>`count(*) filter (where
       ${avatarSessions.status} <> 'active' or ${avatarSessions.expiresAt} <= now()
@@ -33,11 +31,11 @@ export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = 
       or (${avatarSessions.workerId} is not null and ${avatarSessions.leaseExpiresAt} <= now())
     )::int`,
   }).from(avatarSessions).where(liveCapacityFence());
-  const [recent] = await db.select({count:sql<number>`count(*)::int`}).from(avatarSessions).where(and(
+  const [recent] = await reader.select({count:sql<number>`count(*)::int`}).from(avatarSessions).where(and(
     eq(avatarSessions.mode,"live"),eq(avatarSessions.tenantId,tenant),sql`${avatarSessions.startedAt} > now() - interval '1 hour'`,
   ));
   const readiness = liveReadiness({
-    configured: livePipelineConfigured(providerId, pipeline), workerReady: !!worker, sessionSeconds: LIVE_SESSION_MS / 1000,
+    configured: livePipelineConfigured(providerId, pipeline), workerReady: !!worker, sessionSeconds: sessionMs / 1000,
     userRemainingSeconds: Math.max(0, limits.user - usage!.user),
     globalRemainingSeconds: Math.max(0, limits.global - usage!.global), cleanupPending: pending!.count,
     serviceBusy: capacity!.blocked > 0, serviceCleanupRequired: capacity!.cleanup > 0, recentAttempts: recent!.count,
@@ -47,7 +45,7 @@ export async function liveLimits(tenant: string, providerId: "tavus" | "anam" = 
     userDailySeconds: limits.user, globalDailySeconds: limits.global,
     userRemainingSeconds: Math.max(0, limits.user - usage!.user),
     globalRemainingSeconds: Math.max(0, limits.global - usage!.global),
-    sessionSeconds: LIVE_SESSION_MS / 1000, cleanupPending: pending!.count,
+    sessionSeconds: sessionMs / 1000, cleanupPending: pending!.count,
     workerReady: !!worker,
     // No provider balance API is assumed; this is an internal time budget, not a credit quote.
     providerCredits: "unknown" as const,
@@ -61,7 +59,11 @@ export async function createStockSession(owner: string, tenant: string, costConf
   if (roleplay && !nativeAnam) throw new SessionProblem(400, "INVALID_ROLEPLAY_PIPELINE", "roleplay requires anam_full.");
   if (!costConfirmed) throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that a live stock session can consume Tavus/LiveKit credits.");
   const provider = nativeAnam ? "anam" : "tavus";
+  const sessionMs = liveSessionMs(provider);
   const pipeline = nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio";
+  if (fullPipeline && purpose === "validation" && !assetId) {
+    throw new SessionProblem(400, "INVALID_PIPELINE_CONFIG", "Native validation requires an owned custom avatar asset.");
+  }
   if (!livePipelineConfigured(provider, pipeline)) throw new SessionProblem(409, "LIVE_NOT_CONFIGURED",
     nativeAnam ? "Configure the Anam server API key." : fullPipeline
       ? "Configure the Tavus server API key. Full pipeline uses Daily, not LiveKit."
@@ -80,10 +82,10 @@ export async function createStockSession(owner: string, tenant: string, costConf
         throw new SessionProblem(409, "CONSENT_REVIEW_REQUIRED", "Source consent must remain verified before live transmission.");
       }
     }
-    const limits = await liveLimits(tenant, provider, pipeline);
+    const limits = await liveLimits(tenant, provider, pipeline, tx);
     if (!limits.workerReady) throw new SessionProblem(503, "LIVE_WORKER_UNAVAILABLE", "The renderer worker is unavailable. No paid session was requested.");
-    if (limits.userRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "Your daily live time budget is exhausted. It resets at 00:00 UTC.");
-    if (limits.globalRemainingSeconds < LIVE_SESSION_MS / 1000) throw new SessionProblem(429, "LIVE_GLOBAL_DAILY_BUDGET", "The service daily live time budget is exhausted. It resets at 00:00 UTC.");
+    if (limits.userRemainingSeconds < sessionMs / 1000) throw new SessionProblem(429, "LIVE_USER_DAILY_BUDGET", "The project router time budget cannot reserve another complete session. This is not the Tavus balance. It resets at 00:00 UTC.");
+    if (limits.globalRemainingSeconds < sessionMs / 1000) throw new SessionProblem(429, "LIVE_GLOBAL_DAILY_BUDGET", "The service router time budget cannot reserve another complete session. This is not the Tavus balance. It resets at 00:00 UTC.");
     const [active] = await tx.select({ id: avatarSessions.id }).from(avatarSessions).where(liveCapacityFence()).limit(1);
     if (active) throw new SessionProblem(409, "LIVE_CAPACITY_REACHED", "Service-wide live capacity is blocked by a running or unconfirmed session, possibly outside this project. Check live-limits.creationAllowed and blockingReasons. An operator must reconcile uncertain creation; do not automatically retry or replace your API key.");
     const [quota] = await tx.select({ count: sql<number>`count(*)::int` }).from(avatarSessions).where(and(
@@ -98,11 +100,11 @@ export async function createStockSession(owner: string, tenant: string, costConf
       mode: "live", status: "active", roomName: nativeAnam || fullPipeline ? null : `ar-stock-${id}`,
       pipeline: nativeAnam ? "anam_full" : fullPipeline ? "tavus_full" : "external_audio",
       fullPipeline: nativeAnam ? { ...fullPipeline, systemPrompt: fullPipeline?.systemPrompt ?? "", personaId: ANAM_PERSONA_ID, roleplay } : fullPipeline,
-      rendererState: "queued", reservedSeconds: LIVE_SESSION_MS / 1000,
-      expiresAt: new Date(Date.now() + LIVE_SESSION_MS),
+      rendererState: "queued", reservedSeconds: sessionMs / 1000,
+      expiresAt: new Date(Date.now() + sessionMs),
     }).returning();
     await tx.insert(avatarSessionEvents).values({
-      id: randomUUID(), sessionId: id, type: "connecting", message: "Renderer queued. Maximum 120 seconds reserved against UTC daily budgets.",
+      id: randomUUID(), sessionId: id, type: "connecting", message: `Renderer queued. Maximum ${sessionMs / 1000} seconds reserved against router UTC daily budgets, not provider balance.`,
     });
     return created!;
   });

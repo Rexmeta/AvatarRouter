@@ -135,7 +135,7 @@ checks and ending existing sessions.
 If the feature/field is missing, show that readiness is not fully known; do not
 claim the old server is ready merely because authentication succeeded.
 
-First read `/live-limits` and confirm `workerReady`, no cleanup warning, and at least 120 remaining project/global seconds.
+First read `/live-limits` and confirm `workerReady`, no cleanup warning, and enough project/global remaining time to reserve the returned `sessionSeconds`.
 
 The validated stock selection is `providerId: "tavus"`, `avatarId: "tavus-stock-lucy"`. Paid live creation requires explicit operator cost consent and `costConfirmed: true`:
 
@@ -154,7 +154,7 @@ before `Room.connect`, and also inspect tracks already published when connection
 completes. Attach video and audio separately. Start the bounded playback sequence
 promptly after `running`; do not wait through repeated manual setup steps or wait
 for the first video frame before permitting the first authorized audio command.
-The 120-second cap includes queue/startup time, not 120 seconds after browser join.
+The returned session cap includes queue/startup time. Use the server's `expiresAt`; hosted SDK 0.9.2 (`server_deadline_v1`) no longer imposes a separate 120-second Tavus timer.
 An unexpected RTC loss is reported as `LIVE_RTC_DISCONNECTED` after cleanup, not
 silently converted into a successful session.
 
@@ -164,7 +164,7 @@ POST `/sessions/{id}/end` requests stop. HTTP 200 is not proof provider billing 
 
 ## 7. Limits and safety
 
-One concurrent global stock live session; each attempt reserves 120 seconds. Default budgets are 600 seconds/project/day and 3600 seconds/global/day, reset at 00:00 UTC. Failed attempts are not automatically refunded. These are admission time limits, not provider-credit or dollar guarantees. Provider credits remain unknown.
+One concurrent global live session; each attempt reserves the configured `sessionSeconds`. Project owners can edit/reset their router budget at Workspace → Usage & limits; only trusted operators can edit/reset the service-wide budget. Approved environment defaults are Tavus 600 seconds/session, 3600 seconds/project/day and 7200 seconds/service/day after publishing. Failed reservations are retained unless an explicit audited accounting reset is performed. Resets do not erase sessions, reset Tavus billing, clear cleanup, or reset hourly attempt quotas. Provider credits remain unknown. See the router budget management guide.
 
 Authentication checks are rate-limited per source; API use is additionally rate-limited per mapped project/user identity. A fresh key or changed user header cannot bypass the global live concurrency or global daily budget.
 

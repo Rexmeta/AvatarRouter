@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AvatarSessionRecord } from "@workspace/db";
 import { CreateSessionBody, GetTavusFullConnectionResponse } from "@workspace/api-zod";
-import { TavusFullRuntime, fullPalBody, fullConversationBody, terminateFullResources } from "./tavus-full-runtime";
+import { TavusFullRuntime, fullPalBody, fullConversationBody, terminateFullResources, verifyFullValidationTarget } from "./tavus-full-runtime";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { presentSession } from "./session-service";
 import { providerFailureStorageCode, presentProviderFailure } from "./provider-session-failure";
@@ -15,6 +15,22 @@ function row() {
     rendererState: "running", providerId: "tavus", interruptions: 0 } as AvatarSessionRecord;
 }
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+test("native validation lookup is GET-only and strips rejected response/transport secrets", async () => {
+  for (const status of [401, 403, 404, 410, 429, 500]) {
+    await assert.rejects(verifyFullValidationTarget("fixture", "face", async (_url, init) => {
+      assert.equal(init?.method, "GET");
+      assert.equal(init?.body, undefined);
+      return reply({ message: "private-token https://private.invalid" }, status);
+    }), error => {
+      assert.equal((error as { code: string }).code, "LIVE_VALIDATION_PROVIDER_EVIDENCE_REQUIRED");
+      assert.doesNotMatch(String(error), /private-token|private.invalid/);
+      return true;
+    });
+  }
+  await assert.rejects(verifyFullValidationTarget("fixture", "face", async () => {
+    throw new Error("private-token");
+  }), { code: "LIVE_VALIDATION_PROVIDER_EVIDENCE_REQUIRED" });
+});
 function harness(conversation: () => Promise<Response> = async () => reply({
   conversation_id: "c-test", conversation_url: "https://tavus.daily.co/test", meeting_token: "private-token",
 })) {

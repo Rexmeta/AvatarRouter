@@ -33,7 +33,7 @@ export interface SessionInput {
   avatarId: string;
   /** Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable. */
   avatarAssetId?: string;
-  /** Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID. */
+  /** Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID. */
   purpose?: SessionInputPurpose;
   /** Required for every live session including validation. Provider/LiveKit usage may consume credits. */
   costConfirmed?: boolean;

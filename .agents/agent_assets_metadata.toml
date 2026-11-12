@@ -210,3 +210,17 @@ mtime_ms = 1794465776274
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/def8c4ed-323c-4734-81ec-04b50027b9b1/72b15982-f0ee-460c-9d32-b98964b1f53c"
 storage_version_token = "1794465827965385"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "ppNULWAE1wYoei411No4G"
+uri = "file://docs/router-budget-management.md"
+type = "text"
+title = "라우터 예산 조정·초기화 가이드"
+description = "사용 경로, 프로젝트·서비스 권한, 초기화 범위, 감사 기록 및 운영 반영 안내"
+logical_id = "8e490bb8-7787-4ea3-885b-40f24c7a83b5"
+content_hash = "sha256:ec6ceafca7732e205739a78bc5f375d2f444709209344c7bb43bb949ad497fa3"
+size = 3907
+mtime_ms = 1794468269367
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/8e490bb8-7787-4ea3-885b-40f24c7a83b5/238a1c94-c45c-4ae6-b7d6-766e1a6aa3cb"
+storage_version_token = "1794468672701473"
+content_type = "text/markdown"

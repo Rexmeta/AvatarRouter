@@ -162,7 +162,7 @@ export function useWorkspaceLiveCheck(projectId: string): LiveCheckView {
         update(() => setAmbiguous(true));
         let current: WorkspaceLiveCheck;
         try {
-          current = await startWorkspaceLiveCheck(projectId, { costConfirmed: true, maxSeconds: 120 }, { signal: AbortSignal.timeout(20_000) });
+          current = await startWorkspaceLiveCheck(projectId, { costConfirmed: true, maxSeconds: state.limits.sessionSeconds }, { signal: AbortSignal.timeout(20_000) });
         } catch (e) {
           const status = (e as { status?: number })?.status;
           if (status && status >= 400 && status < 500 && status !== 408) {

@@ -373,7 +373,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
               {s && active && !ready && <p className="text-xs text-muted-foreground" role="status">{s.stopRequested ? L('Stop requested. Waiting for confirmed remote cleanup.', '종료 요청을 저장했습니다. 원격 정리 확인을 기다리는 중입니다.') : L('Dedicated renderer is starting…', '전용 렌더러를 시작하는 중입니다…')}</p>}
               {limits.data && <div className="rounded border p-3 text-xs text-muted-foreground" data-testid="text-live-budget">
                 <p>{L('Daily time budget remaining', '오늘 남은 사용 시간')}: {L('You', '사용자')} {limits.data.userRemainingSeconds}s / {limits.data.userDailySeconds}s · {L('Service', '전체')} {limits.data.globalRemainingSeconds}s / {limits.data.globalDailySeconds}s</p>
-                <p className="mt-1">{L('Each attempt reserves 120 s; resets at 00:00 UTC. Provider credit balance is unavailable here; check Tavus/LiveKit billing.', '시도당 120초를 예약하며 UTC 00:00에 초기화됩니다. 공급자 잔여 크레딧은 여기서 조회할 수 없습니다. Tavus/LiveKit 결제 화면을 확인하세요.')}</p>
+                <p className="mt-1">{L(`Each attempt reserves ${limits.data.sessionSeconds}s of router time; resets at 00:00 UTC. This is not the Tavus credit balance.`, `시도당 라우터 시간 ${limits.data.sessionSeconds}초를 예약하며 UTC 00:00에 초기화됩니다. Tavus 크레딧 잔액이나 무료 요금제 제한이 아닙니다.`)}</p>
                 {!limits.data.workerReady && <p className="mt-1 text-destructive">{L('Renderer worker unavailable. Paid starts are blocked.', '렌더러 워커가 응답하지 않아 유료 시작을 차단했습니다.')}</p>}
               </div>}
               {(s?.cleanupPending || (limits.data?.cleanupPending ?? 0) > 0) && <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert" data-testid="warning-live-cleanup">
@@ -389,17 +389,17 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
                   <input type="checkbox" data-testid="checkbox-stock-ack" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]" />
                   <span>{asset ? L(
                     'This starts a paid, bounded live session for the selected existing asset. No new training or image upload. A ready asset is not playback-validated. This only renders supplied audio; it does not start an AI conversation.',
-                    '선택한 기존 자산으로 유료 라이브 세션을 시작합니다(최대 120초). 새 학습이나 이미지 업로드는 없습니다. 생성 완료는 재생 검증 완료가 아닙니다. 보낸 오디오만 렌더링하며 AI 대화는 시작하지 않습니다.',
+                    `선택한 기존 자산으로 유료 라이브 세션을 시작합니다(최대 ${limits.data?.sessionSeconds ?? '—'}초). 새 학습이나 이미지 업로드는 없습니다. 생성 완료는 재생 검증 완료가 아닙니다. 보낸 오디오만 렌더링하며 AI 대화는 시작하지 않습니다.`,
                   ) : L(
-                    'This uses provider and LiveKit credits. The session expires automatically after 120 s total (roughly 90 s live). Stock avatar only: no custom training or image upload. No AI dialogue: the avatar only echoes the audio you send, with lip-sync.',
-                    '프로바이더 및 LiveKit 크레딧이 사용됩니다. 세션은 총 120초 후 자동 만료됩니다(라이브 약 90초). 기본 아바타 전용: 커스텀 학습이나 이미지 업로드가 없습니다. AI 대화 없음: 아바타는 보낸 오디오를 립싱크로 따라 말할 뿐입니다.',
+                    `This uses provider and LiveKit credits. The router expires this attempt after ${limits.data?.sessionSeconds ?? '—'}s including startup. No custom training or AI dialogue; only supplied audio is rendered.`,
+                    `프로바이더 및 LiveKit 크레딧이 사용됩니다. 시작 포함 총 ${limits.data?.sessionSeconds ?? '—'}초 뒤 라우터가 종료합니다. 커스텀 학습·AI 대화 없이 보낸 오디오만 렌더링합니다.`,
                   )}</span>
                 </label>
               )}
 
               <div className="flex flex-wrap gap-2">
                 {!active ? (
-                  <button data-testid="button-stock-start" disabled={!supported || !ack || create.isPending || !limits.data?.workerReady || limits.data.creationAllowed === false || limits.data.userRemainingSeconds < 120 || limits.data.globalRemainingSeconds < 120 || limits.data.cleanupPending > 0} onClick={start}
+                  <button data-testid="button-stock-start" disabled={!supported || !ack || create.isPending || !limits.data?.workerReady || limits.data.creationAllowed === false || limits.data.userRemainingSeconds < limits.data.sessionSeconds || limits.data.globalRemainingSeconds < limits.data.sessionSeconds || limits.data.cleanupPending > 0} onClick={start}
                     className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97] disabled:opacity-40">
                     <Play className="h-4 w-4" /> {create.isPending ? L('Starting…', '시작 중…') : asset ? L('Start selected avatar', '선택한 아바타 시작') : L('Start Lucy live', 'Lucy 라이브 시작')}
                   </button>

@@ -9,6 +9,111 @@ import * as zod from 'zod';
 
 
 /**
+ * Interactive workspace owner only. API keys cannot manage or reset budgets.
+ */
+export const GetWorkspaceBudgetParams = zod.object({
+  "projectId": zod.uuid()
+})
+
+export const GetWorkspaceBudgetResponse = zod.object({
+  "project": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "service": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "canManageService": zod.boolean(),
+  "sessionSeconds": zod.int(),
+  "resetsAt": zod.coerce.date()
+})
+
+
+export const UpdateWorkspaceBudgetParams = zod.object({
+  "projectId": zod.uuid()
+})
+
+export const updateWorkspaceBudgetBodyDailySecondsMin = 0;
+export const updateWorkspaceBudgetBodyDailySecondsMax = 86400;
+
+export const updateWorkspaceBudgetBodyRevisionMin = 0;
+
+
+
+export const UpdateWorkspaceBudgetBody = zod.object({
+  "scope": zod.enum(['project', 'service']),
+  "dailySeconds": zod.int().min(updateWorkspaceBudgetBodyDailySecondsMin).max(updateWorkspaceBudgetBodyDailySecondsMax),
+  "revision": zod.int().min(updateWorkspaceBudgetBodyRevisionMin),
+  "costConfirmed": zod.literal(true)
+})
+
+export const UpdateWorkspaceBudgetResponse = zod.object({
+  "project": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "service": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "canManageService": zod.boolean(),
+  "sessionSeconds": zod.int(),
+  "resetsAt": zod.coerce.date()
+})
+
+
+/**
+ * Resets only router accounting with an auditable cutoff; never deletes sessions, provider usage or cleanup fences.
+ */
+export const ResetWorkspaceBudgetParams = zod.object({
+  "projectId": zod.uuid()
+})
+
+export const resetWorkspaceBudgetBodyRevisionMin = 0;
+
+
+
+export const ResetWorkspaceBudgetBody = zod.object({
+  "scope": zod.enum(['project', 'service']),
+  "revision": zod.int().min(resetWorkspaceBudgetBodyRevisionMin),
+  "confirmed": zod.literal(true)
+})
+
+export const ResetWorkspaceBudgetResponse = zod.object({
+  "project": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "service": zod.object({
+  "dailySeconds": zod.int(),
+  "usedSeconds": zod.int(),
+  "remainingSeconds": zod.int(),
+  "revision": zod.int(),
+  "resetAt": zod.coerce.date().nullable()
+}),
+  "canManageService": zod.boolean(),
+  "sessionSeconds": zod.int(),
+  "resetsAt": zod.coerce.date()
+})
+
+
+/**
  * Recover the latest project-owner diagnostic without creating or retrying paid work. Cleanup is independent of session status.
  */
 export const GetWorkspaceLiveCheckParams = zod.object({
@@ -56,11 +161,11 @@ export const GetWorkspaceLiveCheckResponse = zod.object({
   "limits": zod.object({
   "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
   "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
-  "userDailySeconds": zod.int(),
-  "globalDailySeconds": zod.int(),
+  "userDailySeconds": zod.int().describe('Router project daily reservation budget, not provider credits or subscription entitlement.'),
+  "globalDailySeconds": zod.int().describe('Router service-wide daily reservation budget, not provider credits.'),
   "userRemainingSeconds": zod.int(),
   "globalRemainingSeconds": zod.int(),
-  "sessionSeconds": zod.int(),
+  "sessionSeconds": zod.int().describe('Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap.'),
   "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
@@ -76,9 +181,13 @@ export const StartWorkspaceLiveCheckParams = zod.object({
   "projectId": zod.uuid()
 })
 
+export const startWorkspaceLiveCheckBodyMaxSecondsMax = 7200;
+
+
+
 export const StartWorkspaceLiveCheckBody = zod.object({
   "costConfirmed": zod.literal(true),
-  "maxSeconds": zod.literal(120)
+  "maxSeconds": zod.int().min(1).max(startWorkspaceLiveCheckBodyMaxSecondsMax).describe('Must equal the latest limits.sessionSeconds. Stale cost consent is rejected before paid creation.')
 })
 
 export const startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin = 400;
@@ -122,11 +231,11 @@ export const StartWorkspaceLiveCheckResponse = zod.object({
   "limits": zod.object({
   "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
   "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
-  "userDailySeconds": zod.int(),
-  "globalDailySeconds": zod.int(),
+  "userDailySeconds": zod.int().describe('Router project daily reservation budget, not provider credits or subscription entitlement.'),
+  "globalDailySeconds": zod.int().describe('Router service-wide daily reservation budget, not provider credits.'),
   "userRemainingSeconds": zod.int(),
   "globalRemainingSeconds": zod.int(),
-  "sessionSeconds": zod.int(),
+  "sessionSeconds": zod.int().describe('Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap.'),
   "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
@@ -279,11 +388,11 @@ export const GetDeveloperWorkspaceResponse = zod.object({
   "limits": zod.object({
   "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
   "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
-  "userDailySeconds": zod.int(),
-  "globalDailySeconds": zod.int(),
+  "userDailySeconds": zod.int().describe('Router project daily reservation budget, not provider credits or subscription entitlement.'),
+  "globalDailySeconds": zod.int().describe('Router service-wide daily reservation budget, not provider credits.'),
   "userRemainingSeconds": zod.int(),
   "globalRemainingSeconds": zod.int(),
-  "sessionSeconds": zod.int(),
+  "sessionSeconds": zod.int().describe('Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap.'),
   "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
@@ -293,7 +402,7 @@ export const GetDeveloperWorkspaceResponse = zod.object({
 
 
 /**
- * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
+ * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, leased, unexpired validation session for this exact asset revision. external_audio additionally requires a completed renderer audio command. tavus_full instead requires read-only provider evidence that the active conversation uses the exact current face ID; no LiveKit or renderer audio upload is needed. Never call until the trusted client has observed moving video and audible returned output.
  */
 export const ReportAvatarLiveValidationParams = zod.object({
   "id": zod.uuid()
@@ -466,6 +575,7 @@ export const CheckServiceApiKeyResponse = zod.object({
   "apiVersion": zod.string(),
   "features": zod.array(zod.string()),
   "customLiveProviders": zod.array(zod.string()),
+  "customValidationPipelines": zod.array(zod.enum(['external_audio', 'tavus_full'])).optional().describe('Supported custom playback validation transports; not proof of provider credits or observed playback.'),
   "assetNamespace": zod.literal("project"),
   "stockAvatarId": zod.string().describe('Stock session reference; not an owned avatar asset UUID.'),
   "stockCatalogPath": zod.literal("/avatars"),
@@ -900,11 +1010,11 @@ export const GetLiveLimitsQueryParams = zod.object({
 export const GetLiveLimitsResponse = zod.object({
   "creationAllowed": zod.boolean().optional().describe('Read-only admission preflight, including service-wide cleanup/capacity. Not playback proof or a reservation; creation still rechecks atomically. Older servers may omit this field.'),
   "blockingReasons": zod.array(zod.string()).optional().describe('Safe admission reason codes. No other project\'s identifiers, resource references, or reconciliation records.'),
-  "userDailySeconds": zod.int(),
-  "globalDailySeconds": zod.int(),
+  "userDailySeconds": zod.int().describe('Router project daily reservation budget, not provider credits or subscription entitlement.'),
+  "globalDailySeconds": zod.int().describe('Router service-wide daily reservation budget, not provider credits.'),
   "userRemainingSeconds": zod.int(),
   "globalRemainingSeconds": zod.int(),
-  "sessionSeconds": zod.int(),
+  "sessionSeconds": zod.int().describe('Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap.'),
   "cleanupPending": zod.int(),
   "workerReady": zod.boolean(),
   "providerCredits": zod.enum(['unknown']),
@@ -1004,7 +1114,7 @@ export const CreateSessionBody = zod.object({
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
   "avatarAssetId": zod.uuid().optional().describe('Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable.'),
-  "purpose": zod.enum(['conversation', 'validation']).default(createSessionBodyPurposeDefault).describe('Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID.'),
+  "purpose": zod.enum(['conversation', 'validation']).default(createSessionBodyPurposeDefault).describe('Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID.'),
   "costConfirmed": zod.boolean().default(createSessionBodyCostConfirmedDefault).describe('Required for every live session including validation. Provider/LiveKit usage may consume credits.'),
   "mode": zod.enum(['mock', 'live'])
 })

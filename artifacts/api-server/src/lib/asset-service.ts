@@ -5,7 +5,8 @@ import { SessionProblem } from "./session-service";
 import { decodeImageBase64, fetchAuthorizedImage, validateImage } from "./image-validation";
 import { savePrivateImage, removePrivateImage } from "./private-images";
 import { requireSupportedProvider } from "./provisioning-providers";
-import { assetLiveVerified } from "./asset-live-policy";
+import { assetLiveVerified, requirePlaybackSession } from "./asset-live-policy";
+import { verifyFullValidationTarget } from "./tavus-full-runtime";
 import { decodeProvisioningFailure, presentProvisioningFailure } from "./provisioning-failure";
 
 export function presentImage(row: ImageAssetRecord) {
@@ -159,28 +160,42 @@ export async function resolveSessionAsset(tenant: string, id: string) {
   return { avatarAssetId: row.id, providerId: row.providerId, avatarId: row.providerAvatarId };
 }
 
-export async function recordAssetPlayback(tenant: string, owner: string, id: string, report: { sessionId: string; videoObserved: boolean; audioObserved: boolean }) {
+export async function recordAssetPlayback(tenant: string, owner: string, id: string, report: { sessionId: string; videoObserved: boolean; audioObserved: boolean }, fetcher: typeof fetch = fetch) {
   if (!report.videoObserved || !report.audioObserved) {
     throw new SessionProblem(409, "PLAYBACK_EVIDENCE_REQUIRED", "Observe real video frames and audible returned audio before reporting success.");
+  }
+  const [probe] = await db.select().from(avatarSessions).where(and(
+    eq(avatarSessions.id, report.sessionId), eq(avatarSessions.ownerHash, owner), eq(avatarSessions.tenantId, tenant),
+  ));
+  let nativeEvidence: { conversationId: string; faceId: string } | undefined;
+  if (probe?.pipeline === "tavus_full") {
+    const target = await ownedAvatarAsset(tenant, id);
+    requirePlaybackSession(target, probe);
+    // Never hold the worker's row/heartbeat lock while waiting on provider HTTP.
+    await verifyFullValidationTarget(probe.providerConversationId!, target.providerAvatarId!, fetcher);
+    nativeEvidence = { conversationId: probe.providerConversationId!, faceId: target.providerAvatarId! };
   }
   return db.transaction(async tx => {
     const [asset] = await tx.select().from(avatarAssets).where(and(eq(avatarAssets.id, id), eq(avatarAssets.tenantId, tenant))).for("update");
     if (!asset) throw new SessionProblem(404, "AVATAR_ASSET_NOT_FOUND", "Avatar asset not found.");
     const [session] = await tx.select().from(avatarSessions).where(and(
       eq(avatarSessions.id, report.sessionId), eq(avatarSessions.ownerHash, owner), eq(avatarSessions.tenantId, tenant),
-    ));
+    )).for("update");
     if (!session) throw new SessionProblem(404, "SESSION_NOT_FOUND", "Validation session not found.");
-    if (asset.status !== "ready" || asset.providerId !== "tavus" ||
-        session.avatarAssetId !== id || session.avatarId !== asset.providerAvatarId || session.providerId !== asset.providerId ||
-        session.mode !== "live" || session.purpose !== "validation" || session.status !== "active" ||
-        session.rendererState !== "running" || session.providerCreateState !== "known" || !session.providerConversationId ||
-        session.stopRequestedAt || session.expiresAt <= new Date() || !session.leaseExpiresAt || session.leaseExpiresAt <= new Date()) {
-      throw new SessionProblem(409, "LIVE_VALIDATION_SESSION_INVALID", "A running, owned validation session for the current provider avatar is required.");
+    requirePlaybackSession(asset, session);
+    if (session.pipeline === "tavus_full") {
+      // A completed renderer PCM command is meaningless for Daily-native audio.
+      // Recheck the locked rows against the GET snapshot, including fresh lease/stop state.
+      if (!nativeEvidence || nativeEvidence.conversationId !== session.providerConversationId ||
+          nativeEvidence.faceId !== asset.providerAvatarId) {
+        throw new SessionProblem(409, "LIVE_VALIDATION_PROVIDER_EVIDENCE_REQUIRED", "The native validation target changed during provider verification.");
+      }
+    } else {
+      const [audio] = await tx.select({ id: rendererCommands.id }).from(rendererCommands).where(and(
+        eq(rendererCommands.sessionId, session.id), eq(rendererCommands.type, "audio"), eq(rendererCommands.state, "done"),
+      )).limit(1);
+      if (!audio) throw new SessionProblem(409, "LIVE_VALIDATION_AUDIO_REQUIRED", "A completed renderer audio command is required, not just a connected room.");
     }
-    const [audio] = await tx.select({ id: rendererCommands.id }).from(rendererCommands).where(and(
-      eq(rendererCommands.sessionId, session.id), eq(rendererCommands.type, "audio"), eq(rendererCommands.state, "done"),
-    )).limit(1);
-    if (!audio) throw new SessionProblem(409, "LIVE_VALIDATION_AUDIO_REQUIRED", "A completed renderer audio command is required, not just a connected room.");
     const [updated] = await tx.update(avatarAssets).set({
       liveValidatedAt: new Date(), liveValidationSessionId: session.id,
       liveValidationProviderAvatarId: asset.providerAvatarId, updatedAt: new Date(),

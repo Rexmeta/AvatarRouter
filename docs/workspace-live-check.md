@@ -6,7 +6,7 @@ identities cannot operate this interactive diagnostic.
 
 ## Before starting
 
-- Explicitly accept unknown Tavus/LiveKit costs and the 120-second total
+- Explicitly accept unknown Tavus/LiveKit costs and the configured total
   server session lifetime, including startup. This is not a price quote or
   a guarantee that provider billing stops at that instant.
 - The check uses the existing stock Lucy avatar. It does not train an avatar,
@@ -16,7 +16,7 @@ identities cannot operate this interactive diagnostic.
 - The browser observes for up to 16 seconds after connecting. It requests
   termination after observation, error, cancellation, navigation, or its
   105-second local deadline. The existing server worker independently enforces
-  the 120-second expiry even if the tab disappears.
+  expiry returned by `/live-limits.sessionSeconds` even if the tab disappears.
 - If the browser blocks audio, use **Enable audio playback** while the check
   is observing.
 

@@ -14,3 +14,9 @@ Paid-plan changes do not automatically increase router budgets, concurrency, or 
 **Why:** When the user reported a Tavus $59 upgrade, the official pricing page and indexed plan tables disagreed. Hardcoding their figures would risk promising unsupported features or increasing spending without verified limits.
 
 **How to apply:** Keep provider entitlement, router implementation, and router safety limits separate. Verify the account's Developer project and current terms before changing capacity; a paid upgrade alone is not proof of provider balance or successful calls.
+
+Self-service router budget resets must not be presented as provider billing resets, refunds, or cleanup recovery. Project accounting and service accounting are separate reset scopes.
+
+**Why:** The user requested direct budget adjustment and reset after a paid Tavus upgrade still encountered router time limits. A reset can authorize more paid usage without changing the provider's balance or ending uncertain sessions.
+
+**How to apply:** Require explicit confirmation of added spending capacity, retain reservation/audit history and hourly attempt limits, and keep ownership, operator-only service controls, and unresolved-session fences intact.

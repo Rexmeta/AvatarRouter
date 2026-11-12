@@ -128,8 +128,8 @@ function options(
 test('shipping IIFE publishes separate SDK version and immutable cleanup capability', t => {
   const env = sandbox();
   t.after(() => env.dispose());
-  assert.equal(env.sdk.version, '0.9.1');
-  assert.deepEqual(Array.from(env.sdk.features), ['cleanup_status_v1']);
+  assert.equal(env.sdk.version, '0.9.2');
+  assert.deepEqual(Array.from(env.sdk.features), ['cleanup_status_v1', 'server_deadline_v1']);
   assert.equal(Object.isFrozen(env.sdk.features), true);
   env.verifyReadOnly();
 });

@@ -76,8 +76,8 @@ export function SelectedAssetPanel({ onRequestLive, pending, liveError }: { onRe
             <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--warn))]" />
             <p>
               {L(
-                'Ready only means provisioned. Tavus assets can run in the cost-approved live panel above; unvalidated assets start in validation mode. Only report success after real video and returned audio. Anam live runtime is unavailable. This source still is not a live preview.',
-                'Ready는 생성 완료만 의미합니다. Tavus는 위 라이브 패널에서 비용 동의 후 실행할 수 있으며 미검증 자산은 검증 모드로 시작합니다. 실제 영상과 반환 음성을 확인한 뒤에만 성공을 기록하세요. Anam 라이브는 미지원입니다. 이 원본 정지 이미지는 라이브 미리보기가 아닙니다.',
+                'Ready only means provisioned. Ready Tavus assets can now be fully validated in the native Tavus panel below (Daily full pipeline, no LiveKit needed) after cost consent. Report success only after moving video, returned audio and your explicit confirmation. Anam custom live is unavailable. This source still is not a live preview.',
+                'Ready는 생성 완료만 의미합니다. Ready Tavus 에셋은 이제 아래 네이티브 Tavus 패널(Daily 전체 파이프라인, LiveKit 불필요)에서 비용 동의 후 완전히 검증할 수 있습니다. 움직이는 영상·반환 음성·관리자 확인 후에만 성공을 기록하세요. Anam 커스텀 라이브는 미지원입니다. 이 원본 정지 이미지는 라이브 미리보기가 아닙니다.',
               )}
             </p>
           </div>

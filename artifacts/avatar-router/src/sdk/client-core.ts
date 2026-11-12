@@ -34,6 +34,13 @@ export type DriverFactory = (
   active: () => boolean,
 ) => Promise<Driver>;
 
+/** Respect the server's Tavus expiry; Anam's independent 120s policy is unchanged. */
+export function clientDeadlineMs(expiresAt: string, pipeline: string, now = Date.now()) {
+  const ms = Date.parse(expiresAt) - now;
+  if (!Number.isFinite(ms) || ms <= 0) throw new Error('CLIENT_EXPIRED');
+  return Math.min(ms, pipeline === 'anam_full' ? 120_000 : 7_200_000);
+}
+
 function bounded<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('CLIENT_TIMEOUT')), ms); })])
@@ -112,12 +119,11 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
     if (started || closed) throw new Error('CLIENT_START_ONCE');
     started = true;
     try {
-      const ms = Date.parse(options.connection.expiresAt) - Date.now();
-      if (!Number.isFinite(ms) || ms <= 0) throw new Error('CLIENT_EXPIRED');
+      const ms = clientDeadlineMs(options.connection.expiresAt, options.connection.pipeline);
       if (typeof options.onAudioOwner !== 'function') throw new Error('CLIENT_VOICE_OWNER_REQUIRED');
       if (typeof options.endSession !== 'function') throw new Error('CLIENT_END_PROXY_REQUIRED');
       if (typeof window !== 'undefined') window.addEventListener('pagehide', pageHide, { once: true });
-      deadline = setTimeout(() => { void stop(); }, Math.min(ms, 120_000));
+      deadline = setTimeout(() => { void stop(); }, ms);
       await options.onAudioOwner(options.connection.audioOwner);
       if (closed) throw new Error('CLIENT_CLOSED');
       emit('connecting');

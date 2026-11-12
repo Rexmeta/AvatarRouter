@@ -1,4 +1,4 @@
-import type { AvatarAssetRecord } from "@workspace/db";
+import type { AvatarAssetRecord, AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
 
 export function assetLiveVerified(asset: AvatarAssetRecord) {
@@ -19,4 +19,18 @@ export function requireLiveAsset(asset: AvatarAssetRecord, purpose: "validation"
     throw new SessionProblem(409, "LIVE_VALIDATION_REQUIRED", "First run an explicitly cost-approved validation session and report actual client video/audio playback.");
   }
   return asset.providerAvatarId;
+}
+
+/** Shared gates must also hold AFTER any read-only provider lookup. */
+export function requirePlaybackSession(asset: AvatarAssetRecord, session: AvatarSessionRecord, now = new Date()) {
+  if (asset.status !== "ready" || asset.providerId !== "tavus" || !asset.providerAvatarId ||
+      asset.expiresAt && asset.expiresAt <= now ||
+      session.tenantId !== asset.tenantId || session.avatarAssetId !== asset.id ||
+      session.avatarId !== asset.providerAvatarId || session.providerId !== asset.providerId ||
+      session.mode !== "live" || session.purpose !== "validation" || session.status !== "active" ||
+      !["external_audio", "tavus_full"].includes(session.pipeline) ||
+      session.rendererState !== "running" || session.providerCreateState !== "known" || !session.providerConversationId ||
+      session.stopRequestedAt || session.expiresAt <= now || !session.leaseExpiresAt || session.leaseExpiresAt <= now) {
+    throw new SessionProblem(409, "LIVE_VALIDATION_SESSION_INVALID", "A running, owned validation session for the current provider avatar is required.");
+  }
 }

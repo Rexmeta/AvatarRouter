@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.9.0
  */
 
-export type WorkspaceLiveConsentMaxSeconds = typeof WorkspaceLiveConsentMaxSeconds[keyof typeof WorkspaceLiveConsentMaxSeconds];
+export type IntegrationContractCustomValidationPipelinesItem = typeof IntegrationContractCustomValidationPipelinesItem[keyof typeof IntegrationContractCustomValidationPipelinesItem];
 
 
-export const WorkspaceLiveConsentMaxSeconds = {
-  NUMBER_120: 120,
+export const IntegrationContractCustomValidationPipelinesItem = {
+  external_audio: 'external_audio',
+  tavus_full: 'tavus_full',
 } as const;

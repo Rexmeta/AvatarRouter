@@ -5,6 +5,58 @@
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
  * OpenAPI spec version: 0.9.0
  */
+export type BudgetUpdateScope = typeof BudgetUpdateScope[keyof typeof BudgetUpdateScope];
+
+
+export const BudgetUpdateScope = {
+  project: 'project',
+  service: 'service',
+} as const;
+
+export interface BudgetUpdate {
+  scope: BudgetUpdateScope;
+  /**
+     * @minimum 0
+     * @maximum 86400
+     */
+  dailySeconds: number;
+  /** @minimum 0 */
+  revision: number;
+  costConfirmed: true;
+}
+
+export type BudgetResetScope = typeof BudgetResetScope[keyof typeof BudgetResetScope];
+
+
+export const BudgetResetScope = {
+  project: 'project',
+  service: 'service',
+} as const;
+
+export interface BudgetReset {
+  scope: BudgetResetScope;
+  /** @minimum 0 */
+  revision: number;
+  confirmed: true;
+}
+
+export interface BudgetScope {
+  dailySeconds: number;
+  usedSeconds: number;
+  remainingSeconds: number;
+  revision: number;
+  /** @nullable */
+  resetAt: string | null;
+}
+
+export interface WorkspaceBudget {
+  project: BudgetScope;
+  service: BudgetScope;
+  canManageService: boolean;
+  sessionSeconds: number;
+  resetsAt: string;
+}
+
 export interface CreateDeveloperKeyInput {
   /**
      * @minLength 1
@@ -52,6 +104,14 @@ export interface UpdateDeveloperKeyScopesInput {
   scopes: string[];
 }
 
+export type IntegrationContractCustomValidationPipelinesItem = typeof IntegrationContractCustomValidationPipelinesItem[keyof typeof IntegrationContractCustomValidationPipelinesItem];
+
+
+export const IntegrationContractCustomValidationPipelinesItem = {
+  external_audio: 'external_audio',
+  tavus_full: 'tavus_full',
+} as const;
+
 /**
  * Implemented API contract only, not worker readiness, provider entitlement, playback certification or permission to create a paid session. Older servers omit this field; do not infer custom-live support from authentication success.
  */
@@ -59,6 +119,8 @@ export interface IntegrationContract {
   apiVersion: string;
   features: string[];
   customLiveProviders: string[];
+  /** Supported custom playback validation transports; not proof of provider credits or observed playback. */
+  customValidationPipelines?: IntegrationContractCustomValidationPipelinesItem[];
   assetNamespace: 'project';
   /** Stock session reference; not an owned avatar asset UUID. */
   stockAvatarId: string;
@@ -662,7 +724,7 @@ export const SessionInputProviderId = {
 } as const;
 
 /**
- * Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID.
+ * Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID.
  */
 export type SessionInputPurpose = typeof SessionInputPurpose[keyof typeof SessionInputPurpose];
 
@@ -729,7 +791,7 @@ export interface SessionInput {
   avatarId: string;
   /** Resolve a ready tenant-owned avatar without regeneration. Tavus custom runtime supported; Anam runtime remains unavailable. */
   avatarAssetId?: string;
-  /** Unvalidated custom assets require validation purpose plus assets:write. Conversation purpose requires a prior playback report for the current provider avatar ID. */
+  /** Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID. */
   purpose?: SessionInputPurpose;
   /** Required for every live session including validation. Provider/LiveKit usage may consume credits. */
   costConfirmed?: boolean;
@@ -886,10 +948,13 @@ export interface LiveLimits {
   creationAllowed?: boolean;
   /** Safe admission reason codes. No other project's identifiers, resource references, or reconciliation records. */
   blockingReasons?: string[];
+  /** Router project daily reservation budget, not provider credits or subscription entitlement. */
   userDailySeconds: number;
+  /** Router service-wide daily reservation budget, not provider credits. */
   globalDailySeconds: number;
   userRemainingSeconds: number;
   globalRemainingSeconds: number;
+  /** Configured router per-attempt limit including startup. Tavus uses TAVUS_LIVE_SESSION_SECONDS; Anam has an independent cap. */
   sessionSeconds: number;
   cleanupPending: number;
   workerReady: boolean;
@@ -1191,16 +1256,14 @@ export interface LiveAudioResult {
   accepted: boolean;
 }
 
-export type WorkspaceLiveConsentMaxSeconds = typeof WorkspaceLiveConsentMaxSeconds[keyof typeof WorkspaceLiveConsentMaxSeconds];
-
-
-export const WorkspaceLiveConsentMaxSeconds = {
-  NUMBER_120: 120,
-} as const;
-
 export interface WorkspaceLiveConsent {
   costConfirmed: true;
-  maxSeconds: WorkspaceLiveConsentMaxSeconds;
+  /**
+     * Must equal the latest limits.sessionSeconds. Stale cost consent is rejected before paid creation.
+     * @minimum 1
+     * @maximum 7200
+     */
+  maxSeconds: number;
 }
 
 export interface WorkspaceLiveCheck {

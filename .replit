@@ -58,6 +58,9 @@ timeoutMs = 20000
 
 [userenv.shared]
 LIVEKIT_URL = "wss://avatarouter-n1q0eegf.livekit.cloud"
+LIVE_GLOBAL_DAILY_SECONDS = "7200"
+LIVE_USER_DAILY_SECONDS = "3600"
+TAVUS_LIVE_SESSION_SECONDS = "600"
 
 [userenv.development]
 AVATAR_ROUTER_DELEGATION_ISSUER = "urn:roleplayx:avatarrouter:development"

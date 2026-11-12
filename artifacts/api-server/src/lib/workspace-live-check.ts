@@ -4,7 +4,7 @@ import { hashServiceValue, listDeveloperKeys } from "./service-api-keys";
 import { ownedProject, projectTenant } from "./developer-workspaces";
 import { createStockSession, liveLimits, ownedLiveSession, sendStockAudio } from "./live-sessions";
 import { presentSession, SessionProblem } from "./session-service";
-import { validateLiveAudio } from "./stock-policy";
+import { liveSessionMs, validateLiveAudio } from "./stock-policy";
 
 // A server-derived context, never a personal Studio/browser owner or a caller-supplied identity.
 export const workspaceProbeOwner = (owner: string, projectId: string) =>
@@ -37,7 +37,10 @@ export async function workspaceProbeState(identity: { owner: string; tenant: str
   };
 }
 
-export async function startWorkspaceProbe(identity: { owner: string; tenant: string }) {
+export async function startWorkspaceProbe(identity: { owner: string; tenant: string }, maxSeconds = liveSessionMs() / 1000) {
+  if (maxSeconds !== liveSessionMs() / 1000) {
+    throw new SessionProblem(409, "LIVE_DURATION_CONSENT_CHANGED", "The router session limit changed. Refresh limits and explicitly confirm the current duration before starting.");
+  }
   // The existing global advisory admission lock protects concurrent starts across tabs/processes.
   // Refuse stale or unresolved diagnostics even if a terminal status alone looks safe.
   const state = await workspaceProbeState(identity);

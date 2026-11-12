@@ -25,11 +25,13 @@ before(async () => {
   await pool.query(`CREATE SCHEMA ${schema}`);
   pool.on("connect", client => { void client.query(`SET search_path TO ${schema}`).catch(() => {}); });
   await pool.query(`SET search_path TO ${schema}`);
+  await pool.query(`CREATE TABLE live_budget_settings (LIKE public.live_budget_settings INCLUDING ALL)`);
   await pool.query(`CREATE TABLE avatar_sessions (LIKE public.avatar_sessions INCLUDING ALL)`);
   await pool.query(`CREATE TABLE avatar_session_events (LIKE public.avatar_session_events INCLUDING ALL)`);
   await pool.query(await readFile(new URL("../../../../scripts/sql/renderer-ownership.sql", import.meta.url), "utf8"));
 });
 beforeEach(async () => {
+  Object.assign(process.env, { TAVUS_LIVE_SESSION_SECONDS: "120", LIVE_USER_DAILY_SECONDS: "600", LIVE_GLOBAL_DAILY_SECONDS: "3600" });
   await Promise.all(workers.splice(0).map(w => w.shutdown()));
   await flushRendererDiagnostics();
   await pool.query("TRUNCATE renderer_diagnostic_records, renderer_commands, avatar_session_reconciliation_audit, avatar_session_events, avatar_sessions, renderer_workers");

@@ -50,7 +50,7 @@ export function WorkspaceLiveCheckPanel({ check }: { check: LiveCheckView }) {
         <Panel title={t('Before you start', '시작 전 확인')}>
           <ul className="space-y-2 p-4 text-sm">
             <li>{t('Uses paid Tavus and LiveKit resources. Cost is unknown and nothing here is a quote.', 'Tavus·LiveKit 유료 자원을 사용합니다. 비용은 알 수 없으며 견적이 아닙니다.')}</li>
-            <li>{t('Hard server deadline: 120 seconds total, including startup.', '서버 최종 기한: 시작 포함 총 120초.')}</li>
+            <li>{t(`Router deadline: ${limits?.sessionSeconds ?? '—'} seconds including startup, not a provider plan limit.`, `라우터 기한: 시작 포함 총 ${limits?.sessionSeconds ?? '—'}초이며 제공자 요금제 제한이 아닙니다.`)}</li>
             <li>{t('Plays a 1-second synthetic tone. Not speech, no microphone, no AI conversation.', '1초 합성 톤을 재생합니다. 음성 발화·마이크·AI 대화 없음.')}</li>
             <li>{t('No new avatar training. Observation is bounded, then the session ends automatically.', '새 아바타 학습 없음. 관찰은 제한 시간 후 자동 종료됩니다.')}</li>
             <li>{t('Expiry requests termination; it is not a billing guarantee. Charges may continue until remote cleanup is confirmed.', '만료는 종료 요청 기준이며 청구 상한 보장이 아닙니다. 원격 정리가 확인될 때까지 비용이 계속 발생할 수 있습니다.')}</li>
@@ -58,7 +58,7 @@ export function WorkspaceLiveCheckPanel({ check }: { check: LiveCheckView }) {
           <div className="border-t border-card-border p-4">
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" data-testid="checkbox-live-check-consent" className="mt-1" checked={check.consent} disabled={active || check.busy} onChange={e => check.setConsent(e.target.checked)}/>
-              <span>{t('I accept unknown Tavus/LiveKit costs and the 120-second total session limit.', '알 수 없는 Tavus·LiveKit 비용과 총 120초 세션 제한에 동의합니다.')}</span>
+              <span>{t(`I accept unknown Tavus/LiveKit costs and the ${limits?.sessionSeconds ?? '—'}-second router session limit.`, `알 수 없는 Tavus·LiveKit 비용과 라우터의 총 ${limits?.sessionSeconds ?? '—'}초 세션 제한에 동의합니다.`)}</span>
             </label>
             <div className="mt-4 flex flex-wrap gap-3">
               <button data-testid="button-start-live-check" className="arw-button primary" disabled={!check.canStart || check.busy} onClick={check.start}><Play size={14}/>{check.busy && check.phase === 'creating' ? t('Starting…', '시작 중…') : t('Start check', '점검 시작')}</button>

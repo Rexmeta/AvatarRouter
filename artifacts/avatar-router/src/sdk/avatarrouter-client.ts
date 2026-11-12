@@ -120,6 +120,6 @@ export function createClient(options: ClientOptions) {
 /** Browser bundle release, independent of the REST API version.
  * Detect the actual client method as well: cached/pinned bundles may omit metadata.
  */
-export const version = '0.9.1';
+export const version = '0.9.2';
 /** Additive, immutable capability identifiers; never infer cleanup from local ended. */
-export const features = Object.freeze(['cleanup_status_v1'] as const);
+export const features = Object.freeze(['cleanup_status_v1', 'server_deadline_v1'] as const);

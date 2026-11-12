@@ -31,6 +31,8 @@ import type {
   AvatarAsset,
   AvatarAssetInput,
   AvatarPlaybackReport,
+  BudgetReset,
+  BudgetUpdate,
   ClientConnection,
   CompareRendererDiagnosticsParams,
   CreateDeveloperKeyInput,
@@ -64,6 +66,7 @@ import type {
   TavusFullConnection,
   UpdateDeveloperKeyScopesInput,
   Usage,
+  WorkspaceBudget,
   WorkspaceLiveCheck,
   WorkspaceLiveConsent
 } from './api.schemas';
@@ -94,6 +97,273 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetWorkspaceBudgetUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/budget`
+}
+
+/**
+ * Interactive workspace owner only. API keys cannot manage or reset budgets.
+ */
+export const getWorkspaceBudget = async (projectId: string, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceBudget> => {
+
+  return customFetch<WorkspaceBudget>(getGetWorkspaceBudgetUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceBudgetQueryKey = (projectId: string,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/budget`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceBudgetQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceBudget>>, TError = ErrorType<void>>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceBudgetQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceBudget>>> = ({ signal }) => getWorkspaceBudget(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkspaceBudgetQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceBudget>>>
+export type GetWorkspaceBudgetQueryError = ErrorType<void>
+
+
+export function useGetWorkspaceBudget<TData = Awaited<ReturnType<typeof getWorkspaceBudget>>, TError = ErrorType<void>>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceBudget>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceBudget>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceBudget<TData = Awaited<ReturnType<typeof getWorkspaceBudget>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceBudget>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceBudget>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceBudget<TData = Awaited<ReturnType<typeof getWorkspaceBudget>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWorkspaceBudget<TData = Awaited<ReturnType<typeof getWorkspaceBudget>>, TError = ErrorType<void>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceBudget>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWorkspaceBudgetQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWorkspaceBudgetUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/budget`
+}
+
+export const updateWorkspaceBudget = async (projectId: string,
+    budgetUpdate: BudgetUpdate, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceBudget> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WorkspaceBudget>(getUpdateWorkspaceBudgetUrl(projectId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(budgetUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateWorkspaceBudgetMutationKey = () => ['updateWorkspaceBudget'] as const;
+
+export const getUpdateWorkspaceBudgetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkspaceBudget>>, TError,UpdateWorkspaceBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWorkspaceBudget>>, TError,UpdateWorkspaceBudgetMutationVariables, TContext> => {
+
+const mutationKey = getUpdateWorkspaceBudgetMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWorkspaceBudget>>, UpdateWorkspaceBudgetMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  updateWorkspaceBudget(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWorkspaceBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof updateWorkspaceBudget>>>
+    export type UpdateWorkspaceBudgetMutationBody = BodyType<BudgetUpdate>
+    export type UpdateWorkspaceBudgetMutationError = ErrorType<void>
+    export type UpdateWorkspaceBudgetMutationVariables = {projectId: string;data: BodyType<BudgetUpdate>}
+
+    export const useUpdateWorkspaceBudget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkspaceBudget>>, TError,UpdateWorkspaceBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateWorkspaceBudget>>,
+        TError,
+        UpdateWorkspaceBudgetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateWorkspaceBudgetMutationOptions(options), queryClient);
+    }
+
+export const getResetWorkspaceBudgetUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/budget/reset`
+}
+
+/**
+ * Resets only router accounting with an auditable cutoff; never deletes sessions, provider usage or cleanup fences.
+ */
+export const resetWorkspaceBudget = async (projectId: string,
+    budgetReset: BudgetReset, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceBudget> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<WorkspaceBudget>(getResetWorkspaceBudgetUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(budgetReset)
+  }
+);}
+
+
+
+
+
+export const getResetWorkspaceBudgetMutationKey = () => ['resetWorkspaceBudget'] as const;
+
+export const getResetWorkspaceBudgetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetWorkspaceBudget>>, TError,ResetWorkspaceBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetWorkspaceBudget>>, TError,ResetWorkspaceBudgetMutationVariables, TContext> => {
+
+const mutationKey = getResetWorkspaceBudgetMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetWorkspaceBudget>>, ResetWorkspaceBudgetMutationVariables> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  resetWorkspaceBudget(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetWorkspaceBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof resetWorkspaceBudget>>>
+    export type ResetWorkspaceBudgetMutationBody = BodyType<BudgetReset>
+    export type ResetWorkspaceBudgetMutationError = ErrorType<void>
+    export type ResetWorkspaceBudgetMutationVariables = {projectId: string;data: BodyType<BudgetReset>}
+
+    export const useResetWorkspaceBudget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetWorkspaceBudget>>, TError,ResetWorkspaceBudgetMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetWorkspaceBudget>>,
+        TError,
+        ResetWorkspaceBudgetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResetWorkspaceBudgetMutationOptions(options), queryClient);
+    }
 
 export const getGetWorkspaceLiveCheckUrl = (projectId: string,) => {
 
@@ -741,7 +1011,7 @@ export const getReportAvatarLiveValidationUrl = (id: string,) => {
 }
 
 /**
- * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, unexpired validation session for this exact asset revision and a completed audio command. Never call until the client has observed video frames and audible output.
+ * Requires assets:write and the original validation-session owner. Records a trusted client playback report, not independent provider certification. The server requires a running, leased, unexpired validation session for this exact asset revision. external_audio additionally requires a completed renderer audio command. tavus_full instead requires read-only provider evidence that the active conversation uses the exact current face ID; no LiveKit or renderer audio upload is needed. Never call until the trusted client has observed moving video and audible returned output.
  */
 export const reportAvatarLiveValidation = async (id: string,
     avatarPlaybackReport: AvatarPlaybackReport, options?: Parameters<typeof customFetch>[1]): Promise<AvatarAsset> => {

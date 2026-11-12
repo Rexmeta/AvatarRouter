@@ -35,6 +35,16 @@ before(async () => {
 
 test("only an owner can add asset permissions without replacing the secret, project or expiry", async () => {
   const issued = await issue();
+  const budgetPath = `/developer/workspaces/${issued.key.projectId}/budget`;
+  assert.equal((await call(budgetPath, issued.secret)).status, 403);
+  assert.equal((await call(budgetPath, issued.secret, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope: "service", dailySeconds: 86400, revision: 0, costConfirmed: true }),
+  })).status, 403);
+  assert.equal((await call(`${budgetPath}/reset`, issued.secret, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope: "project", revision: 0, confirmed: true }),
+  })).status, 403);
   const [before] = await db.select().from(integrationApiKeys).where(eq(integrationApiKeys.id, issued.key.id));
   assert.equal((await call("/avatar-assets", issued.secret)).status, 403);
   const write = { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" };
@@ -91,12 +101,13 @@ test("HTTP key integration is cookie-free, project/user isolated, scoped, and ca
   assert.equal(check.status, 200);
   const data = await check.json() as {
     projectId: string; authenticated: boolean;
-    integration: { apiVersion: string; features: string[]; customLiveProviders: string[]; stockAvatarId: string; assetNamespace: string };
+    integration: { apiVersion: string; features: string[]; customLiveProviders: string[]; customValidationPipelines: string[]; stockAvatarId: string; assetNamespace: string };
   };
   assert.equal(data.projectId, one.key.projectId);
   assert.equal(data.authenticated, true);
   assert.equal(check.headers.get("cache-control"), "private, no-store");
-  assert.equal(data.integration.apiVersion, "0.5.0");
+  assert.equal(data.integration.apiVersion, "0.9.1");
+  assert.deepEqual(data.integration.customValidationPipelines, ["external_audio", "tavus_full"]);
   assert.ok(data.integration.features.includes("custom_live_validation"));
   assert.ok(data.integration.features.includes("client_playback_report"));
   assert.deepEqual(data.integration.customLiveProviders, ["tavus"]);

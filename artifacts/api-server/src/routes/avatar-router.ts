@@ -90,9 +90,9 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
   }
-  if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || purpose === "validation" || !fullPipeline)) ||
+  if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || !fullPipeline || purpose === "validation" && !avatarAssetId)) ||
       (pipeline !== "tavus_full" && fullPipeline)) {
-    res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live conversation mode and fullPipeline options. Existing validation remains external_audio." }); return;
+    res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live mode and fullPipeline options. Native validation additionally requires an owned avatarAssetId." }); return;
   }
   if (mode === "live" && providerId === "tavus" && avatarId === STOCK_AVATAR && !avatarAssetId) {
     await assetTenant(req, res, () => {});

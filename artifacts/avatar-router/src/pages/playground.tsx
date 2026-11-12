@@ -75,7 +75,7 @@ export default function Playground() {
       setAssetLiveError('Select a ready Tavus custom asset. Native Anam uses its separately registered saved persona; Anam custom assets are not enabled.');
       return;
     }
-    document.getElementById('stock')?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('tavus-asset')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const requestLive = (pid: 'anam' | 'tavus') => {
@@ -115,6 +115,7 @@ export default function Playground() {
       <PageHead index="02 / playground" title={t('pg.title')} lede={t('pg.lede')} />
       <StockLivePanel asset={asset.record ?? undefined} />
       <SelectedAssetPanel onRequestLive={liveWithAsset} pending={create.isPending} liveError={assetLiveError} />
+      {asset.ready && asset.record?.providerId === 'tavus' && <NativeLivePanel providerId="tavus" asset={asset.record} />}
 
       <div className="rise mb-6 flex flex-wrap gap-2" role="tablist">
         {(['mock', 'anam', 'tavus'] as Target[]).map((id) => {
