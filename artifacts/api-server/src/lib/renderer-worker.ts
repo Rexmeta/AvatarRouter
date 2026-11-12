@@ -11,6 +11,7 @@ import { TavusFullRuntime, terminateFullResources } from "./tavus-full-runtime";
 import { AnamRuntime, terminateAnamResources } from "./anam-runtime";
 import { createAnamRecognitionReporter } from "./anam-recognition-diagnostics";
 import { closedPipelineOptions } from "./full-pipeline-cleanup";
+import { providerFailureStorageCode } from "./provider-session-failure";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
@@ -186,7 +187,7 @@ export class RendererWorker {
       local.starting = false;
       local.closing = true;
       const problem = error instanceof SessionProblem ? error : safeLiveError(error);
-      await db.update(avatarSessions).set({ stopStatus: "failed", stopError: problem.code, stopRequestedAt: sql`now()` })
+      await db.update(avatarSessions).set({ stopStatus: "failed", stopError: providerFailureStorageCode(error) ?? problem.code, stopRequestedAt: sql`now()` })
         .where(and(this.owns(row.id), sql`${avatarSessions.stopRequestedAt} is null`));
       await this.finish(row, local);
     } finally {

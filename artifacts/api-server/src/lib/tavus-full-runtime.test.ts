@@ -5,6 +5,8 @@ import { CreateSessionBody, GetTavusFullConnectionResponse } from "@workspace/ap
 import { TavusFullRuntime, fullPalBody, fullConversationBody, terminateFullResources } from "./tavus-full-runtime";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { presentSession } from "./session-service";
+import { providerFailureStorageCode, presentProviderFailure } from "./provider-session-failure";
+import { safeRendererError } from "./renderer-diagnostics";
 
 const options = { systemPrompt: "한국어 롤플레이 고객", languages: ["ko"], voiceId: "voice-test", context: "scenario" };
 function row() {
@@ -82,6 +84,55 @@ test("explicit create rejection allows PAL cleanup without a paid retry", async 
   assert.equal(h.rejected, 1);
   assert.equal((await h.runtime.stop()).providerEnded, true);
   assert.equal(h.calls.some(c => c.startsWith("DELETE")), true);
+});
+
+test("upstream rejection status survives normalization without leaking raw provider bodies", async () => {
+  for (const [status, category] of [
+    [400, "configuration"], [401, "authentication"], [402, "billing"],
+    [403, "permission_or_plan"], [404, "configuration"], [422, "configuration"],
+    [429, "provider_limit"], [408, "provider_unavailable"], [500, "provider_unavailable"],
+  ] as const) {
+    const h = harness(async () => reply({
+      message: "private-prompt private-token https://private.invalid/media",
+      code: "private-tenant-identifier",
+    }, status));
+    let failure: unknown;
+    try { await h.runtime.start(); assert.fail("Creation must be rejected"); } catch (error) { failure = error; }
+    const stored = providerFailureStorageCode(failure);
+    assert.equal(stored, `TAVUS_FULL_CREATE_FAILED:HTTP_${status}`);
+    assert.equal(safeRendererError(failure).httpStatus, 502);
+    assert.equal(safeRendererError(failure).providerHttpStatus, status);
+    const rejection = status < 500 && status !== 408;
+    assert.equal(h.rejected, rejection ? 1 : 0);
+    assert.equal((await h.runtime.stop()).providerEnded, rejection);
+    assert.equal(h.calls.filter(c => c.endsWith("/conversations")).length, 1);
+    const info = presentProviderFailure({
+      providerId: "tavus", error: stored, providerCreateState: rejection ? "rejected" : "submitted",
+    });
+    assert.equal(info?.category, category);
+    assert.equal(info?.automaticRetryAllowed, false);
+    assert.equal(info?.creationOutcome, rejection ? "not_created" : "unknown");
+    assert.doesNotMatch(JSON.stringify(info), /private-|https:/);
+  }
+});
+
+test("explicit safe codes distinguish concurrency from credit limits; legacy failure stays unknown", async () => {
+  for (const [code, category] of [["concurrency_limit_exceeded", "concurrency_limit"], ["insufficient_credits", "billing"]] as const) {
+    const h = harness(async () => reply({ error: { code }, message: "private-source" }, 400));
+    let stored: string | null = null;
+    await assert.rejects(h.runtime.start(), error => {
+      stored = providerFailureStorageCode(error);
+      return true;
+    });
+    const failure = presentProviderFailure({ providerId: "tavus", error: stored, providerCreateState: "rejected" });
+    assert.equal(failure?.category, category);
+    assert.equal(failure?.providerErrorCode, code);
+    await h.runtime.stop();
+  }
+  const legacy = presentProviderFailure({ providerId: "tavus", error: "TAVUS_FULL_CREATE_FAILED", providerCreateState: "rejected" });
+  assert.equal(legacy?.category, "unknown");
+  assert.equal(legacy?.providerHttpStatus, null);
+  assert.equal(legacy?.creationOutcome, "not_created");
 });
 test("malformed connection is not exposed but known provider ID is still ended", async () => {
   const h = harness(async () => reply({ conversation_id: "c-known", conversation_url: "https://attacker.example", meeting_token: "x" }));

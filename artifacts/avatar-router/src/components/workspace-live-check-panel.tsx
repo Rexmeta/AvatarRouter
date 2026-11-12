@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ProviderFailureNotice } from './provider-failure-notice';
 import { AlertTriangle, Play, RotateCw, Square, Volume2 } from 'lucide-react';
 import type { LiveCheckView } from '../lib/workspace-live-check-view';
 import { Panel, Pill, Skel, fmtTime } from './bits';
@@ -89,6 +90,7 @@ export function WorkspaceLiveCheckPanel({ check }: { check: LiveCheckView }) {
             <Row label={t('Status', '상태')} testid="text-session-status">{session ? <Pill value={session.status}/> : '—'}</Row>
             <Row label={t('Renderer state (server-reported)', '렌더러 상태 (서버 보고)')} testid="text-renderer-state">{session?.rendererState ?? '—'}</Row>
             {session?.error && <Row label={t('Session error code', '세션 오류 코드')} testid="text-session-error">{session.error}</Row>}
+            <ProviderFailureNotice failure={session?.failure} />
             <Row label={t('Started', '시작')} testid="text-session-started">{fmtTime(session?.startedAt)}</Row>
             <Row label={t('Sample attempted (server)', '샘플 시도 (서버)')} testid="text-server-sample-attempted">{s ? String(s.sampleAttempted) : '—'}</Row>
             <Row label={t('Cleanup confirmed', '정리 확인')} testid="status-cleanup-confirmed">{!session ? t('no session · no prior check', '세션 없음 · 이전 점검 없음') : s?.cleanupConfirmed ? <Pill value="ok" label={t('confirmed', '확인됨')}/> : <Pill value="pending" label={t('not confirmed', '미확인')}/>}</Row>

@@ -60,6 +60,7 @@ export default function Docs() {
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/anam-integration.md`} download="anam-integration.md">Anam native · API 0.7</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/tavus-full-pipeline.md`} download="tavus-full-pipeline.md">Tavus full pipeline · API 0.6</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/openapi.yaml`} download="avatarrouter-openapi.yaml">Download OpenAPI YAML</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/provider-failures.md`} download="provider-failures.md">Provider failure diagnostics · RoleplayX</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/persona-live-integration.md`} download="persona-live-integration.md">Persona live integration · API 0.5</a>

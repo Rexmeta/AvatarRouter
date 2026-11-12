@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ProviderFailureNotice } from '@/components/provider-failure-notice';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Play, Square, Zap } from 'lucide-react';
 import {
@@ -150,6 +151,7 @@ export default function Playground() {
                 {s && <span className="mono text-xs text-muted-foreground" data-testid="text-duration">{fmtSec(s.durationSeconds)} · {s.interruptions} int.</span>}
               </div>
               {s?.error && <p className="mt-2 text-sm text-destructive">{s.error}</p>}
+              <ProviderFailureNotice failure={s?.failure} />
             </div>
             <div className="flex flex-wrap gap-2 border-t p-4">
               <button data-testid="button-start" disabled={active || create.isPending} onClick={startMock}

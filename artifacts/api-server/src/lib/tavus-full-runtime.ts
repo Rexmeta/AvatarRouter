@@ -1,5 +1,6 @@
 import type { AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
+import { readSafeProviderCode, storedProviderFailure } from "./provider-session-failure";
 import { STOCK_FACE } from "./stock-policy";
 
 type Options = NonNullable<AvatarSessionRecord["fullPipeline"]>;
@@ -82,7 +83,10 @@ export class TavusFullRuntime {
     // Each session owns its PAL: never mutate a shared persona or echo PAL.
     const pal = await request("/pals", fullPalBody(this.row.id,
       this.row.avatarAssetId ? this.row.avatarId : STOCK_FACE, this.options), this.fetcher);
-    if (!pal.ok) throw new SessionProblem(502, "TAVUS_FULL_PAL_REJECTED", "Tavus rejected the full-pipeline persona or voice configuration.");
+    if (!pal.ok) {
+      const problem = new SessionProblem(502, "TAVUS_FULL_PAL_REJECTED", "Tavus rejected the full-pipeline persona or voice configuration.");
+      throw Object.assign(problem, { providerFailureCode: storedProviderFailure("persona_create", pal.status, await readSafeProviderCode(pal)) });
+    }
     const palData = await pal.json() as { pal_id?: unknown };
     if (typeof palData.pal_id !== "string" || !palData.pal_id) {
       throw new SessionProblem(502, "TAVUS_FULL_PAL_INVALID", "Tavus returned no PAL identifier.");
@@ -106,7 +110,8 @@ export class TavusFullRuntime {
         this.unknown = false;
         await this.rejected();
       }
-      throw new SessionProblem(502, "TAVUS_FULL_CREATE_FAILED", "Tavus did not confirm full-pipeline creation. No automatic retry.");
+      const problem = new SessionProblem(502, "TAVUS_FULL_CREATE_FAILED", "Tavus did not confirm full-pipeline creation. No automatic retry.");
+      throw Object.assign(problem, { providerFailureCode: storedProviderFailure("conversation_create", response.status, await readSafeProviderCode(response)) });
     }
     const data = await response.json() as { conversation_id?: unknown; conversation_url?: unknown; meeting_token?: unknown };
     if (typeof data.conversation_id !== "string" || !data.conversation_id) {

@@ -601,6 +601,84 @@ export const SessionStatus = {
   failed: 'failed',
 } as const;
 
+export type ProviderSessionFailureProvider = typeof ProviderSessionFailureProvider[keyof typeof ProviderSessionFailureProvider];
+
+
+export const ProviderSessionFailureProvider = {
+  tavus: 'tavus',
+} as const;
+
+export type ProviderSessionFailureStage = typeof ProviderSessionFailureStage[keyof typeof ProviderSessionFailureStage];
+
+
+export const ProviderSessionFailureStage = {
+  persona_create: 'persona_create',
+  conversation_create: 'conversation_create',
+} as const;
+
+export type ProviderSessionFailureCategory = typeof ProviderSessionFailureCategory[keyof typeof ProviderSessionFailureCategory];
+
+
+export const ProviderSessionFailureCategory = {
+  authentication: 'authentication',
+  billing: 'billing',
+  concurrency_limit: 'concurrency_limit',
+  provider_limit: 'provider_limit',
+  permission_or_plan: 'permission_or_plan',
+  configuration: 'configuration',
+  provider_unavailable: 'provider_unavailable',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ProviderSessionFailureProviderErrorCode = typeof ProviderSessionFailureProviderErrorCode[keyof typeof ProviderSessionFailureProviderErrorCode] | null;
+
+
+export const ProviderSessionFailureProviderErrorCode = {
+  insufficient_credits: 'insufficient_credits',
+  out_of_credits: 'out_of_credits',
+  quota_exceeded: 'quota_exceeded',
+  concurrency_limit_exceeded: 'concurrency_limit_exceeded',
+  rate_limit_exceeded: 'rate_limit_exceeded',
+  invalid_api_key: 'invalid_api_key',
+  permission_denied: 'permission_denied',
+  invalid_request: 'invalid_request',
+} as const;
+
+export type ProviderSessionFailureCreationOutcome = typeof ProviderSessionFailureCreationOutcome[keyof typeof ProviderSessionFailureCreationOutcome];
+
+
+export const ProviderSessionFailureCreationOutcome = {
+  not_created: 'not_created',
+  not_requested: 'not_requested',
+  created: 'created',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.
+ * @nullable
+ */
+export type ProviderSessionFailure = {
+  code: string;
+  provider: ProviderSessionFailureProvider;
+  stage: ProviderSessionFailureStage;
+  category: ProviderSessionFailureCategory;
+  message: string;
+  /**
+     * @minimum 400
+     * @maximum 599
+     * @nullable
+     */
+  providerHttpStatus: number | null;
+  /** @nullable */
+  providerErrorCode: ProviderSessionFailureProviderErrorCode;
+  automaticRetryAllowed: false;
+  creationOutcome: ProviderSessionFailureCreationOutcome;
+} | null;
+
 export interface Session {
   pipeline?: SessionPipeline;
   id: string;
@@ -619,6 +697,7 @@ export interface Session {
   interruptions: number;
   /** @nullable */
   error?: string | null;
+  failure?: ProviderSessionFailure | null;
   /** @nullable */
   rendererState?: string | null;
   stopRequested?: boolean;
@@ -689,6 +768,12 @@ export interface RendererDiagnosticStage {
   durationMs: number | null;
   errorClass?: string;
   httpStatus?: number;
+  /**
+     * @minimum 400
+     * @maximum 599
+     */
+  providerHttpStatus?: number;
+  providerErrorCode?: string;
   transportCode?: string;
 }
 
@@ -706,6 +791,12 @@ export interface RendererDiagnosticSignal {
   creationUnknown?: boolean;
   errorClass?: string;
   httpStatus?: number;
+  /**
+     * @minimum 400
+     * @maximum 599
+     */
+  providerHttpStatus?: number;
+  providerErrorCode?: string;
   transportCode?: string;
 }
 

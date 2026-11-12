@@ -20,5 +20,11 @@ export interface RendererDiagnosticSignal {
   creationUnknown?: boolean;
   errorClass?: string;
   httpStatus?: number;
+  /**
+     * @minimum 400
+     * @maximum 599
+     */
+  providerHttpStatus?: number;
+  providerErrorCode?: string;
   transportCode?: string;
 }

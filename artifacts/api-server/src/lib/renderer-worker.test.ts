@@ -13,6 +13,8 @@ import { isTrustedLiveOperator } from "../routes/live-reconciliation";
 import { flushRendererDiagnostics } from "./renderer-diagnostic-store";
 import { anamLabel, ANAM_AVATAR } from "./anam-runtime";
 import { readTavusFinalTranscript } from "./tavus-final-transcript";
+import { SessionProblem, presentSession } from "./session-service";
+import { storedProviderFailure } from "./provider-session-failure";
 
 // Real PostgreSQL locking/leases, isolated schema. Never call a provider or touch
 // application sessions, even if workflows are concurrently running.
@@ -159,6 +161,43 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
     assert.equal(calls.filter(x => x.endsWith("/auth/session-token")).length, 1);
     assert.ok(!calls.some(x => x.includes("/engine/")));
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("provider rejection remains visible after confirmed cleanup without another paid create", async () => {
+  let creates = 0;
+  const w = new RendererWorker((_row, _onId, before, rejected) => ({
+    async start() {
+      await before();
+      creates++;
+      await rejected();
+      throw Object.assign(new SessionProblem(502, "TAVUS_FULL_CREATE_FAILED", "Safe rejection"), {
+        providerFailureCode: storedProviderFailure("conversation_create", 402, "insufficient_credits"),
+      });
+    },
+    async stop() { return { providerEnded: true, roomDeleted: true }; },
+    async sendAudio() {}, async interrupt() {},
+  }));
+  workers.push(w);
+  const row = await fixture({
+    pipeline: "tavus_full", roomName: null, fullPipeline: { systemPrompt: "private-test-prompt" },
+  });
+  await w.tick();
+  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  const closed = await get(row.id);
+  const response = presentSession(closed);
+  assert.equal(creates, 1);
+  assert.equal(closed.fullPipeline, null);
+  assert.equal(closed.providerCreateState, "rejected");
+  assert.equal(response.error, "TAVUS_FULL_CREATE_FAILED");
+  assert.equal(response.failure?.category, "billing");
+  assert.equal(response.failure?.providerHttpStatus, 402);
+  assert.equal(response.failure?.providerErrorCode, "insufficient_credits");
+  assert.equal(response.failure?.creationOutcome, "not_created");
+  assert.equal(response.cleanupPending, false);
+  assert.equal(response.status, "failed");
+  await w.tick();
+  assert.equal(creates, 1);
+  assert.deepEqual(presentSession(await get(row.id)).failure, response.failure);
 });
 
 test("late Tavus ID persisted during runtime stop survives the fresh cleanup read", async () => {
@@ -455,7 +494,9 @@ test("operator cleanup lists pending sessions, preserves leases and blocks admis
   ended = true;
   await retryLiveCleanup(row.id, "trusted-operator");
   await w.tick();
-  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  // The previous asynchronous cleanup can still be settling when retry is queued.
+  // Mirror the real periodic scheduler instead of assuming this one tick claims it.
+  await eventually(async () => { await w.tick(); return (await get(row.id)).rendererState === "closed"; });
   assert.equal(stats.starts, 0);
   assert.equal((await get(row.id)).error, null);
   assert.equal((await listLiveReconciliation()).pending.length, 0);
@@ -525,7 +566,7 @@ test("ended full calls release capacity while isolated PAL deletion retries with
     deleteWorks = true;
     await retryLiveCleanup(row.id, "trusted-operator");
     await w.tick();
-    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    await eventually(async () => { await w.tick(); return (await get(row.id)).rendererState === "closed"; });
     assert.deepEqual((await get(row.id)).fullPipeline, {
       systemPrompt: "", transcriptConversationId: "ended-call",
     });

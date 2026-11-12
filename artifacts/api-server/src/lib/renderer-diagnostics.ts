@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
+import { decodeProviderFailure, providerFailureStorageCode } from "./provider-session-failure";
 
 export type RendererStage =
   | "runtime_start" | "room_create" | "rtc_connect" | "provider_dispatch"
@@ -14,6 +15,7 @@ type Sink = (failed: boolean, fields: Record<string, unknown>) => void;
 // serialize arbitrary errors, messages, stacks, URLs, SDK bodies or causes.
 export function safeRendererError(error: unknown): {
   errorClass: string; httpStatus?: number; transportCode?: string;
+  providerHttpStatus?: number; providerErrorCode?: string;
 } {
   const read = (value: unknown, key: string): unknown => {
     try { return value && (typeof value === "object" || typeof value === "function") ? Reflect.get(value, key) : undefined; }
@@ -30,12 +32,15 @@ export function safeRendererError(error: unknown): {
   const status = read(error, "statusCode") ?? read(error, "status");
   const cause = read(error, "cause");
   const code = read(error, "code") ?? read(cause, "code");
+  const provider = decodeProviderFailure(providerFailureStorageCode(error));
   return {
     errorClass: typeof constructorName === "string" && classes.includes(constructorName) ? constructorName
       : typeof name === "string" && classes.includes(name) ? name : "UnknownError",
     ...(typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599
       ? { httpStatus: status } : {}),
     ...(typeof code === "string" && codes.includes(code) ? { transportCode: code } : {}),
+    ...(provider?.providerHttpStatus ? { providerHttpStatus: provider.providerHttpStatus } : {}),
+    ...(provider?.providerErrorCode ? { providerErrorCode: provider.providerErrorCode } : {}),
   };
 }
 

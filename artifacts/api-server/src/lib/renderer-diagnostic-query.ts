@@ -32,6 +32,8 @@ export function summarizeDiagnostics(records: unknown[], sessionId: string) {
       const safeError = {
         ...(record.errorClass ? { errorClass: record.errorClass } : {}),
         ...(record.httpStatus ? { httpStatus: record.httpStatus } : {}),
+        ...(record.providerHttpStatus ? { providerHttpStatus: record.providerHttpStatus } : {}),
+        ...(record.providerErrorCode ? { providerErrorCode: record.providerErrorCode } : {}),
         ...(record.transportCode ? { transportCode: record.transportCode } : {}),
       };
       if (record.stage && record.stageRunId && record.outcome) {

@@ -154,3 +154,17 @@ mtime_ms = 1794214412036
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/805f215d-f0e4-48fc-9faa-9863d5940161/0392724b-0371-4265-8199-84cfce2992b2"
 storage_version_token = "1794214561943068"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "a87RSbl8bgxNIfFDboUNL"
+uri = "file://artifacts/avatar-router/public/roleplayx/provider-failures.md"
+type = "text"
+title = "RoleplayX 오류 원인 전달 가이드"
+description = "새 failure 응답 필드, 비용·권한·한도 구분, 종료 후 오류 유지와 자동 재시도 금지 적용 안내입니다."
+logical_id = "adf270fc-f044-4534-9dd4-14966b141942"
+content_hash = "sha256:a09478b0bfcc16652f889e908a1742c29e31025304cc1fdf871069f92711890f"
+size = 4271
+mtime_ms = 1794450816588
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:8190dc12-21a9-4ef2-ba1f-4daff00c4152/adf270fc-f044-4534-9dd4-14966b141942/3bc2d6db-ac3d-4007-bc7e-8faccfd1f20e"
+storage_version_token = "1794451053761742"
+content_type = "text/markdown"

@@ -1093,9 +1093,25 @@ components:
         durationSeconds: { type: number }
         interruptions: { type: integer }
         error: { type: [string, "null"] }
+        failure:
+          $ref: "#/components/schemas/ProviderSessionFailure"
         rendererState: { type: [string, "null"] }
         stopRequested: { type: boolean }
         cleanupPending: { type: boolean }
+    ProviderSessionFailure:
+      type: [object, "null"]
+      description: Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.
+      required: [code, provider, stage, category, message, providerHttpStatus, providerErrorCode, automaticRetryAllowed, creationOutcome]
+      properties:
+        code: { type: string }
+        provider: { type: string, enum: [tavus] }
+        stage: { type: string, enum: [persona_create, conversation_create] }
+        category: { type: string, enum: [authentication, billing, concurrency_limit, provider_limit, permission_or_plan, configuration, provider_unavailable, unknown] }
+        message: { type: string }
+        providerHttpStatus: { type: [integer, "null"], minimum: 400, maximum: 599 }
+        providerErrorCode: { type: [string, "null"], enum: [insufficient_credits, out_of_credits, quota_exceeded, concurrency_limit_exceeded, rate_limit_exceeded, invalid_api_key, permission_denied, invalid_request, null] }
+        automaticRetryAllowed: { type: boolean, enum: [false] }
+        creationOutcome: { type: string, enum: [not_created, not_requested, created, unknown] }
     LiveLimits:
       type: object
       required: [userDailySeconds, globalDailySeconds, userRemainingSeconds, globalRemainingSeconds, sessionSeconds, cleanupPending, workerReady, providerCredits, resetsAt]
@@ -1168,6 +1184,8 @@ components:
         durationMs: { type: [integer, "null"] }
         errorClass: { type: string }
         httpStatus: { type: integer }
+        providerHttpStatus: { type: integer, minimum: 400, maximum: 599 }
+        providerErrorCode: { type: string }
         transportCode: { type: string }
     RendererDiagnosticSignal:
       type: object
@@ -1187,6 +1205,8 @@ components:
         creationUnknown: { type: boolean }
         errorClass: { type: string }
         httpStatus: { type: integer }
+        providerHttpStatus: { type: integer, minimum: 400, maximum: 599 }
+        providerErrorCode: { type: string }
         transportCode: { type: string }
     LiveReconciliationList:
       type: object

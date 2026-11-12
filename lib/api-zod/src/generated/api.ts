@@ -15,6 +15,11 @@ export const GetWorkspaceLiveCheckParams = zod.object({
   "projectId": zod.uuid()
 })
 
+export const getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin = 400;
+export const getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax = 599;
+
+
+
 export const GetWorkspaceLiveCheckResponse = zod.object({
   "session": zod.union([zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
@@ -31,6 +36,17 @@ export const GetWorkspaceLiveCheckResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin).max(getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -65,6 +81,11 @@ export const StartWorkspaceLiveCheckBody = zod.object({
   "maxSeconds": zod.literal(120)
 })
 
+export const startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin = 400;
+export const startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax = 599;
+
+
+
 export const StartWorkspaceLiveCheckResponse = zod.object({
   "session": zod.union([zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
@@ -81,6 +102,17 @@ export const StartWorkspaceLiveCheckResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin).max(startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -134,6 +166,11 @@ export const EndWorkspaceLiveCheckParams = zod.object({
   "id": zod.uuid()
 })
 
+export const endWorkspaceLiveCheckResponseFailureProviderHttpStatusMin = 400;
+export const endWorkspaceLiveCheckResponseFailureProviderHttpStatusMax = 599;
+
+
+
 export const EndWorkspaceLiveCheckResponse = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
@@ -149,6 +186,17 @@ export const EndWorkspaceLiveCheckResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(endWorkspaceLiveCheckResponseFailureProviderHttpStatusMin).max(endWorkspaceLiveCheckResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -179,6 +227,11 @@ export const GetDeveloperWorkspaceParams = zod.object({
   "projectId": zod.uuid()
 })
 
+export const getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMin = 400;
+export const getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMax = 599;
+
+
+
 export const GetDeveloperWorkspaceResponse = zod.object({
   "projectId": zod.string(),
   "projectName": zod.string(),
@@ -208,6 +261,17 @@ export const GetDeveloperWorkspaceResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMin).max(getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -709,6 +773,11 @@ export const GetLiveLimitsResponse = zod.object({
 })
 
 
+export const listSessionsResponseFailureProviderHttpStatusMin = 400;
+export const listSessionsResponseFailureProviderHttpStatusMax = 599;
+
+
+
 export const ListSessionsResponseItem = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
@@ -724,6 +793,17 @@ export const ListSessionsResponseItem = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(listSessionsResponseFailureProviderHttpStatusMin).max(listSessionsResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -785,6 +865,11 @@ export const CreateSessionBody = zod.object({
   "mode": zod.enum(['mock', 'live'])
 })
 
+export const createSessionResponseFailureProviderHttpStatusMin = 400;
+export const createSessionResponseFailureProviderHttpStatusMax = 599;
+
+
+
 export const CreateSessionResponse = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
@@ -800,6 +885,17 @@ export const CreateSessionResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(createSessionResponseFailureProviderHttpStatusMin).max(createSessionResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -825,6 +921,14 @@ export const CompareRendererDiagnosticsQueryParams = zod.object({
   "left": zod.uuid(),
   "right": zod.uuid()
 })
+
+export const compareRendererDiagnosticsResponseAttemptsItemStagesItemProviderHttpStatusMin = 400;
+export const compareRendererDiagnosticsResponseAttemptsItemStagesItemProviderHttpStatusMax = 599;
+
+export const compareRendererDiagnosticsResponseAttemptsItemSignalsItemProviderHttpStatusMin = 400;
+export const compareRendererDiagnosticsResponseAttemptsItemSignalsItemProviderHttpStatusMax = 599;
+
+
 
 export const CompareRendererDiagnosticsResponseItem = zod.object({
   "session": zod.object({
@@ -853,6 +957,8 @@ export const CompareRendererDiagnosticsResponseItem = zod.object({
   "durationMs": zod.int().nullable(),
   "errorClass": zod.string().optional(),
   "httpStatus": zod.int().optional(),
+  "providerHttpStatus": zod.int().min(compareRendererDiagnosticsResponseAttemptsItemStagesItemProviderHttpStatusMin).max(compareRendererDiagnosticsResponseAttemptsItemStagesItemProviderHttpStatusMax).optional(),
+  "providerErrorCode": zod.string().optional(),
   "transportCode": zod.string().optional()
 })),
   "signals": zod.array(zod.object({
@@ -869,6 +975,8 @@ export const CompareRendererDiagnosticsResponseItem = zod.object({
   "creationUnknown": zod.boolean().optional(),
   "errorClass": zod.string().optional(),
   "httpStatus": zod.int().optional(),
+  "providerHttpStatus": zod.int().min(compareRendererDiagnosticsResponseAttemptsItemSignalsItemProviderHttpStatusMin).max(compareRendererDiagnosticsResponseAttemptsItemSignalsItemProviderHttpStatusMax).optional(),
+  "providerErrorCode": zod.string().optional(),
   "transportCode": zod.string().optional()
 }))
 }))
@@ -958,6 +1066,11 @@ export const GetSessionParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const getSessionResponseFailureProviderHttpStatusMin = 400;
+export const getSessionResponseFailureProviderHttpStatusMax = 599;
+
+
+
 export const GetSessionResponse = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
@@ -973,6 +1086,17 @@ export const GetSessionResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(getSessionResponseFailureProviderHttpStatusMin).max(getSessionResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -1090,6 +1214,11 @@ export const EndSessionParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const endSessionResponseFailureProviderHttpStatusMin = 400;
+export const endSessionResponseFailureProviderHttpStatusMax = 599;
+
+
+
 export const EndSessionResponse = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
   "id": zod.string(),
@@ -1105,6 +1234,17 @@ export const EndSessionResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(endSessionResponseFailureProviderHttpStatusMin).max(endSessionResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()
@@ -1117,6 +1257,11 @@ export const EndSessionResponse = zod.object({
 export const InterruptSessionParams = zod.object({
   "id": zod.coerce.string()
 })
+
+export const interruptSessionResponseFailureProviderHttpStatusMin = 400;
+export const interruptSessionResponseFailureProviderHttpStatusMax = 599;
+
+
 
 export const InterruptSessionResponse = zod.object({
   "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
@@ -1133,6 +1278,17 @@ export const InterruptSessionResponse = zod.object({
   "durationSeconds": zod.number(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(interruptSessionResponseFailureProviderHttpStatusMin).max(interruptSessionResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
   "rendererState": zod.string().nullish(),
   "stopRequested": zod.boolean().optional(),
   "cleanupPending": zod.boolean().optional()

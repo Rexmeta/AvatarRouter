@@ -12,6 +12,7 @@ import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { SessionTranscript } from '@/components/session-transcript';
+import { ProviderFailureNotice } from '@/components/provider-failure-notice';
 
 function Detail({ id }: { id: string }) {
   const { t } = useI18n();
@@ -53,6 +54,7 @@ function Detail({ id }: { id: string }) {
         <div><dt className="eyebrow">{t('duration')}</dt><dd className="mono">{fmtSec(s.durationSeconds)}</dd></div>
         <div><dt className="eyebrow">{t('interruptions')}</dt><dd className="mono">{s.interruptions}</dd></div>
         {s.error && <div className="col-span-full"><dt className="eyebrow">{t('error')}</dt><dd className="text-destructive">{s.error}</dd></div>}
+        {s.failure && <div className="col-span-full"><ProviderFailureNotice failure={s.failure} /></div>}
       </dl>
       <div className="eyebrow px-4 pt-4">{t('sess.events')}</div>
       <Timeline sessionId={id} live={active} />
