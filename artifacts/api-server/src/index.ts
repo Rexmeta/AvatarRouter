@@ -5,6 +5,7 @@ import { pool } from "@workspace/db";
 import { runProvisioningTick } from "./lib/provisioning-worker";
 import { clerkClient } from "@clerk/express";
 import { liveOperatorBootstrap } from "./lib/live-operator-bootstrap";
+import { sourceBuildId } from "./lib/runtime-build";
 
 const rawPort = process.env["PORT"];
 
@@ -40,7 +41,7 @@ app.listen(port, (err) => {
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info({ port, service: "api", sourceBuildId }, "Server listening");
 });
 
 const cleanup = setInterval(() => {

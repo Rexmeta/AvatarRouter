@@ -2,6 +2,7 @@ import { pool } from "@workspace/db";
 import { RendererWorker } from "./lib/renderer-worker";
 import { logger } from "./lib/logger";
 import { createServer } from "node:http";
+import { sourceBuildHeader, sourceBuildId } from "./lib/runtime-build";
 
 const worker = new RendererWorker();
 // Bound worker DB calls as well as provider calls. A stalled connection must not
@@ -16,6 +17,8 @@ const health = createServer((req, res) => {
   if (req.url !== "/api/renderer-health") { res.writeHead(404).end(); return; }
   res.statusCode = worker.healthy ? 200 : 503;
   res.setHeader("Content-Type", "application/json");
+  res.setHeader(sourceBuildHeader, sourceBuildId);
+  res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify({ service: "renderer", status: worker.healthy ? "ready" : "unavailable" }));
 });
 // Do not advertise a worker heartbeat or dispatch paid work before binding
@@ -25,7 +28,7 @@ await new Promise<void>((resolve, reject) => {
   health.listen(port, "0.0.0.0", () => { health.off("error", reject); resolve(); });
 });
 await worker.start();
-logger.info({ workerId: worker.id }, "Dedicated renderer worker ready");
+logger.info({ workerId: worker.id, service: "renderer", sourceBuildId }, "Dedicated renderer worker ready");
 let exiting = false;
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.on(signal, () => {

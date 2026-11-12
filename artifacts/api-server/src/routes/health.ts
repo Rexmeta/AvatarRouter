@@ -2,10 +2,13 @@ import { Router, type IRouter } from "express";
 import { stockConfigured } from "../lib/stock-policy";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { db, sql } from "@workspace/db";
+import { sourceBuildHeader, sourceBuildId } from "../lib/runtime-build";
 
 const router: IRouter = Router();
 
 router.get("/healthz", (_req, res) => {
+  res.setHeader(sourceBuildHeader, sourceBuildId);
+  res.setHeader("Cache-Control", "no-store");
   const data = HealthCheckResponse.parse({ status: "ok" });
   res.json(data);
 });
