@@ -21,6 +21,28 @@ API와 Renderer Worker가 같은 설정으로 실행돼야 합니다.
 필요하면 일반 환경변수 `GEMINI_TRAINING_INSPECTION_MODEL`, `GEMINI_TRAINING_IMAGE_MODEL`로 모델 ID를 지정할 수 있습니다.
 모델 접근 가능 여부와 이미지 생성 비용·한도는 해당 계정에 따라 다릅니다.
 
+### 모델 확인과 404 진단
+
+Google 공식 모델 문서에는 `gemini-3.1-flash-image`가 이미지·텍스트 출력이 가능한 정식 모델로 등록되어 있습니다.
+문서: https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image
+모델 이름을 추측해 `-preview`를 붙이거나 다른 유료 모델로 자동 변경하지 않습니다.
+`GET /v1beta/models/{model}`의 성공은 모델 메타데이터 조회 성공일 뿐, `generateContent` 호출·이미지 생성·할당량·결제 검증이 아닙니다.
+개발 환경의 조회 성공을 운영 Worker의 생성 성공으로 해석해서도 안 됩니다.
+
+RoleplayX는 자산의 기존 `failure.code`, `messageKo`, `nextAction`을 표시할 수 있습니다.
+
+| 코드 | 실패 단계 |
+| --- | --- |
+| `TRAINING_IMAGE_AI_INSPECTION_MODEL_UNAVAILABLE` | 시드 검사에서 HTTP 404. 이미지 재생성 전 실패 |
+| `TRAINING_IMAGE_AI_REGENERATION_MODEL_UNAVAILABLE` | 이미지 재생성에서 HTTP 404 |
+| `TRAINING_IMAGE_AI_VERIFICATION_MODEL_UNAVAILABLE` | 생성 후 얼굴·구도 검증에서 HTTP 404. 제공자 전송 전 실패 |
+
+이 코드들은 모두 아바타 제공자 전송 전 실패이며 `creationOutcome: not_created`입니다.
+기존 `TRAINING_IMAGE_AI_MODEL_UNAVAILABLE`도 계속 처리해야 합니다.
+404만으로 모델 오타, 특정 계정 제한 또는 결제 부족을 확정하지 마세요.
+운영 로그의 `service: training_image_ai`에서 `stage`, `model`, `source`, `transport`, `httpStatus`, `code`를 함께 확인하세요.
+직접 연결은 Google 공식 API 주소와 `v1beta`를 명시적으로 고정하며, 실패해도 다른 계정·모델로 자동 전환하지 않습니다.
+
 ## 생성 순서와 실패
 
 1. 원본은 변경하지 않고 제공자용 JPEG 학습 사본을 만듭니다.

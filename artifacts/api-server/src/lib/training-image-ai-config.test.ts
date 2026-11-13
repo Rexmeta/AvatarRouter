@@ -10,7 +10,7 @@ test("direct key uses official Gemini SDK transport and never mixes credentials 
   const env = { ...managed, GEMINI_API_KEY: "direct-fixture" };
   const generate = createTrainingImageGenerator(env, options => {
     assert.equal(options.apiKey, "direct-fixture");
-    assert.equal(options.httpOptions?.baseUrl, undefined);
+    assert.equal(options.httpOptions?.baseUrl, "https://generativelanguage.googleapis.com");
     assert.equal(options.vertexai, false);
     assert.equal(options.httpOptions?.retryOptions?.attempts, 1);
     return { models: { generateContent: async () => { called++; return {} as never; } } };
@@ -52,5 +52,18 @@ test("RoleplayX receives categorized Gemini guidance, no avatar-provider HTTP cl
     assert.equal(failure.automaticRetryAllowed, false); assert.equal(failure.nextAction, "operator_review");
     assert.equal(failure.providerHttpStatus, null);
     assert.match(failure.messageKo, /Gemini/);
+  }
+});
+test("phase-specific Gemini 404 codes survive storage and reach RoleplayX without secrets or provider blame", () => {
+  for (const phase of ["INSPECTION", "REGENERATION", "VERIFICATION"]) {
+    const code = `TRAINING_IMAGE_AI_${phase}_MODEL_UNAVAILABLE`;
+    const failure = presentProvisioningFailure({ status: "failed", providerAvatarId: null,
+      errorCode: storeProvisioningFailure(code) })!;
+    assert.equal(failure.code, code);
+    assert.equal(failure.category, "permission_or_plan");
+    assert.equal(failure.creationOutcome, "not_created");
+    assert.equal(failure.providerHttpStatus, null);
+    assert.equal(failure.automaticRetryAllowed, false);
+    assert.match(failure.messageKo, /Gemini HTTP 404/);
   }
 });

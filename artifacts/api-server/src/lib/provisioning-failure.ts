@@ -12,6 +12,8 @@ const codes = [
   "TRAINING_IMAGE_AI_AUTHENTICATION_FAILED", "TRAINING_IMAGE_AI_PERMISSION_DENIED", "TRAINING_IMAGE_AI_QUOTA_EXCEEDED",
   "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE", "TRAINING_IMAGE_AI_BILLING_REQUIRED", "TRAINING_IMAGE_AI_SERVICE_UNAVAILABLE",
   "TRAINING_IMAGE_AI_CONTENT_BLOCKED",
+  "TRAINING_IMAGE_AI_INSPECTION_MODEL_UNAVAILABLE", "TRAINING_IMAGE_AI_REGENERATION_MODEL_UNAVAILABLE",
+  "TRAINING_IMAGE_AI_VERIFICATION_MODEL_UNAVAILABLE",
 ] as const;
 type Evidence = {
   stage: "create" | "status" | "delete";
@@ -62,12 +64,15 @@ export function presentProvisioningFailure(row: {
     TRAINING_IMAGE_AI_PERMISSION_DENIED: ["Gemini denied image preparation. Check API/project/model access; a credit shortage is not confirmed. No avatar creation was sent.", "Gemini 이미지 보정 접근이 거절됐습니다. API·프로젝트·모델 권한을 확인하세요. 잔액 부족이 확정된 것은 아닙니다. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_QUOTA_EXCEEDED: ["Gemini reported a quota or rate limit. Check the selected account's limits; this alone does not prove a billing shortage. No avatar creation was sent.", "Gemini가 할당량·요청 한도를 반환했습니다. 선택된 계정의 한도를 확인하세요. 이 응답만으로 잔액 부족을 확정할 수 없습니다. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_MODEL_UNAVAILABLE: ["The configured Gemini model is invalid, unavailable or inaccessible. Check the training model settings. No avatar creation was sent.", "Gemini 모델 이름·사용 가능 여부·접근 권한을 확인하세요. 학습용 검사·이미지 모델 설정이 유효하지 않거나 접근할 수 없습니다. 아바타 생성은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_INSPECTION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during seed inspection, before image regeneration. Check the inspection model and production endpoint/access. This does not establish a billing shortage. No avatar creation was sent.", "시드 검사 단계에서 Gemini HTTP 404가 반환됐습니다. 이미지 재생성 전 실패입니다. 검사 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 비용 소진으로 확정할 수 없으며 아바타 생성은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_REGENERATION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during image regeneration. Check the image generation model and production endpoint/access. No avatar creation was sent.", "이미지 재생성 단계에서 Gemini HTTP 404가 반환됐습니다. 이미지 생성 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 아바타 생성은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_VERIFICATION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during final identity/framing verification. The generated image was not sent to the avatar provider. Check the inspection model and production endpoint/access.", "생성 이미지의 최종 얼굴·구도 검증 단계에서 Gemini HTTP 404가 반환됐습니다. 검사 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 생성 이미지는 아바타 제공자에게 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_BILLING_REQUIRED: ["Gemini explicitly requested payment. Check billing on the selected image-preparation account. No avatar creation was sent.", "Gemini가 결제 필요 응답을 반환했습니다. 이미지 보정에 사용하는 계정의 결제를 확인하세요. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_SERVICE_UNAVAILABLE: ["Gemini returned a service error. No avatar creation was sent; do not automatically recreate an avatar.", "Gemini가 서비스 오류를 반환했습니다. 아바타 생성은 전송하지 않았으며 자동 재생성하지 않습니다."],
     TRAINING_IMAGE_AI_CONTENT_BLOCKED: ["Gemini blocked image generation under its content policy. Use an eligible image; no avatar creation was sent.", "Gemini 콘텐츠 정책으로 이미지 재생성이 차단됐습니다. 허용되는 원본 이미지를 사용하세요. 아바타 생성은 전송하지 않았습니다."],
   };
   const aiCategory = ["TRAINING_IMAGE_AI_AUTHENTICATION_FAILED", "TRAINING_IMAGE_AI_UNAVAILABLE"].includes(info.code) ? "authentication"
-    : ["TRAINING_IMAGE_AI_PERMISSION_DENIED", "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE"].includes(info.code) ? "permission_or_plan"
+    : (info.code === "TRAINING_IMAGE_AI_PERMISSION_DENIED" || info.code.startsWith("TRAINING_IMAGE_AI_") && info.code.endsWith("MODEL_UNAVAILABLE")) ? "permission_or_plan"
     : info.code === "TRAINING_IMAGE_AI_QUOTA_EXCEEDED" ? "provider_limit"
     : info.code === "TRAINING_IMAGE_AI_BILLING_REQUIRED" ? "billing"
     : info.code === "TRAINING_IMAGE_AI_SERVICE_UNAVAILABLE" ? "unknown" : undefined;

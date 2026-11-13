@@ -29,7 +29,9 @@ export function createTrainingImageGenerator(
   if (!status.modelConfigValid) throw new ProviderFailure("TRAINING_IMAGE_AI_MODEL_UNAVAILABLE");
   if (!status.configured) throw new ProviderFailure("TRAINING_IMAGE_AI_UNAVAILABLE");
   const ai = status.source === "direct"
-    ? factory({ apiKey: env.GEMINI_API_KEY!.trim(), vertexai: false, httpOptions: { apiVersion: "v1beta", retryOptions: { attempts: 1 } } })
+    ? factory({ apiKey: env.GEMINI_API_KEY!.trim(), vertexai: false, httpOptions: {
+      baseUrl: "https://generativelanguage.googleapis.com", apiVersion: "v1beta", retryOptions: { attempts: 1 },
+    } })
     // Preserve the managed integration configuration. Never send a direct key to this proxy.
     : factory({ apiKey: env.AI_INTEGRATIONS_GEMINI_API_KEY!, httpOptions: {
       baseUrl: env.AI_INTEGRATIONS_GEMINI_BASE_URL!, apiVersion: "", retryOptions: { attempts: 1 },

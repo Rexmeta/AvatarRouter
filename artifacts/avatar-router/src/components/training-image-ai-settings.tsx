@@ -20,8 +20,9 @@ export function TrainingImageAISettings() {
         : !ai ? <p className="mt-3 text-sm text-amber-500">{L('This server does not report training AI settings yet. Publish the updated API and worker.', '이 서버는 아직 학습 AI 설정 정보를 제공하지 않습니다. 수정된 API와 워커를 게시하세요.')}</p>
         : <div className="mt-3 space-y-2 text-sm">
           <p>{ai.source === 'direct' ? L('Your Gemini API key', '직접 등록한 Gemini API 키') : ai.source === 'replit' ? L('Replit-managed Gemini', 'Replit 관리형 Gemini') : L('No Gemini connection', 'Gemini 미설정')}
-            {' · '}<span className={ai.configured ? 'text-emerald-500' : 'text-amber-500'}>{ai.configured ? L('Configured · calls not verified', '설정됨 · 실제 호출 미검증') : L('Configuration required', '설정 필요')}</span></p>
+            {' · '}<span className="text-amber-500">{ai.configured ? L('Key configured · generation not verified', '키 설정됨 · 생성 성공 미검증') : L('Configuration required', '설정 필요')}</span></p>
           <p className="break-words font-mono text-xs text-muted-foreground">{L('Inspection', '검사')}: {ai.inspectionModel} / {L('Image', '재생성')}: {ai.imageModel}</p>
+          <p className="text-xs text-muted-foreground">{L('This is configuration status, not a connection test or an error. Inspection and final verification use the inspection model; only regeneration uses the image model. A 404 during inspection does not mean the image model failed.', '이 표시는 설정 상태이며 연결 테스트 결과나 오류가 아닙니다. 시드 검사·최종 검증은 검사 모델을, 이미지 재생성만 이미지 모델을 사용합니다. 검사 단계의 404는 이미지 생성 모델의 실패를 뜻하지 않습니다.')}</p>
           {!ai.modelConfigValid && <p role="alert" className="text-amber-500">{L('Training model environment variables are invalid.', '학습 모델 환경변수의 이름 형식이 올바르지 않습니다.')}</p>}
         </div>}
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{L(

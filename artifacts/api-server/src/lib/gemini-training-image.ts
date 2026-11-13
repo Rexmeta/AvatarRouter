@@ -50,9 +50,16 @@ export async function ensureTrainingPortrait(
   const settings = trainingImageAiStatus();
   const reference = await trainingAiImagePart(original);
   function failed(error: unknown, fallback: string, stage: string): never {
-    const failure = trainingImageAiFailure(error, fallback);
+    let failure = trainingImageAiFailure(error, fallback);
+    if (failure.code === "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE") {
+      const phase = stage === "regeneration" ? "REGENERATION" : stage === "verification" ? "VERIFICATION" : "INSPECTION";
+      failure = new ProviderFailure(`TRAINING_IMAGE_AI_${phase}_MODEL_UNAVAILABLE`);
+    }
     const status = (error as { status?: unknown } | null)?.status;
-    logger.warn({ service: "training_image_ai", source: settings.source, assetId: context?.assetId, provider: context?.provider, stage, code: failure.code,
+    logger.warn({ service: "training_image_ai", source: settings.source,
+      transport: settings.source === "direct" ? "google_generative_language_v1beta" : "managed_proxy",
+      model: stage === "regeneration" ? settings.imageModel : settings.inspectionModel,
+      assetId: context?.assetId, provider: context?.provider, stage, code: failure.code,
       httpStatus: typeof status === "number" && status >= 400 && status <= 599 ? status : null },
       "Training image AI stage failed before avatar creation");
     throw failure;

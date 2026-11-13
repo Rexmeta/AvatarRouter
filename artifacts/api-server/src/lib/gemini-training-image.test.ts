@@ -56,7 +56,7 @@ test("large analysis references are bounded together; PNG MIME is retained and s
 });
 test("provider errors retain safe Gemini categories and never leak upstream message bodies", async () => {
   for (const [status, code] of [[401, "AUTHENTICATION_FAILED"], [403, "PERMISSION_DENIED"],
-    [404, "MODEL_UNAVAILABLE"], [429, "QUOTA_EXCEEDED"], [503, "SERVICE_UNAVAILABLE"]] as const) {
+    [404, "INSPECTION_MODEL_UNAVAILABLE"], [429, "QUOTA_EXCEEDED"], [503, "SERVICE_UNAVAILABLE"]] as const) {
     await assert.rejects(ensureTrainingPortrait(seed, seed, async b => b, async () => {
       throw Object.assign(Error("private seed URL and secret"), { status });
     }), e => {
@@ -71,6 +71,20 @@ test("blocked generation stops before normalization or avatar submission", async
     ++calls === 1 ? check(false) : response({ promptFeedback: { blockReason: "SAFETY" } })),
   { code: "TRAINING_IMAGE_AI_CONTENT_BLOCKED" });
   assert.equal(calls, 2);
+});
+test("404 identifies the failing Gemini phase without advancing to later stages", async () => {
+  const data = (await sharp({ create: { width: 128, height: 128, channels: 3, background: "#777" } }).png().toBuffer()).toString("base64");
+  for (const [failAt, phase] of [[1, "INSPECTION"], [2, "REGENERATION"], [3, "VERIFICATION"]] as const) {
+    let calls = 0;
+    await assert.rejects(ensureTrainingPortrait(seed, seed, async b => b, async () => {
+      calls++;
+      if (calls === failAt) throw Object.assign(Error("private upstream response"), { status: 404 });
+      return calls === 2
+        ? response({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data } }] } }] })
+        : check();
+    }), { code: `TRAINING_IMAGE_AI_${phase}_MODEL_UNAVAILABLE` });
+    assert.equal(calls, failAt);
+  }
 });
 test("unsafe/unclear original, malformed verdict and quota failure never silently proceed", async () => {
   for (const [reply, code] of [[check(true, true, false), "TRAINING_IMAGE_SUBJECT_UNSUPPORTED"],
