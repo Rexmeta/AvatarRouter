@@ -16,6 +16,8 @@ import { CreateAnamConnectionParams, CreateAnamConnectionResponse, CreateClientC
 import { ANAM_AVATAR } from "../lib/anam-runtime";
 import { ReportSessionVideoPlayingBody } from "@workspace/api-zod";
 import { reportSessionVideo } from "../lib/session-video-report";
+import { ReportSessionPlaybackBody } from "@workspace/api-zod";
+import { reportSessionPlaybackObservation } from "../lib/session-playback-report";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { stockCatalog } from "../lib/stock-catalog";
 import { integrationIdentity } from "../lib/integration-identity";
@@ -141,6 +143,17 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
 router.get("/v1/sessions/:id", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.json(GetSessionResponse.parse(presentSession(await getOwnedSession(res.locals.ownerHash, id))));
+});
+router.post("/v1/sessions/:id/playback-observations", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  const input = ReportSessionPlaybackBody.safeParse(req.body);
+  if (!input.success || Object.keys(req.body).some(key => !["event", "reporterId", "sequence", "state"].includes(key)) ||
+      (input.data.event === "start" ? input.data.sequence !== 1 : input.data.sequence < 2)) {
+    throw new SessionProblem(400, "INVALID_PLAYBACK_OBSERVATION", "Send a reporter, sequence, state and start/sample event only.");
+  }
+  res.set("Cache-Control", "private, no-store").json(GetSessionResponse.parse(presentSession(
+    await reportSessionPlaybackObservation(res.locals.ownerHash, res.locals.tenantId, id, input.data),
+  )));
 });
 router.post("/v1/sessions/:id/video-playing", assetTenant, async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);

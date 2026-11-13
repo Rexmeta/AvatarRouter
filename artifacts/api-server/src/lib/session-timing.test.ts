@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { db, pool, avatarSessions, eq, type AvatarSessionRecord } from "@workspace/db";
 import { sessionTiming } from "./session-timing";
 import { reportSessionVideo } from "./session-video-report";
+import { reportSessionPlaybackObservation } from "./session-playback-report";
 import { requiredRoleplayxScope } from "../middlewares/session-owner";
 import { createDeveloperKey, hashServiceValue } from "./service-api-keys";
 import { budgetSnapshot } from "./live-budget-policy";
@@ -147,4 +148,61 @@ test("report API enforces scope and rejects client timestamps; no paid creation 
   });
   assert.equal(otherUser.status, 404);
   assert.equal(requiredRoleplayxScope("POST", "/api/v1/sessions/a/VIDEO-PLAYING/"), "sessions:connect");
+});
+
+test("playback reports preserve first video, reservations, cleanup and budgets; terminal/foreign reporters cannot change them", async () => {
+  let row = await fixture();
+  row = await reportSessionVideo(owner, tenant, row.id);
+  const videoAt = row.clientVideoReportedAt!.getTime();
+  const beforeBudget = await budgetSnapshot(tenant);
+  const reporterId = randomUUID();
+  const start = { event: "start" as const, reporterId, sequence: 1, state: "playing" as const };
+  const saved = await reportSessionPlaybackObservation(owner, tenant, row.id, start);
+  const duplicate = await reportSessionPlaybackObservation(owner, tenant, row.id, start);
+  assert.equal(saved.playbackObservation!.receivedAt, duplicate.playbackObservation!.receivedAt);
+  assert.equal(duplicate.clientVideoReportedAt!.getTime(), videoAt);
+  assert.equal(duplicate.reservedSeconds, row.reservedSeconds);
+  assert.equal(duplicate.rendererState, row.rendererState);
+  assert.equal(duplicate.stopRequestedAt, null);
+  assert.deepEqual(await budgetSnapshot(tenant), beforeBudget);
+  await assert.rejects(reportSessionPlaybackObservation("foreign", tenant, row.id, start), { status: 404 });
+  await assert.rejects(reportSessionPlaybackObservation(owner, "foreign", row.id, start), { status: 403 });
+  await db.update(avatarSessions).set({ stopRequestedAt: new Date() }).where(eq(avatarSessions.id, row.id));
+  await assert.rejects(reportSessionPlaybackObservation(owner, tenant, row.id,
+    { ...start, event: "sample", sequence: 2 }), { status: 409 });
+  const lateDuplicate = await reportSessionPlaybackObservation(owner, tenant, row.id, start);
+  assert.equal(lateDuplicate.playbackObservation!.receivedAt, saved.playbackObservation!.receivedAt);
+});
+
+test("playback HTTP contract validates scope, exact fields, initial frame and reporter epoch", async () => {
+  const key = await createDeveloperKey("playback-api-owner", {
+    projectName: "Playback fixture", scopes: ["sessions:connect"], expiresInDays: 1,
+  });
+  const read = await createDeveloperKey("playback-api-owner", {
+    projectName: "Playback read fixture", scopes: ["sessions:read"], expiresInDays: 1,
+  });
+  const row = await fixture({
+    ownerHash: hashServiceValue(JSON.stringify(["avatarrouter:project-owner", key.key.projectId, ["project"]])),
+    tenantId: hashServiceValue(`avatarrouter:project:${key.key.projectId}`),
+  });
+  const reporterId = randomUUID(), start = { event: "start", reporterId, sequence: 1, state: "playing" };
+  const call = (body: unknown, secret = key.secret) => fetch(`${origin}/api/v1/sessions/${row.id}/playback-observations`, {
+    method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${row.id}/playback-observations`), "sessions:connect");
+  assert.equal((await call(start, read.secret)).status, 403);
+  for (const body of [{ ...start, timestamp: "private" }, { ...start, durationSeconds: 600 },
+    { ...start, state: "billed" }, { ...start, sequence: 2 }, { ...start, reporterId: "not-a-uuid" }]) {
+    assert.equal((await call(body)).status, 400);
+  }
+  assert.equal((await call(start)).status, 409, "a token/ready worker is not a video report");
+  await db.update(avatarSessions).set({ clientVideoReportedAt: new Date() }).where(eq(avatarSessions.id, row.id));
+  const response = await call(start);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+  const session = await response.json() as ReturnType<typeof presentSession>;
+  assert.equal(session.timing.playback.evidence, "authenticated_client_reports");
+  assert.equal(session.timing.playback.observedPlayingSeconds, 0);
+  assert.equal((await call({ ...start, reporterId: randomUUID(), event: "sample", sequence: 2 })).status, 409);
 });

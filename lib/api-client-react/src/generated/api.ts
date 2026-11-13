@@ -52,6 +52,7 @@ import type {
   LiveConversationReconciliationResult,
   LiveLimits,
   LiveReconciliationList,
+  PlaybackObservation,
   Provider,
   ProvisioningProvider,
   Readiness,
@@ -3810,6 +3811,96 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getReportSessionPlaybackUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/playback-observations`
+}
+
+/**
+ * Start a new reporter epoch at sequence 1 after the first video report. Samples must increase sequence; gaps, reporter changes and heartbeat silence are unknown. No client clocks or durations are accepted. Requires sessions:connect.
+ * @summary Record authenticated playback observations, never billing authority
+ */
+export const reportSessionPlayback = async (id: string,
+    playbackObservation: PlaybackObservation, options?: Parameters<typeof customFetch>[1]): Promise<Session> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Session>(getReportSessionPlaybackUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(playbackObservation)
+  }
+);}
+
+
+
+
+
+export const getReportSessionPlaybackMutationKey = () => ['reportSessionPlayback'] as const;
+
+export const getReportSessionPlaybackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportSessionPlayback>>, TError,ReportSessionPlaybackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportSessionPlayback>>, TError,ReportSessionPlaybackMutationVariables, TContext> => {
+
+const mutationKey = getReportSessionPlaybackMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportSessionPlayback>>, ReportSessionPlaybackMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportSessionPlayback(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportSessionPlaybackMutationResult = NonNullable<Awaited<ReturnType<typeof reportSessionPlayback>>>
+    export type ReportSessionPlaybackMutationBody = BodyType<PlaybackObservation>
+    export type ReportSessionPlaybackMutationError = ErrorType<void>
+    export type ReportSessionPlaybackMutationVariables = {id: string;data: BodyType<PlaybackObservation>}
+
+    /**
+ * @summary Record authenticated playback observations, never billing authority
+ */
+export const useReportSessionPlayback = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportSessionPlayback>>, TError,ReportSessionPlaybackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportSessionPlayback>>,
+        TError,
+        ReportSessionPlaybackMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportSessionPlaybackMutationOptions(options), queryClient);
+    }
 
 export const getReportSessionVideoPlayingUrl = (id: string,) => {
 

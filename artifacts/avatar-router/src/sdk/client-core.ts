@@ -1,4 +1,5 @@
 import type { ClientConnection } from '@workspace/api-client-react';
+import { observePlayback, type PlaybackObservation } from './playback-observer';
 
 export type ClientState = 'connecting' | 'connected' | 'playing' | 'ended' | 'error';
 /** Independent of local playback; confirmed is not permission to create a paid session. */
@@ -27,6 +28,10 @@ export type ClientOptions = {
    * Server receipt time is observational only and never changes budgets. */
   reportVideoPlaying?(sessionId: string, observation: { event: 'video_frame_presented' }): Promise<unknown>;
   onTimingReport?(state: 'saved' | 'failed'): void;
+  /** Optional authenticated BFF proxy. Requires the first-video report hook too.
+   * Missing heartbeats are unknown, never grounds for teardown or budget changes. */
+  reportPlaybackObservation?(sessionId: string, observation: PlaybackObservation): Promise<unknown>;
+  onPlaybackReport?(state: 'saved' | 'failed'): void;
   /** Provisional SDK captions, not the provider-authenticated final transcript. */
   onMessages?(messages: DialogueMessage[]): void;
   /** External-audio interrupt proxy; native engines are handled inside the client. */
@@ -63,6 +68,7 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
   let cleanupRevision = 0;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let videoReported = false;
+  let playback: ReturnType<typeof observePlayback> | undefined;
   const emit = (state: ClientState, code?: string) => {
     try { options.onState?.(state, code); } catch { /* host UI must not break teardown */ }
   };
@@ -77,6 +83,7 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
     // Discard an in-flight read taken before this stop request.
     cleanupRevision++;
     clearTimeout(deadline);
+    playback?.dispose();
     if (typeof window !== 'undefined') window.removeEventListener('pagehide', pageHide);
     const safely = (fn: () => Promise<unknown>, ms: number) => bounded(Promise.resolve().then(fn), ms);
     stopping = Promise.allSettled([
@@ -134,8 +141,9 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
       if (closed) throw new Error('CLIENT_CLOSED');
       emit('connecting');
       driver = await factory(options, (state) => {
-        if (state === 'ended') { void stop(); return; }
+        if (state === 'ended') { playback?.disconnected(); void stop(); return; }
         if (!closed) {
+          if (state === 'error') playback?.disconnected();
           if (state === 'playing' && !videoReported && options.reportVideoPlaying) {
             videoReported = true;
             void bounded(Promise.resolve().then(() => options.reportVideoPlaying!(
@@ -143,7 +151,16 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
             )), 8000).then(
               () => { try { options.onTimingReport?.('saved'); } catch {} },
               () => { try { options.onTimingReport?.('failed'); } catch {} },
-            );
+            ).then(() => {
+              if (closed || !options.reportPlaybackObservation) return;
+              try {
+                playback = observePlayback({
+                  video: options.video,
+                  report: observation => options.reportPlaybackObservation!(options.connection.sessionId, observation),
+                  onReport: options.onPlaybackReport,
+                });
+              } catch { try { options.onPlaybackReport?.('failed'); } catch {} }
+            });
           }
           emit(state);
         }

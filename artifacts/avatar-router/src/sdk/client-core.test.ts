@@ -49,6 +49,37 @@ test('voice ownership settles before media; interrupt does not end the session',
   await f.client.stop();
 });
 
+test('playback observation starts after the first-frame report settles and failure never ends media', async () => {
+  const video = Object.assign(new EventTarget(), { srcObject: null, currentTime: 0, videoWidth: 640, videoHeight: 480, paused: false });
+  const reports: unknown[] = [], results: string[] = [];
+  let resolveVideo: (() => void) | undefined;
+  const f = fixture({
+    video: video as unknown as HTMLVideoElement,
+    reportVideoPlaying: () => new Promise<void>(r => { resolveVideo = r; }),
+    reportPlaybackObservation: async (_, observation) => {
+      reports.push(observation);
+      if (observation.event === 'sample') throw Error('fixture lost observation');
+    },
+    onPlaybackReport: state => results.push(state),
+  });
+  await f.client.start();
+  await new Promise<void>(r => setImmediate(r));
+  assert.equal(reports.length, 0);
+  resolveVideo?.();
+  await new Promise<void>(r => setImmediate(r));
+  assert.equal(reports.length, 1);
+  video.dispatchEvent(new Event('pause'));
+  await new Promise<void>(r => setImmediate(r));
+  assert.equal(results.at(-1), 'failed');
+  assert.equal(f.order.filter(v => v === 'start').length, 1);
+  assert.equal(f.order.includes('router-end'), false);
+  await f.client.stop();
+  const count = reports.length;
+  video.dispatchEvent(new Event('waiting'));
+  await new Promise<void>(r => setImmediate(r));
+  assert.equal(reports.length, count);
+});
+
 test('first frame is reported once, duplicate playing and stop never move the timing boundary', async () => {
   const reports: unknown[] = [];
   const states: string[] = [];

@@ -822,6 +822,73 @@ export interface SessionInput {
   mode: SessionInputMode;
 }
 
+export type PlaybackObservationEvent = typeof PlaybackObservationEvent[keyof typeof PlaybackObservationEvent];
+
+
+export const PlaybackObservationEvent = {
+  start: 'start',
+  sample: 'sample',
+} as const;
+
+export type PlaybackObservationState = typeof PlaybackObservationState[keyof typeof PlaybackObservationState];
+
+
+export const PlaybackObservationState = {
+  playing: 'playing',
+  paused: 'paused',
+  stalled: 'stalled',
+  disconnected: 'disconnected',
+  unknown: 'unknown',
+} as const;
+
+export interface PlaybackObservation {
+  event: PlaybackObservationEvent;
+  reporterId: string;
+  /**
+     * @minimum 1
+     * @maximum 1000000
+     */
+  sequence: number;
+  state: PlaybackObservationState;
+}
+
+export type PlaybackTimingEvidence = typeof PlaybackTimingEvidence[keyof typeof PlaybackTimingEvidence];
+
+
+export const PlaybackTimingEvidence = {
+  not_reported: 'not_reported',
+  authenticated_client_reports: 'authenticated_client_reports',
+} as const;
+
+export type PlaybackTimingCurrentState = typeof PlaybackTimingCurrentState[keyof typeof PlaybackTimingCurrentState];
+
+
+export const PlaybackTimingCurrentState = {
+  playing: 'playing',
+  paused: 'paused',
+  stalled: 'stalled',
+  disconnected: 'disconnected',
+  unknown: 'unknown',
+} as const;
+
+export interface PlaybackTiming {
+  evidence: PlaybackTimingEvidence;
+  /** @minimum 0 */
+  observedPlayingSeconds: number;
+  /** @minimum 0 */
+  observedInterruptedSeconds: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  unknownSeconds: number | null;
+  currentState: PlaybackTimingCurrentState;
+  /** @nullable */
+  lastReportAt: string | null;
+  /** @minimum 0 */
+  gapCount: number;
+}
+
 export type SessionVideoObservationEvent = typeof SessionVideoObservationEvent[keyof typeof SessionVideoObservationEvent];
 
 
@@ -880,6 +947,7 @@ export const SessionTimingEvidence = {
 } as const;
 
 export interface SessionTiming {
+  playback?: PlaybackTiming;
   /**
      * Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.
      * @minimum 0

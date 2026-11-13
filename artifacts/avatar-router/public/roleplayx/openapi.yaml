@@ -648,6 +648,29 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/playback-observations:
+    post:
+      operationId: reportSessionPlayback
+      tags: [sessions]
+      summary: Record authenticated playback observations, never billing authority
+      description: Start a new reporter epoch at sequence 1 after the first video report. Samples must increase sequence; gaps, reporter changes and heartbeat silence are unknown. No client clocks or durations are accepted. Requires sessions:connect.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlaybackObservation" }
+      responses:
+        "200":
+          description: Observation saved or duplicate ignored. Not continuous playback proof.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { description: Invalid observation or extra fields }
+        "403": { description: Scope or tenant mismatch }
+        "404": { description: Session not found }
+        "409": { description: "Inactive session, retired reporter or reporter limit reached" }
   /v1/sessions/{id}/video-playing:
     post:
       operationId: reportSessionVideoPlaying
@@ -1281,6 +1304,26 @@ components:
         purpose: { type: string, enum: [conversation, validation], default: conversation, description: "Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID." }
         costConfirmed: { type: boolean, default: false, description: "Required for every live session including validation. Provider/LiveKit usage may consume credits." }
         mode: { type: string, enum: [mock, live] }
+    PlaybackObservation:
+      type: object
+      additionalProperties: false
+      required: [event, reporterId, sequence, state]
+      properties:
+        event: { type: string, enum: [start, sample] }
+        reporterId: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 1, maximum: 1000000 }
+        state: { type: string, enum: [playing, paused, stalled, disconnected, unknown] }
+    PlaybackTiming:
+      type: object
+      required: [evidence, observedPlayingSeconds, observedInterruptedSeconds, unknownSeconds, currentState, lastReportAt, gapCount]
+      properties:
+        evidence: { type: string, enum: [not_reported, authenticated_client_reports] }
+        observedPlayingSeconds: { type: integer, minimum: 0 }
+        observedInterruptedSeconds: { type: integer, minimum: 0 }
+        unknownSeconds: { type: [integer, "null"], minimum: 0 }
+        currentState: { type: string, enum: [playing, paused, stalled, disconnected, unknown] }
+        lastReportAt: { type: [string, "null"], format: date-time }
+        gapCount: { type: integer, minimum: 0 }
     SessionVideoObservation:
       type: object
       additionalProperties: false
@@ -1316,6 +1359,8 @@ components:
       type: object
       required: [routerElapsedSeconds, clientVideoReportedAt, preparationSeconds, connectedSeconds, evidence]
       properties:
+        playback:
+          $ref: "#/components/schemas/PlaybackTiming"
         routerElapsedSeconds: { type: integer, minimum: 0, description: "Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing." }
         clientVideoReportedAt: { type: [string, "null"], description: "First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness." }
         preparationSeconds: { type: [integer, "null"], minimum: 0, description: "Start to first client report. Null when unreported; do not infer from provider creation." }

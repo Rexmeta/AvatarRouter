@@ -2,6 +2,12 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp, integer, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
+export type PlaybackObservationRecord = {
+  version: 1; reporters: string[]; reporterId: string; sequence: number;
+  state: "playing" | "paused" | "stalled" | "disconnected" | "unknown";
+  receivedAt: number; playingMs: number; interruptedMs: number; gapCount: number;
+};
+
 export const avatarSessions = pgTable("avatar_sessions", {
   id: text("id").primaryKey(),
   ownerHash: text("owner_hash").notNull(),
@@ -24,6 +30,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
   providerCreateState: text("provider_create_state").notNull().default("not_started"),
   stopRequestedAt: timestamp("stop_requested_at", { withTimezone: true }),
   clientVideoReportedAt: timestamp("client_video_reported_at", { withTimezone: true }),
+  playbackObservation: jsonb("playback_observation").$type<PlaybackObservationRecord>(),
   stopStatus: text("stop_status", { enum: ["ended", "expired", "failed"] }),
   stopError: text("stop_error"),
   cleanupAttempts: integer("cleanup_attempts").notNull().default(0),

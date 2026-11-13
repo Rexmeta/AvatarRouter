@@ -32,3 +32,9 @@ Client-reported video timing is observational, not billing or admission authorit
 **Why:** Session creation and renderer/token readiness are not browser playback evidence; trusting client timing for budget release would permit clients to evade limits.
 
 **How to apply:** Use first authenticated report receipt on the server clock, do not accept backdated client timestamps or fill historical gaps, and keep budget reservations, cleanup fences and asset validation independent.
+
+Playback interruption observations must partition confirmed report intervals from unknown time, without redefining first-video elapsed time.
+
+**Why:** Heartbeat loss, reordered events, refreshes and background-tab throttling prevent a browser assertion from proving uninterrupted media. Extending the last known state would invent evidence.
+
+**How to apply:** Count only consecutive, bounded server-receipt intervals within one reporter epoch. Preserve gaps and unconfirmed tails as unknown, fence retired reporters, and stop only observation—not media—when reporting hangs. These metrics never authorize budget release or cleanup.

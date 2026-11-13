@@ -8,7 +8,7 @@ import { CheckCircle2, LogIn, MessagesSquare, Mic, Play, Radio, Square } from 'l
 import {
   useCreateSession, useReportAvatarLiveValidation, getGetAvatarAssetQueryKey, getListAvatarAssetsQueryKey, type AvatarAsset,
   useGetSession, useGetLiveLimits, useListAvatars, useListSessions,
-  getSession, createClientConnection, endSession, listSessions, reportSessionVideoPlaying,
+  getSession, createClientConnection, endSession, listSessions, reportSessionVideoPlaying, reportSessionPlayback,
   getGetSessionQueryKey, getGetLiveLimitsQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
@@ -277,6 +277,11 @@ function AnamLiveSession({ uid, account, providerId, asset }: { uid: string | nu
           return reportSessionVideoPlaying(id, data);
         },
         onTimingReport: state => { if (live() && state === 'failed') setErr('VIDEO_TIMING_REPORT_FAILED'); },
+        reportPlaybackObservation: async (id, data) => {
+          if (!isCurrent()) throw new Error('ACCOUNT_CHANGED');
+          return reportSessionPlayback(id, data);
+        },
+        onPlaybackReport: state => { if (live() && state === 'failed') setErr('PLAYBACK_OBSERVATION_REPORT_FAILED'); },
         endSession: async (sessionId) => {
           if (!isCurrent()) throw new Error('ACCOUNT_CHANGED');
           return endSession(sessionId);

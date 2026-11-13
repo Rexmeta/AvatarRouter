@@ -10,6 +10,7 @@ ALTER TABLE avatar_sessions
   ADD COLUMN IF NOT EXISTS provider_create_state text NOT NULL DEFAULT 'not_started',
   ADD COLUMN IF NOT EXISTS stop_requested_at timestamptz,
   ADD COLUMN IF NOT EXISTS client_video_reported_at timestamptz,
+  ADD COLUMN IF NOT EXISTS playback_observation jsonb,
   ADD COLUMN IF NOT EXISTS stop_status text,
   ADD COLUMN IF NOT EXISTS stop_error text,
   ADD COLUMN IF NOT EXISTS cleanup_attempts integer NOT NULL DEFAULT 0,

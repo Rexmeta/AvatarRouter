@@ -8,12 +8,13 @@ import {
   useCreateSession, useGetSession, useEndSession, useInterruptSession, useGetLiveConnection, useSendLiveAudio, useGetLiveLimits,
   getGetSessionQueryKey, getGetLiveConnectionQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey, getGetLiveLimitsQueryKey,
   useReportAvatarLiveValidation, getGetAvatarAssetQueryKey, getListAvatarAssetsQueryKey,
-  type AvatarAsset, reportSessionVideoPlaying,
+  type AvatarAsset, reportSessionVideoPlaying, reportSessionPlayback,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg, fmtSec } from '@/components/bits';
 import { cn } from '@/lib/utils';
 import { LiveAdmissionNotice } from '@/components/live-admission-notice';
+import { observePlayback } from '@/sdk/playback-observer';
 
 const KEY = 'ar-stock-session';
 const STOCK_ID = 'tavus-stock-lucy';
@@ -152,15 +153,28 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
     roomRef.current = room;
     let cancelled = false;
     let reported = false;
+    let playback: ReturnType<typeof observePlayback> | undefined;
     let frameHandle: number | undefined;
     let fallbackCleanup: (() => void) | undefined;
     const firstVideo = () => {
-      if (cancelled || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth <= 0) return;
+      if (cancelled || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth <= 0 || videoRef.current.videoHeight <= 0) return;
       setFirstFrame(true);
       if (!reported && sid) {
         reported = true;
         void reportSessionVideoPlaying(sid, { event: 'video_frame_presented' }).catch(() => {
           if (!cancelled) setErr('VIDEO_TIMING_REPORT_FAILED');
+        }).then(() => {
+          if (cancelled || !videoRef.current) return;
+          playback = observePlayback({
+            video: videoRef.current,
+            report: data => {
+              if (cancelled) return Promise.reject(Error('PLAYBACK_OBSERVER_CLOSED'));
+              return reportSessionPlayback(sid, data);
+            },
+            onReport: state => { if (!cancelled && state === 'failed') setErr('PLAYBACK_OBSERVATION_REPORT_FAILED'); },
+          });
+        }).catch(() => {
+          if (!cancelled) setErr('PLAYBACK_OBSERVATION_REPORT_FAILED');
         });
       }
     };
@@ -198,6 +212,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
       .on(RoomEvent.TrackUnsubscribed, (t) => detach(t))
       .on(RoomEvent.AudioPlaybackStatusChanged, () => setNeedsAudio(!room.canPlaybackAudio))
       .on(RoomEvent.Disconnected, (reason) => {
+        playback?.disconnected();
         if (!cancelled && activeRef.current && roomRef.current === room) setErr(`LiveKit disconnected (${reason ?? 'transport closed'}).`);
         setRoomState('disconnected'); setHasVideo(false); setHasAudio(false); setFirstFrame(false);
       });
@@ -215,6 +230,7 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
 
     return () => {
       cancelled = true;
+      playback?.dispose();
       fallbackCleanup?.();
       if (frameHandle !== undefined) videoRef.current?.cancelVideoFrameCallback?.(frameHandle);
       room.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => pub.track?.detach()));
