@@ -822,6 +822,17 @@ export interface SessionInput {
   mode: SessionInputMode;
 }
 
+export type SessionVideoObservationEvent = typeof SessionVideoObservationEvent[keyof typeof SessionVideoObservationEvent];
+
+
+export const SessionVideoObservationEvent = {
+  video_frame_presented: 'video_frame_presented',
+} as const;
+
+export interface SessionVideoObservation {
+  event: SessionVideoObservationEvent;
+}
+
 export type SessionPipeline = typeof SessionPipeline[keyof typeof SessionPipeline];
 
 
@@ -856,6 +867,44 @@ export const SessionStatus = {
   expired: 'expired',
   failed: 'failed',
 } as const;
+
+/**
+ * Client assertion, not independently verified provider playback.
+ */
+export type SessionTimingEvidence = typeof SessionTimingEvidence[keyof typeof SessionTimingEvidence];
+
+
+export const SessionTimingEvidence = {
+  not_reported: 'not_reported',
+  authenticated_client_report: 'authenticated_client_report',
+} as const;
+
+export interface SessionTiming {
+  /**
+     * Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.
+     * @minimum 0
+     */
+  routerElapsedSeconds: number;
+  /**
+     * First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.
+     * @nullable
+     */
+  clientVideoReportedAt: string | null;
+  /**
+     * Start to first client report. Null when unreported; do not infer from provider creation.
+     * @minimum 0
+     * @nullable
+     */
+  preparationSeconds: number | null;
+  /**
+     * Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.
+     * @minimum 0
+     * @nullable
+     */
+  connectedSeconds: number | null;
+  /** Client assertion, not independently verified provider playback. */
+  evidence: SessionTimingEvidence;
+}
 
 export type ProviderSessionFailureProvider = typeof ProviderSessionFailureProvider[keyof typeof ProviderSessionFailureProvider];
 
@@ -950,6 +999,7 @@ export interface Session {
   endedAt?: string | null;
   expiresAt: string;
   durationSeconds: number;
+  timing?: SessionTiming;
   interruptions: number;
   /** @nullable */
   error?: string | null;

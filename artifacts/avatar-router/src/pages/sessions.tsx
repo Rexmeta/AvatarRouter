@@ -12,6 +12,7 @@ import { Timeline } from '@/components/timeline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { SessionTranscript } from '@/components/session-transcript';
+import { SessionTiming } from '@/components/session-timing';
 import { ProviderFailureNotice } from '@/components/provider-failure-notice';
 
 function Detail({ id }: { id: string }) {
@@ -51,7 +52,7 @@ function Detail({ id }: { id: string }) {
         <div><dt className="eyebrow">{t('started')}</dt><dd>{fmtTime(s.startedAt)}</dd></div>
         <div><dt className="eyebrow">{t('ended')}</dt><dd>{fmtTime(s.endedAt)}</dd></div>
         <div><dt className="eyebrow">{t('expires')}</dt><dd>{fmtTime(s.expiresAt)}</dd></div>
-        <div><dt className="eyebrow">{t('duration')}</dt><dd className="mono">{fmtSec(s.durationSeconds)}</dd></div>
+        <div className="col-span-full"><dt className="eyebrow">{t('duration')}</dt><dd className="mt-2"><SessionTiming session={s}/></dd></div>
         <div><dt className="eyebrow">{t('interruptions')}</dt><dd className="mono">{s.interruptions}</dd></div>
         {s.error && <div className="col-span-full"><dt className="eyebrow">{t('error')}</dt><dd className="text-destructive">{s.error}</dd></div>}
         {s.failure && <div className="col-span-full"><ProviderFailureNotice failure={s.failure} /></div>}
@@ -88,7 +89,7 @@ export default function Sessions() {
                       className={cn('flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-muted/50', sel === s.id && 'bg-accent/50')}>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold">{s.providerId} <span className="mono text-[11px] font-normal text-muted-foreground">{s.mode}</span></div>
-                        <div className="mono truncate text-[11px] text-muted-foreground">{fmtTime(s.startedAt)} · {fmtSec(s.durationSeconds)}</div>
+                        <div className="mono truncate text-[11px] text-muted-foreground">{fmtTime(s.startedAt)} · {fmtSec(s.timing?.routerElapsedSeconds ?? s.durationSeconds)}</div>
                       </div>
                       <Pill value={s.status} live={s.status === 'active'} />
                     </button>

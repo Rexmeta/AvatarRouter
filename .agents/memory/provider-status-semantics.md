@@ -26,3 +26,9 @@ Router usage and admission reservations must be displayed separately. Never labe
 **Why:** The user reported that even short conversations increased usage by the full ten-minute maximum.
 
 **How to apply:** Calculate elapsed session time from recorded timestamps, exclude delayed cleanup after stop/end/expiry, preserve original reservations, and distinguish router elapsed time from actual speech/playback duration and provider billing.
+
+Client-reported video timing is observational, not billing or admission authority. A first presented frame may separate preparation from subsequent elapsed time, but cannot prove continuous playback, audio audibility or provider charges.
+
+**Why:** Session creation and renderer/token readiness are not browser playback evidence; trusting client timing for budget release would permit clients to evade limits.
+
+**How to apply:** Use first authenticated report receipt on the server clock, do not accept backdated client timestamps or fill historical gaps, and keep budget reservations, cleanup fences and asset validation independent.

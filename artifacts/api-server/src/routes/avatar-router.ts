@@ -14,6 +14,8 @@ import { resolveSessionAsset } from "../lib/asset-service";
 import { createStockSession, closeStockSession, liveConnection, fullConnection, anamConnection, clientConnection, sendStockAudio, interruptStockSession, liveLimits } from "../lib/live-sessions";
 import { CreateAnamConnectionParams, CreateAnamConnectionResponse, CreateClientConnectionResponse, GetLiveLimitsQueryParams } from "@workspace/api-zod";
 import { ANAM_AVATAR } from "../lib/anam-runtime";
+import { ReportSessionVideoPlayingBody } from "@workspace/api-zod";
+import { reportSessionVideo } from "../lib/session-video-report";
 import { STOCK_AVATAR, validateLiveAudio } from "../lib/stock-policy";
 import { stockCatalog } from "../lib/stock-catalog";
 import { integrationIdentity } from "../lib/integration-identity";
@@ -139,6 +141,16 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
 router.get("/v1/sessions/:id", async (req, res): Promise<void> => {
   const { id } = GetSessionParams.parse(req.params);
   res.json(GetSessionResponse.parse(presentSession(await getOwnedSession(res.locals.ownerHash, id))));
+});
+router.post("/v1/sessions/:id/video-playing", assetTenant, async (req, res): Promise<void> => {
+  const { id } = GetSessionParams.parse(req.params);
+  const input = ReportSessionVideoPlayingBody.safeParse(req.body);
+  if (!input.success || Object.keys(req.body).some(key => key !== "event")) {
+    throw new SessionProblem(400, "INVALID_VIDEO_OBSERVATION", "Send only event: video_frame_presented.");
+  }
+  res.set("Cache-Control", "private, no-store").json(GetSessionResponse.parse(presentSession(
+    await reportSessionVideo(res.locals.ownerHash, res.locals.tenantId, id),
+  )));
 });
 router.post("/v1/sessions/:id/anam-connection", assetTenant, async (req, res): Promise<void> => {
   const { id } = CreateAnamConnectionParams.parse(req.params);

@@ -8,7 +8,7 @@ import {
   useCreateSession, useGetSession, useEndSession, useInterruptSession, useGetLiveConnection, useSendLiveAudio, useGetLiveLimits,
   getGetSessionQueryKey, getGetLiveConnectionQueryKey, getListSessionsQueryKey, getGetUsageQueryKey, getListSessionEventsQueryKey, getGetLiveLimitsQueryKey,
   useReportAvatarLiveValidation, getGetAvatarAssetQueryKey, getListAvatarAssetsQueryKey,
-  type AvatarAsset,
+  type AvatarAsset, reportSessionVideoPlaying,
 } from '@workspace/api-client-react';
 import { useI18n } from '@/lib/i18n';
 import { Panel, Pill, errMsg, fmtSec } from '@/components/bits';
@@ -151,13 +151,36 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
     const room = new Room({ adaptiveStream: false });
     roomRef.current = room;
     let cancelled = false;
+    let reported = false;
+    let frameHandle: number | undefined;
+    let fallbackCleanup: (() => void) | undefined;
+    const firstVideo = () => {
+      if (cancelled || !videoRef.current || videoRef.current.paused || videoRef.current.videoWidth <= 0) return;
+      setFirstFrame(true);
+      if (!reported && sid) {
+        reported = true;
+        void reportSessionVideoPlaying(sid, { event: 'video_frame_presented' }).catch(() => {
+          if (!cancelled) setErr('VIDEO_TIMING_REPORT_FAILED');
+        });
+      }
+    };
 
     const attach = (track: RemoteTrack) => {
       if (track.kind === Track.Kind.Video && videoRef.current) {
         track.attach(videoRef.current); setHasVideo(true);
         const v = videoRef.current as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
-        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => { if (!cancelled) setFirstFrame(true); });
-        else v.addEventListener('loadeddata', () => setFirstFrame(true), { once: true });
+        if (v.requestVideoFrameCallback) frameHandle = v.requestVideoFrameCallback(firstVideo);
+        else {
+          let previous = v.currentTime;
+          const advance = () => {
+            if (!v.paused && v.videoWidth > 0 && v.currentTime > previous) {
+              firstVideo(); v.removeEventListener('timeupdate', advance);
+            }
+            previous = v.currentTime;
+          };
+          v.addEventListener('timeupdate', advance);
+          fallbackCleanup = () => v.removeEventListener('timeupdate', advance);
+        }
         void v.play().catch(() => {});
       } else if (track.kind === Track.Kind.Audio && audioRef.current) {
         track.attach(audioRef.current); setHasAudio(true);
@@ -192,11 +215,13 @@ export function StockLivePanel({ asset }: { asset?: AvatarAsset }) {
 
     return () => {
       cancelled = true;
+      fallbackCleanup?.();
+      if (frameHandle !== undefined) videoRef.current?.cancelVideoFrameCallback?.(frameHandle);
       room.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => pub.track?.detach()));
       void room.disconnect();
       if (roomRef.current === room) roomRef.current = null;
     };
-  }, [active, url, token, uid]);
+  }, [active, url, token, uid, sid]);
 
   /* session ended server-side -> drop room */
   useEffect(() => {

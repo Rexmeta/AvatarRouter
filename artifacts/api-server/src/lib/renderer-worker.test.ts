@@ -288,7 +288,9 @@ test("reclaimed Tavus cleanup preserves transcript reference across PAL retry an
     await db.update(avatarSessions).set({ cleanupRetryAt: new Date(0) }).where(eq(avatarSessions.id, row.id));
     const restarted = makeWorker();
     await restarted.tick();
-    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    // The prior cleanup event can briefly retain an FK lock after its durable
+    // maintenance state is visible. Production retries SKIP LOCKED claims.
+    await eventually(async () => { await restarted.tick(); return (await get(row.id)).rendererState === "closed"; });
     const closed = await get(row.id);
     assert.equal(createAttempts, 0);
     assert.equal(endRequests, 1); // Maintenance retry must not re-end the paid call.
@@ -374,7 +376,10 @@ test("expired worker lease is recovered by cleanup, never by paid recreation", a
   await eventually(async () => (await get(row.id)).rendererState === "running");
   await db.update(avatarSessions).set({ leaseExpiresAt: new Date(0) }).where(eq(avatarSessions.id, row.id));
   await second.w.tick();
-  await eventually(async () => (await get(row.id)).rendererState === "closed");
+  // running can become visible before initialize's final event INSERT releases
+  // its FK row lock. SKIP LOCKED may legitimately skip the first recovery sweep;
+  // keep sweeping as production does instead of assuming one tick must claim it.
+  await eventually(async () => { await second.w.tick(); return (await get(row.id)).rendererState === "closed"; });
   await first.w.tick();
   assert.equal(first.stats.starts, 1);
   assert.equal(second.stats.starts, 0);

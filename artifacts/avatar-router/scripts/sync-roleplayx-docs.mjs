@@ -12,6 +12,7 @@ const files = [
   ["docs/roleplayx-identity-contract.md", "identity-contract.md"],
   ["docs/persona-live-integration.md", "persona-live-integration.md"],
   ["docs/router-budget-management.md", "router-budget-management.md"],
+  ["docs/session-video-timing.md", "session-video-timing.md"],
   ["docs/automatic-training-images.md", "automatic-training-images.md"],
   ["docs/stock-avatar-catalog.md", "stock-avatar-catalog.md"],
   ["docs/gemini-training-image-settings.md", "gemini-training-image-settings.md"],

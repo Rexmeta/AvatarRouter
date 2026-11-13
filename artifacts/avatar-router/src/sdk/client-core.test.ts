@@ -49,6 +49,40 @@ test('voice ownership settles before media; interrupt does not end the session',
   await f.client.stop();
 });
 
+test('first frame is reported once, duplicate playing and stop never move the timing boundary', async () => {
+  const reports: unknown[] = [];
+  const states: string[] = [];
+  const f = fixture({
+    reportVideoPlaying: async (id, observation) => { reports.push({ id, ...observation }); },
+    onTimingReport: state => { states.push(state); },
+  });
+  await f.client.start();
+  f.signal('playing');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(reports.length, 1);
+  assert.equal((reports[0] as { event: string }).event, 'video_frame_presented');
+  assert.deepEqual(states, ['saved']);
+  await f.client.stop();
+  f.signal('playing');
+  assert.equal(reports.length, 1);
+});
+
+test('timing report failure does not end playback or retry provider creation', async () => {
+  const states: string[] = [];
+  let reports = 0;
+  const f = fixture({
+    reportVideoPlaying: async () => { reports++; throw new Error('private upstream details'); },
+    onTimingReport: state => { states.push(state); },
+  });
+  await f.client.start();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  f.signal('playing');
+  assert.deepEqual(states, ['failed']);
+  assert.equal(reports, 1);
+  assert.ok(!f.order.includes('router-end'));
+  await f.client.stop();
+});
+
 test('one start, one router end, and no late playing event after termination', async () => {
   const f = fixture();
   await f.client.start();

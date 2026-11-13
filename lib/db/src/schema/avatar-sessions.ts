@@ -23,6 +23,7 @@ export const avatarSessions = pgTable("avatar_sessions", {
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
   providerCreateState: text("provider_create_state").notNull().default("not_started"),
   stopRequestedAt: timestamp("stop_requested_at", { withTimezone: true }),
+  clientVideoReportedAt: timestamp("client_video_reported_at", { withTimezone: true }),
   stopStatus: text("stop_status", { enum: ["ended", "expired", "failed"] }),
   stopError: text("stop_error"),
   cleanupAttempts: integer("cleanup_attempts").notNull().default(0),

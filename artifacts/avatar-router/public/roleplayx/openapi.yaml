@@ -648,6 +648,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+  /v1/sessions/{id}/video-playing:
+    post:
+      operationId: reportSessionVideoPlaying
+      description: "Authenticated client observation only, not provider-certified playback or billing. Requires sessions:connect, matching owner and tenant, live active ready session. Server receipt time is stored once; client timestamps are never accepted. Does not alter budgets, cleanup or asset validation."
+      security:
+        - ClerkSessionJWT: []
+        - ServiceApiKey: []
+        - RoleplayXDelegationJWT: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionVideoObservation" }
+      responses:
+        "200":
+          description: First observation saved, or existing observation returned unchanged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { description: Invalid observation }
+        "403": { description: Tenant or scope denied }
+        "404": { description: Session not owned by caller }
+        "409": { description: "Session not ready, stopped or expired" }
   /v1/sessions/{id}/client-connection:
     post:
       operationId: createClientConnection
@@ -1256,6 +1281,12 @@ components:
         purpose: { type: string, enum: [conversation, validation], default: conversation, description: "Unvalidated custom assets require validation purpose plus assets:write. Both external_audio and tavus_full support custom validation. Native validation requires avatarAssetId and fullPipeline or roleplay. Conversation purpose requires a prior playback report for the current provider avatar ID." }
         costConfirmed: { type: boolean, default: false, description: "Required for every live session including validation. Provider/LiveKit usage may consume credits." }
         mode: { type: string, enum: [mock, live] }
+    SessionVideoObservation:
+      type: object
+      additionalProperties: false
+      required: [event]
+      properties:
+        event: { type: string, enum: [video_frame_presented] }
     Session:
       type: object
       required: [id, providerId, avatarId, mode, status, startedAt, expiresAt, durationSeconds, interruptions]
@@ -1272,6 +1303,8 @@ components:
         endedAt: { type: [string, "null"] }
         expiresAt: { type: string }
         durationSeconds: { type: number }
+        timing:
+          $ref: "#/components/schemas/SessionTiming"
         interruptions: { type: integer }
         error: { type: [string, "null"] }
         failure:
@@ -1279,6 +1312,15 @@ components:
         rendererState: { type: [string, "null"] }
         stopRequested: { type: boolean }
         cleanupPending: { type: boolean }
+    SessionTiming:
+      type: object
+      required: [routerElapsedSeconds, clientVideoReportedAt, preparationSeconds, connectedSeconds, evidence]
+      properties:
+        routerElapsedSeconds: { type: integer, minimum: 0, description: "Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing." }
+        clientVideoReportedAt: { type: [string, "null"], description: "First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness." }
+        preparationSeconds: { type: [integer, "null"], minimum: 0, description: "Start to first client report. Null when unreported; do not infer from provider creation." }
+        connectedSeconds: { type: [integer, "null"], minimum: 0, description: "Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time." }
+        evidence: { type: string, enum: [not_reported, authenticated_client_report], description: "Client assertion, not independently verified provider playback." }
     ProviderSessionFailure:
       type: [object, "null"]
       description: Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.

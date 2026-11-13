@@ -63,6 +63,7 @@ export default function Docs() {
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/provider-failures.md`} download="provider-failures.md">Provider failure diagnostics · RoleplayX</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/tavus-paid-plan.md`} download="tavus-paid-plan.md">Tavus paid account · RoleplayX</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/persona-seed-live.md`} download="persona-seed-live.md">Persona seed image → live · RoleplayX</a>
+              <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/session-video-timing.md`} download="session-video-timing.md">준비·영상 시간 보고 · RoleplayX</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/integration-guide.md`} download="roleplayx-avatarrouter-integration-guide.md">Download integration guide</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/identity-contract.md`} download="roleplayx-identity-contract.md">Download identity contract</a>
               <a className="rounded border px-4 py-2 text-sm font-medium hover:bg-muted" href={`${integrationDocsBase}/persona-live-integration.md`} download="persona-live-integration.md">Persona live integration · API 0.5</a>

@@ -62,6 +62,7 @@ import type {
   Session,
   SessionEvent,
   SessionInput,
+  SessionVideoObservation,
   Setup,
   TavusFullConnection,
   UpdateDeveloperKeyScopesInput,
@@ -3809,6 +3810,92 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+
+export const getReportSessionVideoPlayingUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/sessions/${id}/video-playing`
+}
+
+/**
+ * Authenticated client observation only, not provider-certified playback or billing. Requires sessions:connect, matching owner and tenant, live active ready session. Server receipt time is stored once; client timestamps are never accepted. Does not alter budgets, cleanup or asset validation.
+ */
+export const reportSessionVideoPlaying = async (id: string,
+    sessionVideoObservation: SessionVideoObservation, options?: Parameters<typeof customFetch>[1]): Promise<Session> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Session>(getReportSessionVideoPlayingUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(sessionVideoObservation)
+  }
+);}
+
+
+
+
+
+export const getReportSessionVideoPlayingMutationKey = () => ['reportSessionVideoPlaying'] as const;
+
+export const getReportSessionVideoPlayingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportSessionVideoPlaying>>, TError,ReportSessionVideoPlayingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportSessionVideoPlaying>>, TError,ReportSessionVideoPlayingMutationVariables, TContext> => {
+
+const mutationKey = getReportSessionVideoPlayingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportSessionVideoPlaying>>, ReportSessionVideoPlayingMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportSessionVideoPlaying(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportSessionVideoPlayingMutationResult = NonNullable<Awaited<ReturnType<typeof reportSessionVideoPlaying>>>
+    export type ReportSessionVideoPlayingMutationBody = BodyType<SessionVideoObservation>
+    export type ReportSessionVideoPlayingMutationError = ErrorType<void>
+    export type ReportSessionVideoPlayingMutationVariables = {id: string;data: BodyType<SessionVideoObservation>}
+
+    export const useReportSessionVideoPlaying = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportSessionVideoPlaying>>, TError,ReportSessionVideoPlayingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportSessionVideoPlaying>>,
+        TError,
+        ReportSessionVideoPlayingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportSessionVideoPlayingMutationOptions(options), queryClient);
+    }
 
 export const getCreateClientConnectionUrl = (id: string,) => {
 

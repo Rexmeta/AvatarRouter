@@ -12,6 +12,7 @@ import { LiveAdmissionNotice } from '@/components/live-admission-notice';
 import { WorkspaceLiveCheckPanel } from '@/components/workspace-live-check-panel';
 import { WorkspaceBudgetPanel } from '@/components/workspace-budget-panel';
 import { useWorkspaceLiveCheck } from '@/lib/use-workspace-live-check';
+import { SessionTiming } from '@/components/session-timing';
 
 function LiveCheckSection({ projectId }: { projectId: string }) {
   const check = useWorkspaceLiveCheck(projectId);
@@ -57,7 +58,7 @@ export default function Workspace() {
       <Panel title={t('Recent project sessions','최근 프로젝트 세션')}>
         {!w.sessions.length ? <p className="p-8 text-center text-sm text-muted-foreground">{t('No sessions in this project yet. Personal Studio history belongs to a separate space.','이 프로젝트에 세션이 없습니다. 개인 Studio 이력은 별도 공간에 속합니다.')}</p> : <div className="overflow-x-auto"><table className="arw-table w-full"><thead><tr><th>{t('Session','세션')}</th><th>{t('Provider / avatar','제공자 / 아바타')}</th><th>{t('Status','상태')}</th><th>{t('Started','시작')}</th></tr></thead><tbody>{w.sessions.map(s=><tr key={s.id}><td className="mono text-xs">{s.id}<div className="mt-2 text-muted-foreground">{s.mode} · {s.rendererState || s.status}</div></td><td>{s.providerId}<div className="mt-1 text-xs text-muted-foreground">{s.avatarId}</div></td><td><Pill value={s.status}/>{s.cleanupPending && <div className="mt-2 text-xs text-amber-300">{t('Cleanup required','정리 확인 필요')}</div>}{s.error && <div className="mt-2 max-w-xs break-all text-xs text-destructive">{s.error}</div>}</td><td className="text-xs">{fmtTime(s.startedAt)}</td></tr>)}</tbody></table></div>}
       </Panel>
-      {section === 'sessions' && w.sessions.length>0 && <Panel title={t('Session lifecycle logs','세션 생명주기 로그')} className="mt-6"><div className="divide-y">{w.sessions.map(s=><div key={s.id} className="p-4"><div className="mono break-all text-xs">{s.id}</div><SessionEvents projectId={projectId} id={s.id}/></div>)}</div></Panel>}
+      {section === 'sessions' && w.sessions.length>0 && <Panel title={t('Session lifecycle logs','세션 생명주기 로그')} className="mt-6"><div className="divide-y">{w.sessions.map(s=><div key={s.id} className="p-4"><div className="mono break-all text-xs">{s.id}</div><div className="my-3"><SessionTiming session={s}/></div><SessionEvents projectId={projectId} id={s.id}/></div>)}</div></Panel>}
       <div className="console-note">{t('Includes all user contexts within this project. Read-only session history; raw operator diagnostics are not exposed. End requests and user-specific event logs remain available through the authorized integration API.','이 프로젝트의 사용자 컨텍스트별 세션을 함께 표시합니다. 세션 이력은 조회 전용이며 운영자 전용 진단은 노출하지 않습니다. 종료 요청과 사용자별 이벤트 로그는 권한을 검증하는 연동 API에서 처리합니다.')}</div>
       <div className="flex flex-wrap gap-3"><Link className="arw-button" data-testid="link-live-check" href={`${base}/live-check`}>{t('Live media check','라이브 미디어 점검')}</Link><Link className="arw-button" href={`${base}/keys`}>{t('API keys','API 키')}</Link><Link className="arw-button" href={`${base}/assets`}>{t('Avatars & assets','아바타·에셋')}</Link><Link className="arw-button" href="/docs">{t('Integration guide','연동 가이드')}</Link></div>
     </>}

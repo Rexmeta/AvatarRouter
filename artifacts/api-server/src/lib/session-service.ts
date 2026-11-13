@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, lte, sql, db, avatarSessions, avatarSessionEvents, type AvatarSessionRecord } from "@workspace/db";
 import { presentProviderFailure, publicSessionError } from "./provider-session-failure";
+import { sessionTiming } from "./session-timing";
 
 export class SessionProblem extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -14,6 +15,7 @@ export function presentSession(row: AvatarSessionRecord) {
     mode: row.mode, status: row.status, startedAt: row.startedAt.toISOString(),
     endedAt: row.endedAt?.toISOString() ?? null, expiresAt: row.expiresAt.toISOString(),
     durationSeconds: Math.max(0, Math.floor(((row.endedAt?.getTime() ?? Date.now()) - row.startedAt.getTime()) / 1000)),
+    timing: sessionTiming(row),
     interruptions: row.interruptions, error: publicSessionError(row.error),
     failure: presentProviderFailure(row),
     rendererState: row.mode === "live" ? row.rendererState : null,

@@ -22,6 +22,11 @@ export type ClientOptions = {
   /** Stop the application's voice engine before resolving for avatarrouter. */
   onAudioOwner(owner: 'application' | 'avatarrouter'): Promise<void> | void;
   onState?(state: ClientState, code?: string): void;
+  /** Proxy through your authenticated backend. Never put a project key in the browser.
+   * Called once on first presented frame, not on connection/token readiness.
+   * Server receipt time is observational only and never changes budgets. */
+  reportVideoPlaying?(sessionId: string, observation: { event: 'video_frame_presented' }): Promise<unknown>;
+  onTimingReport?(state: 'saved' | 'failed'): void;
   /** Provisional SDK captions, not the provider-authenticated final transcript. */
   onMessages?(messages: DialogueMessage[]): void;
   /** External-audio interrupt proxy; native engines are handled inside the client. */
@@ -57,6 +62,7 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
   let refreshing: Promise<CleanupState> | undefined;
   let cleanupRevision = 0;
   let deadline: ReturnType<typeof setTimeout> | undefined;
+  let videoReported = false;
   const emit = (state: ClientState, code?: string) => {
     try { options.onState?.(state, code); } catch { /* host UI must not break teardown */ }
   };
@@ -129,7 +135,18 @@ export function createClientWithDriver(options: ClientOptions, factory: DriverFa
       emit('connecting');
       driver = await factory(options, (state) => {
         if (state === 'ended') { void stop(); return; }
-        if (!closed) emit(state);
+        if (!closed) {
+          if (state === 'playing' && !videoReported && options.reportVideoPlaying) {
+            videoReported = true;
+            void bounded(Promise.resolve().then(() => options.reportVideoPlaying!(
+              options.connection.sessionId, { event: 'video_frame_presented' },
+            )), 8000).then(
+              () => { try { options.onTimingReport?.('saved'); } catch {} },
+              () => { try { options.onTimingReport?.('failed'); } catch {} },
+            );
+          }
+          emit(state);
+        }
       }, () => !closed);
       if (closed) { await bounded(driver.stop(), 3000); return; }
       await driver.start();

@@ -9,9 +9,30 @@ const factory: DriverFactory = async (options, emit, active) => {
   video.autoplay = true;
   video.playsInline = true;
   const play = () => { void video.play().catch(() => { /* host can provide a play gesture */ }); };
-  const playing = () => emit('playing');
+  let framePending = false;
+  let frameHandle: number | undefined;
+  let lastTime = video.currentTime;
+  const frame = () => {
+    framePending = false;
+    if (active() && video.videoWidth > 0 && video.videoHeight > 0 && !video.paused) emit('playing');
+  };
+  const playing = () => {
+    if (!active() || framePending || !video.requestVideoFrameCallback) return;
+    framePending = true;
+    frameHandle = video.requestVideoFrameCallback(frame);
+  };
+  const timeupdate = () => {
+    // Older browsers: require advancing media time, dimensions and active playback.
+    if (!video.requestVideoFrameCallback && video.currentTime > lastTime) frame();
+    lastTime = video.currentTime;
+  };
   video.addEventListener('playing', playing);
-  const detach = () => video.removeEventListener('playing', playing);
+  video.addEventListener('timeupdate', timeupdate);
+  const detach = () => {
+    video.removeEventListener('playing', playing);
+    video.removeEventListener('timeupdate', timeupdate);
+    if (frameHandle !== undefined) video.cancelVideoFrameCallback?.(frameHandle);
+  };
   try {
     if (descriptor.pipeline === 'anam_full') {
       const { createClient, AnamEvent } = await import('@anam-ai/js-sdk');

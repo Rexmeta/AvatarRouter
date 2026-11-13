@@ -126,6 +126,12 @@ export const GetWorkspaceLiveCheckParams = zod.object({
   "projectId": zod.uuid()
 })
 
+export const getWorkspaceLiveCheckResponseSessionOneTimingRouterElapsedSecondsMin = 0;
+
+export const getWorkspaceLiveCheckResponseSessionOneTimingPreparationSecondsMin = 0;
+
+export const getWorkspaceLiveCheckResponseSessionOneTimingConnectedSecondsMin = 0;
+
 export const getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin = 400;
 export const getWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax = 599;
 
@@ -145,6 +151,13 @@ export const GetWorkspaceLiveCheckResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(getWorkspaceLiveCheckResponseSessionOneTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(getWorkspaceLiveCheckResponseSessionOneTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(getWorkspaceLiveCheckResponseSessionOneTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -196,6 +209,12 @@ export const StartWorkspaceLiveCheckBody = zod.object({
   "maxSeconds": zod.int().min(1).max(startWorkspaceLiveCheckBodyMaxSecondsMax).describe('Must equal the latest limits.sessionSeconds. Stale cost consent is rejected before paid creation.')
 })
 
+export const startWorkspaceLiveCheckResponseSessionOneTimingRouterElapsedSecondsMin = 0;
+
+export const startWorkspaceLiveCheckResponseSessionOneTimingPreparationSecondsMin = 0;
+
+export const startWorkspaceLiveCheckResponseSessionOneTimingConnectedSecondsMin = 0;
+
 export const startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMin = 400;
 export const startWorkspaceLiveCheckResponseSessionOneFailureProviderHttpStatusMax = 599;
 
@@ -215,6 +234,13 @@ export const StartWorkspaceLiveCheckResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(startWorkspaceLiveCheckResponseSessionOneTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(startWorkspaceLiveCheckResponseSessionOneTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(startWorkspaceLiveCheckResponseSessionOneTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -281,6 +307,12 @@ export const EndWorkspaceLiveCheckParams = zod.object({
   "id": zod.uuid()
 })
 
+export const endWorkspaceLiveCheckResponseTimingRouterElapsedSecondsMin = 0;
+
+export const endWorkspaceLiveCheckResponseTimingPreparationSecondsMin = 0;
+
+export const endWorkspaceLiveCheckResponseTimingConnectedSecondsMin = 0;
+
 export const endWorkspaceLiveCheckResponseFailureProviderHttpStatusMin = 400;
 export const endWorkspaceLiveCheckResponseFailureProviderHttpStatusMax = 599;
 
@@ -299,6 +331,13 @@ export const EndWorkspaceLiveCheckResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(endWorkspaceLiveCheckResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(endWorkspaceLiveCheckResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(endWorkspaceLiveCheckResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -342,6 +381,12 @@ export const GetDeveloperWorkspaceParams = zod.object({
   "projectId": zod.uuid()
 })
 
+export const getDeveloperWorkspaceResponseSessionsItemTimingRouterElapsedSecondsMin = 0;
+
+export const getDeveloperWorkspaceResponseSessionsItemTimingPreparationSecondsMin = 0;
+
+export const getDeveloperWorkspaceResponseSessionsItemTimingConnectedSecondsMin = 0;
+
 export const getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMin = 400;
 export const getDeveloperWorkspaceResponseSessionsItemFailureProviderHttpStatusMax = 599;
 
@@ -374,6 +419,13 @@ export const GetDeveloperWorkspaceResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(getDeveloperWorkspaceResponseSessionsItemTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(getDeveloperWorkspaceResponseSessionsItemTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(getDeveloperWorkspaceResponseSessionsItemTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -1042,6 +1094,12 @@ export const GetLiveLimitsResponse = zod.object({
 })
 
 
+export const listSessionsResponseTimingRouterElapsedSecondsMin = 0;
+
+export const listSessionsResponseTimingPreparationSecondsMin = 0;
+
+export const listSessionsResponseTimingConnectedSecondsMin = 0;
+
 export const listSessionsResponseFailureProviderHttpStatusMin = 400;
 export const listSessionsResponseFailureProviderHttpStatusMax = 599;
 
@@ -1060,6 +1118,13 @@ export const ListSessionsResponseItem = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(listSessionsResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(listSessionsResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(listSessionsResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -1139,6 +1204,12 @@ export const CreateSessionBody = zod.object({
   "mode": zod.enum(['mock', 'live'])
 })
 
+export const createSessionResponseTimingRouterElapsedSecondsMin = 0;
+
+export const createSessionResponseTimingPreparationSecondsMin = 0;
+
+export const createSessionResponseTimingConnectedSecondsMin = 0;
+
 export const createSessionResponseFailureProviderHttpStatusMin = 400;
 export const createSessionResponseFailureProviderHttpStatusMax = 599;
 
@@ -1157,6 +1228,13 @@ export const CreateSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(createSessionResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(createSessionResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(createSessionResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -1340,6 +1418,12 @@ export const GetSessionParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const getSessionResponseTimingRouterElapsedSecondsMin = 0;
+
+export const getSessionResponseTimingPreparationSecondsMin = 0;
+
+export const getSessionResponseTimingConnectedSecondsMin = 0;
+
 export const getSessionResponseFailureProviderHttpStatusMin = 400;
 export const getSessionResponseFailureProviderHttpStatusMax = 599;
 
@@ -1358,6 +1442,13 @@ export const GetSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(getSessionResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(getSessionResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(getSessionResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -1367,6 +1458,67 @@ export const GetSessionResponse = zod.object({
   "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
   "message": zod.string(),
   "providerHttpStatus": zod.int().min(getSessionResponseFailureProviderHttpStatusMin).max(getSessionResponseFailureProviderHttpStatusMax).nullable(),
+  "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
+  "automaticRetryAllowed": zod.literal(false),
+  "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
+}).nullish().describe('Safe provider creation failure, retained after cleanup. HTTP 200 session admission is not provider connection success. Old failures may lack upstream details. Never automatically retry a paid creation.'),
+  "rendererState": zod.string().nullish(),
+  "stopRequested": zod.boolean().optional(),
+  "cleanupPending": zod.boolean().optional()
+})
+
+
+/**
+ * Authenticated client observation only, not provider-certified playback or billing. Requires sessions:connect, matching owner and tenant, live active ready session. Server receipt time is stored once; client timestamps are never accepted. Does not alter budgets, cleanup or asset validation.
+ */
+export const ReportSessionVideoPlayingParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ReportSessionVideoPlayingBody = zod.object({
+  "event": zod.enum(['video_frame_presented'])
+})
+
+export const reportSessionVideoPlayingResponseTimingRouterElapsedSecondsMin = 0;
+
+export const reportSessionVideoPlayingResponseTimingPreparationSecondsMin = 0;
+
+export const reportSessionVideoPlayingResponseTimingConnectedSecondsMin = 0;
+
+export const reportSessionVideoPlayingResponseFailureProviderHttpStatusMin = 400;
+export const reportSessionVideoPlayingResponseFailureProviderHttpStatusMax = 599;
+
+
+
+export const ReportSessionVideoPlayingResponse = zod.object({
+  "pipeline": zod.enum(['external_audio', 'tavus_full', 'anam_full']).optional(),
+  "id": zod.string(),
+  "providerId": zod.string(),
+  "avatarId": zod.string(),
+  "avatarAssetId": zod.string().nullish(),
+  "purpose": zod.enum(['conversation', 'validation']).optional(),
+  "mode": zod.enum(['mock', 'live']),
+  "status": zod.enum(['active', 'ended', 'expired', 'failed']),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish(),
+  "expiresAt": zod.string(),
+  "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(reportSessionVideoPlayingResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(reportSessionVideoPlayingResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(reportSessionVideoPlayingResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
+  "interruptions": zod.int(),
+  "error": zod.string().nullish(),
+  "failure": zod.object({
+  "code": zod.string(),
+  "provider": zod.enum(['tavus']),
+  "stage": zod.enum(['persona_create', 'conversation_create']),
+  "category": zod.enum(['authentication', 'billing', 'concurrency_limit', 'provider_limit', 'permission_or_plan', 'configuration', 'provider_unavailable', 'unknown']),
+  "message": zod.string(),
+  "providerHttpStatus": zod.int().min(reportSessionVideoPlayingResponseFailureProviderHttpStatusMin).max(reportSessionVideoPlayingResponseFailureProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.union([zod.literal('insufficient_credits'),zod.literal('out_of_credits'),zod.literal('quota_exceeded'),zod.literal('concurrency_limit_exceeded'),zod.literal('rate_limit_exceeded'),zod.literal('invalid_api_key'),zod.literal('permission_denied'),zod.literal('invalid_request'),zod.literal(null)]).nullable(),
   "automaticRetryAllowed": zod.literal(false),
   "creationOutcome": zod.enum(['not_created', 'not_requested', 'created', 'unknown'])
@@ -1488,6 +1640,12 @@ export const EndSessionParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const endSessionResponseTimingRouterElapsedSecondsMin = 0;
+
+export const endSessionResponseTimingPreparationSecondsMin = 0;
+
+export const endSessionResponseTimingConnectedSecondsMin = 0;
+
 export const endSessionResponseFailureProviderHttpStatusMin = 400;
 export const endSessionResponseFailureProviderHttpStatusMax = 599;
 
@@ -1506,6 +1664,13 @@ export const EndSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(endSessionResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(endSessionResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(endSessionResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({
@@ -1532,6 +1697,12 @@ export const InterruptSessionParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const interruptSessionResponseTimingRouterElapsedSecondsMin = 0;
+
+export const interruptSessionResponseTimingPreparationSecondsMin = 0;
+
+export const interruptSessionResponseTimingConnectedSecondsMin = 0;
+
 export const interruptSessionResponseFailureProviderHttpStatusMin = 400;
 export const interruptSessionResponseFailureProviderHttpStatusMax = 599;
 
@@ -1550,6 +1721,13 @@ export const InterruptSessionResponse = zod.object({
   "endedAt": zod.string().nullish(),
   "expiresAt": zod.string(),
   "durationSeconds": zod.number(),
+  "timing": zod.object({
+  "routerElapsedSeconds": zod.int().min(interruptSessionResponseTimingRouterElapsedSecondsMin).describe('Router elapsed duration bounded by stop/end/expiry; includes preparation. Not provider billing.'),
+  "clientVideoReportedAt": zod.string().nullable().describe('First authorized video-frame report receipt, server clock. Not SDK token issuance or renderer readiness.'),
+  "preparationSeconds": zod.int().min(interruptSessionResponseTimingPreparationSecondsMin).nullable().describe('Start to first client report. Null when unreported; do not infer from provider creation.'),
+  "connectedSeconds": zod.int().min(interruptSessionResponseTimingConnectedSecondsMin).nullable().describe('Elapsed since first client report until stop/end/expiry. May include stalls, pauses and disconnects; not continuous playback or voiced time.'),
+  "evidence": zod.enum(['not_reported', 'authenticated_client_report']).describe('Client assertion, not independently verified provider playback.')
+}).optional(),
   "interruptions": zod.int(),
   "error": zod.string().nullish(),
   "failure": zod.object({

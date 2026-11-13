@@ -10,6 +10,7 @@ import type { SessionMode } from './sessionMode';
 import type { SessionPipeline } from './sessionPipeline';
 import type { SessionPurpose } from './sessionPurpose';
 import type { SessionStatus } from './sessionStatus';
+import type { SessionTiming } from './sessionTiming';
 
 export interface Session {
   pipeline?: SessionPipeline;
@@ -26,6 +27,7 @@ export interface Session {
   endedAt?: string | null;
   expiresAt: string;
   durationSeconds: number;
+  timing?: SessionTiming;
   interruptions: number;
   /** @nullable */
   error?: string | null;
