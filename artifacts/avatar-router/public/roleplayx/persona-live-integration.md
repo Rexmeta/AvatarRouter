@@ -112,9 +112,9 @@ Playground에서 ready Tavus 자산을 선택하면 전용 full 검증 패널을
 
 마지막으로 반드시 `/sessions/{id}/end`를 호출하고 상태를 조회하여 원격 정리 완료를 확인합니다. 정리 불명확 상태에서는 재생성을 시도하지 않습니다.
 
-## 검증 이후 일반 대화
+## 일반 대화 연결
 
-동일한 세션 생성 본문에서 `purpose`를 `conversation`으로 바꾸거나 생략합니다. 서버는 현재 Provider avatar ID에 대한 검증 기록이 없으면 `LIVE_VALIDATION_REQUIRED`로 차단합니다. ID가 변경되거나 자산이 준비 상태가 아니면 이전 검증을 재사용하지 않습니다.
+동일한 세션 생성 본문에서 `purpose`를 `conversation`으로 바꾸거나 생략합니다. 준비된 현재 Provider avatar ID로 바로 연결하며 별도 검증 세션이나 클라이언트 재생 보고를 선행 조건으로 요구하지 않습니다. 재생 보고는 선택적인 진단 정보이며, 연결만으로 검증 완료 상태를 만들지 않습니다. 소유권·사용 동의·자산 준비 상태·사용량과 원격 세션 관리는 AvatarRouter가 계속 처리합니다.
 
 매 대화마다 새 세션을 생성하되 기존 자산을 재학습하지 않습니다.
 `external_audio`에서는 기존 RoleplayX AI 출력 음성을 AvatarRouter에 전달하고 원래 음성 플레이어와 중복 재생하지 않도록 조정합니다.
@@ -139,7 +139,6 @@ Anam의 별도 120초 정책은 이번 Tavus 설정 변경 대상이 아닙니�
 | 코드 | 조치 |
 | --- | --- |
 | LIVE_COST_CONFIRMATION_REQUIRED | 운영자가 유료 사용을 승인한 뒤에만 재요청 |
-| LIVE_VALIDATION_REQUIRED | 먼저 별도의 검증 세션에서 실제 재생 확인 |
 | LIVE_PROVIDER_UNSUPPORTED | 미지원 어댑터; 다른 Provider로 조용히 대체하지 않음 |
 | LIVE_WORKER_UNAVAILABLE | 작업자 복구 전 유료 생성 차단 |
 | LIVE_VALIDATION_AUDIO_REQUIRED | 연결만으로 부족; 오디오 명령 완료와 실제 소리 확인 필요 |
