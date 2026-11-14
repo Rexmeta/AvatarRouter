@@ -15,6 +15,18 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       RoleplayX owns dialogue in external_audio mode; Tavus owns dialogue in explicit tavus_full mode.
 paths:
+  /v1/operator/live-reconciliation/training-image-ai/check:
+    get:
+      operationId: checkTrainingImageModels
+      security: [{ ClerkSessionJWT: [] }]
+      description: Trusted interactive operator only. Makes bounded Gemini model metadata GET requests with the server credential. Never generates content or creates an avatar; metadata success is not generation verification.
+      responses:
+        "200":
+          description: Safe model metadata diagnostics for this API runtime.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrainingImageModelDiagnostic" }
+        "403": { description: Trusted operator required. Service API keys cannot access this endpoint. }
   /v1/developer/workspaces/{projectId}/budget:
     get:
       operationId: getWorkspaceBudget
@@ -1165,6 +1177,26 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: [string, "null"], format: date-time }
+    TrainingImageModelDiagnostic:
+      type: object
+      required: [source, sourceBuildId, checkedAt, generationVerified, models]
+      properties:
+        source: { type: string, enum: [direct, replit, unconfigured] }
+        sourceBuildId: { type: string }
+        checkedAt: { type: string, format: date-time }
+        generationVerified: { type: boolean, enum: [false] }
+        models:
+          type: array
+          items: { $ref: "#/components/schemas/TrainingImageModelCheck" }
+    TrainingImageModelCheck:
+      type: object
+      required: [phase, model, httpStatus, generateContentSupported, result]
+      properties:
+        phase: { type: string, enum: [inspection, regeneration] }
+        model: { type: string }
+        httpStatus: { type: [integer, "null"] }
+        generateContentSupported: { type: boolean }
+        result: { type: string, enum: [available, invalid_configuration, not_configured, unsupported_transport, http_error, invalid_metadata, unsupported_method, request_failed] }
     AvatarProvisioningFailure:
       type: object
       additionalProperties: false
@@ -1172,6 +1204,10 @@ components:
       properties:
         code: { type: string }
         stage: { type: string, enum: [create, status, delete, unknown] }
+        trainingImageStage:
+          type: string
+          enum: [configuration, inspection, regeneration, verification, unknown]
+          description: Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.
         category: { type: string, enum: [training, authentication, billing, permission_or_plan, provider_limit, input, reconciliation, unknown] }
         providerHttpStatus: { type: [integer, "null"], minimum: 100, maximum: 599 }
         providerErrorCode: { type: [string, "null"] }
