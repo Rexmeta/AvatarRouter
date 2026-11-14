@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { checkTrainingImageModels } from "./training-image-ai-diagnostic";
 
 const direct = { GEMINI_API_KEY: "private-fixture" };
-test("diagnostics issue exactly two bounded metadata GETs and never return credentials or raw metadata", async () => {
+test("diagnostics issue one image-model metadata GET and never inspect a seed or return secrets", async () => {
   let calls = 0;
   const transport: typeof fetch = async (input, init) => {
     calls++;
@@ -16,17 +16,18 @@ test("diagnostics issue exactly two bounded metadata GETs and never return crede
     return Response.json({ supportedGenerationMethods: ["generateContent"], private: "raw metadata fixture" });
   };
   const result = await checkTrainingImageModels(direct, transport);
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
+  assert.deepEqual(result.models.map(m => m.phase), ["regeneration"]);
   assert.equal(result.generationVerified, false);
   assert.ok(result.models.every(m => m.httpStatus === 200 && m.result === "available"));
   assert.doesNotMatch(JSON.stringify(result), /private-fixture|raw metadata/);
 });
-test("diagnostics separate each model's HTTP status without retaining provider error bodies", async () => {
+test("diagnostics report image-model HTTP status without querying the retired inspection model", async () => {
   const result = await checkTrainingImageModels(direct, async input => String(input).includes("2.5")
     ? new Response("private failure body", { status: 404 })
     : new Response("private quota body", { status: 429 }));
   assert.deepEqual(result.models.map(m => [m.phase, m.httpStatus, m.result]),
-    [["inspection", 404, "http_error"], ["regeneration", 429, "http_error"]]);
+    [["regeneration", 429, "http_error"]]);
   assert.doesNotMatch(JSON.stringify(result), /private/);
 });
 test("unconfigured, malformed and managed credentials never get sent to the direct endpoint", async () => {

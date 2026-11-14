@@ -22,13 +22,13 @@ export function TrainingImageAISettings() {
         : <div className="mt-3 space-y-2 text-sm">
           <p>{ai.source === 'direct' ? L('Your Gemini API key', '직접 등록한 Gemini API 키') : ai.source === 'replit' ? L('Replit-managed Gemini', 'Replit 관리형 Gemini') : L('No Gemini connection', 'Gemini 미설정')}
             {' · '}<span className="text-amber-500">{ai.configured ? L('Key configured · generation not verified', '키 설정됨 · 생성 성공 미검증') : L('Configuration required', '설정 필요')}</span></p>
-          <p className="break-words font-mono text-xs text-muted-foreground">{L('Inspection', '검사')}: {ai.inspectionModel} / {L('Image', '재생성')}: {ai.imageModel}</p>
-          <p className="text-xs text-muted-foreground">{L('This is configuration status, not a connection test or an error. Inspection and final verification use the inspection model; only regeneration uses the image model. A 404 during inspection does not mean the image model failed.', '이 표시는 설정 상태이며 연결 테스트 결과나 오류가 아닙니다. 시드 검사·최종 검증은 검사 모델을, 이미지 재생성만 이미지 모델을 사용합니다. 검사 단계의 404는 이미지 생성 모델의 실패를 뜻하지 않습니다.')}</p>
+          <p className="break-words font-mono text-xs text-muted-foreground">{L('Image generation', '이미지 재생성')}: {ai.imageModel}</p>
+          <p className="text-xs text-muted-foreground">{L('Separate Gemini seed inspection and final AI verification are disabled. This is configuration status, not proof of successful generation. Basic file validation and provider acceptance still apply.', '별도 Gemini 시드 검사와 생성 후 AI 검증은 사용하지 않습니다. 이 표시는 설정 상태이며 생성 성공 증거가 아닙니다. 기본 파일 검증과 제공자 자체 수락 조건은 유지됩니다.')}</p>
           {!ai.modelConfigValid && <p role="alert" className="text-amber-500">{L('Training model environment variables are invalid.', '학습 모델 환경변수의 이름 형식이 올바르지 않습니다.')}</p>}
         </div>}
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{L(
-        'Every custom creation: seed check → Gemini generates a provider-specific image → normalization and identity/framing verification → avatar provider → completion after provider confirmation. No resize-only fallback. Calls use the selected account’s billing and limits.',
-        '모든 커스텀 생성: 시드 검사 → Gemini로 제공자별 이미지 생성 → 규격 정규화·얼굴·구도 검증 → 아바타 제공자 전송 → 제공자 확인 후 완료 안내. 단순 리사이즈 대체는 하지 않습니다. 선택된 연결 계정의 비용과 한도가 적용됩니다.',
+        'Every custom creation: seed image → Gemini generates a provider-specific image → technical file validation and normalization → avatar provider → completion after provider confirmation. No separate AI inspection or resize-only fallback. Calls use the selected account’s billing and limits.',
+        '모든 커스텀 생성: 시드 이미지 → Gemini로 제공자별 이미지 생성 → 기본 파일 검증·규격 정규화 → 아바타 제공자 전송 → 제공자 확인 후 완료 안내. 별도 AI 검사나 단순 리사이즈 대체는 하지 않습니다. 선택된 연결 계정의 비용과 한도가 적용됩니다.',
       )}</p>
       <div className="mt-3 border-t border-border pt-3 text-xs">
         <button type="button" disabled={diagnostic.isFetching}
@@ -46,7 +46,7 @@ export function TrainingImageAISettings() {
         )}</p>}
         {diagnostic.data && !diagnostic.isFetching && !diagnostic.isError && <div className="mt-2 space-y-2" role="status">
           <p>{L('API build', 'API 실행 버전')}: <code>{diagnostic.data.sourceBuildId}</code> · {diagnostic.data.source}</p>
-          {diagnostic.data.models.map(item => <p key={item.phase}>
+          {diagnostic.data.models.filter(item => item.phase === 'regeneration').map(item => <p key={item.phase}>
             {item.phase === 'inspection' ? L('Inspection / verification', '시드 검사·최종 검증') : L('Image generation', '이미지 재생성')}
             {' · '}<code>{item.model}</code>{' · '}{item.httpStatus === null ? 'HTTP —' : `HTTP ${item.httpStatus}`}
             {' · '}{item.result === 'available' ? L('Metadata accessible only', '모델 정보 접근 확인') : item.result}
@@ -61,7 +61,7 @@ export function TrainingImageAISettings() {
           <li>{L('Restart API and Renderer Worker. For a published service, check Production app secrets and republish.', 'API와 Renderer Worker를 다시 시작하세요. 게시된 서비스는 Production app secrets도 확인하고 다시 게시하세요.')}</li>
           <li>{L('Refresh status here. Presence does not verify authentication, quota or successful image generation.', '이 화면에서 설정을 새로고침하세요. 키가 있다는 사실은 인증·할당량·이미지 생성 성공을 검증하지 않습니다.')}</li>
         </ol>
-        <p className="mt-3 leading-relaxed text-muted-foreground">{L('Optional model settings', '선택 모델 설정')}: <code>GEMINI_TRAINING_INSPECTION_MODEL</code>, <code>GEMINI_TRAINING_IMAGE_MODEL</code>.</p>
+        <p className="mt-3 leading-relaxed text-muted-foreground">{L('Optional image model setting', '선택 이미지 모델 설정')}: <code>GEMINI_TRAINING_IMAGE_MODEL</code>. {L('The old inspection model setting is no longer used for creation.', '기존 검사 모델 설정은 생성에 사용하지 않습니다.')}</p>
         <p className="mt-2 leading-relaxed text-muted-foreground">{L(
           'A direct key takes priority and never falls back to Replit billing on failure. Removing that server secret restores the managed connection when configured. Do not put Gemini keys into RoleplayX, chat, or browser storage.',
           '직접 키가 우선하며, 실패해도 Replit 과금으로 자동 전환하지 않습니다. 해당 서버 시크릿을 제거하면 설정된 관리형 연결로 돌아갑니다. Gemini 키를 RoleplayX·채팅·브라우저 저장소에 넣지 마세요.',

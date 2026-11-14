@@ -11,12 +11,12 @@ test("real SDK keeps direct v1beta endpoint with per-call timeout options", asyn
   const generate = createTrainingImageGenerator({ ...managed, GEMINI_API_KEY: "direct-fixture" }, options =>
     new GoogleGenAI({ ...options, httpOptions: { ...options.httpOptions, fetch: (async (input, init) => {
       calls++;
-      assert.equal(String(input), "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
+      assert.equal(String(input), "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent");
       assert.equal(new Headers(init?.headers).get("x-goog-api-key"), "direct-fixture");
       return Response.json({ candidates: [{ content: { role: "model", parts: [{ text: "{}" }] } }] });
     }) as typeof fetch } }));
-  await generate({ model: "gemini-2.5-flash", contents: "offline fixture", config: {
-    responseMimeType: "application/json", httpOptions: { timeout: 30_000, retryOptions: { attempts: 1 } },
+  await generate({ model: "gemini-3.1-flash-image", contents: "offline fixture", config: {
+    responseModalities: ["IMAGE", "TEXT"], httpOptions: { timeout: 90_000, retryOptions: { attempts: 1 } },
   } });
   assert.equal(calls, 1);
 });
@@ -61,8 +61,9 @@ test("Google models/ resource names and surrounding whitespace normalize without
   const invalid = { ...env, GEMINI_TRAINING_INSPECTION_MODEL: "https://secret.invalid/key" };
   assert.equal(trainingImageAiStatus(invalid).inspectionModel, "invalid");
   assert.doesNotMatch(JSON.stringify(trainingImageAiStatus(invalid)), /secret.invalid/);
-  assert.throws(() => createTrainingImageGenerator(invalid, () => assert.fail()),
-    { code: "TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID" });
+  assert.equal(trainingImageAiStatus(invalid).modelConfigValid, true);
+  assert.equal(trainingImageAiStatus(invalid).configured, true);
+  createTrainingImageGenerator(invalid, () => ({ models: { generateContent: async () => ({} as never) } }));
 });
 test("invalid configuration and legacy unavailable errors do not masquerade as an observed 404", () => {
   for (const phase of ["INSPECTION", "REGENERATION"]) {

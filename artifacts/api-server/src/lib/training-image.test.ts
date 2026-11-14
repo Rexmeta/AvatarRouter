@@ -50,12 +50,11 @@ for (const provider of ["tavus", "anam"] as const) test(`${provider}: even a com
     read: async path => { assert.equal(path, "source-fixture"); return seed; },
     generate: async request => {
       calls++;
-      if (calls === 2) {
+      {
         assert.ok(JSON.stringify(request.contents).includes(seed.toString("base64")));
         assert.match(JSON.stringify(request.contents), provider === "anam" ? /Anam.*1152 x 1152/ : /Tavus Phoenix 4.5/);
         return { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: generated.toString("base64") } }] } }] } as GenerateContentResponse;
       }
-      return { text: JSON.stringify({ acceptable: true, safeAdultSubject: true, identityConsistent: true }) } as GenerateContentResponse;
     },
     save: async (tenant, id, bytes) => {
       assert.equal(tenant, "tenant-fixture"); assert.equal(id, "training-asset-fixture");
@@ -69,7 +68,7 @@ for (const provider of ["tavus", "anam"] as const) test(`${provider}: even a com
   process.env[key] = "test-fixture";
   try {
     const result = await new ImageProviderAdapter(provider, async (_input, init) => {
-      assert.ok(saved && signed); assert.equal(calls, 3); posted++;
+      assert.ok(saved && signed); assert.equal(calls, 1); posted++;
       assert.equal(JSON.parse(String(init?.body))[provider === "tavus" ? "train_image_url" : "imageUrl"], url);
       return Response.json(provider === "tavus" ? { face_id: "rFixture", status: "started" } : { id: "anamFixture" });
     }).create("persona-fixture", url, "voice-fixture");

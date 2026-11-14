@@ -14,7 +14,8 @@ export function trainingImageAiStatus(env: NodeJS.ProcessEnv = process.env) {
   const inspection = normalize(env.GEMINI_TRAINING_INSPECTION_MODEL ?? defaults.inspectionModel);
   const image = normalize(env.GEMINI_TRAINING_IMAGE_MODEL ?? defaults.imageModel);
   const valid = (name: string) => /^gemini-[a-zA-Z0-9.-]{1,100}$/.test(name);
-  const modelConfigValid = valid(inspection) && valid(image);
+  // Retain inspectionModel only for old clients; it is no longer a creation dependency.
+  const modelConfigValid = valid(image);
   return {
     source, configured: modelConfigValid && (source === "direct" ? !!env.GEMINI_API_KEY?.trim() : source === "replit"),
     inspectionModel: valid(inspection) ? inspection : "invalid",
@@ -29,8 +30,7 @@ export function createTrainingImageGenerator(
   env: NodeJS.ProcessEnv = process.env, factory: (options: Options) => Client = options => new GoogleGenAI(options),
 ): TrainingImageGenerate {
   const status = trainingImageAiStatus(env);
-  if (!status.modelConfigValid) throw new ProviderFailure(status.inspectionModel === "invalid"
-    ? "TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID" : "TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID");
+  if (!status.modelConfigValid) throw new ProviderFailure("TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID");
   if (!status.configured) throw new ProviderFailure("TRAINING_IMAGE_AI_UNAVAILABLE");
   const ai = status.source === "direct"
     ? factory({ apiKey: env.GEMINI_API_KEY!.trim(), vertexai: false, httpOptions: {

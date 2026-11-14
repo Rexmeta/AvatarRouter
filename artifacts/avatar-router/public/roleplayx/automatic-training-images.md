@@ -18,15 +18,14 @@ HTTP 202로 받은 `id`를 사용해 `GET /api/v1/avatar-assets/{id}`를 조회�
 
 1. 기존 API로 원본 시드 이미지를 등록합니다. 원본 저장본·해시는 보존합니다.
 2. `POST /api/v1/avatar-assets` 생성 요청을 접수하면 별도 라우터 운영자 승인 없이 작업을 등록합니다.
-3. 제공자별 학습 사본을 만듭니다. Anam은 1152×1152 JPEG, Tavus는 비율을 보존하고 512px 이상·최대 1152×1536 범위의 JPEG로 정규화합니다. 왜곡·임의 얼굴 크롭 대신 필요 시 여백을 추가하고 4.5MB 이하로 제한합니다.
-4. Gemini가 시드의 성인 단일 대상·얼굴 식별 가능 여부를 검사합니다. 불명확하거나 부적합한 시드는 실패 처리합니다.
-5. 정상 구도를 포함한 모든 신규 생성 작업에서 **원본 시드**를 입력으로 Gemini 이미지를 한 번 새로 생성합니다. 제공자별 구도·크기를 명시하고 얼굴 외형을 보존하며, 성인 한 명·머리와 양쪽 어깨가 보이는 가슴 위 중심 구도·낮춘 팔·의복·중립 배경을 요청합니다. 단순 리사이즈만으로 대체하지 않습니다.
-6. 결과를 다시 제공자 규격으로 정규화하고 원본과 얼굴 외형 일관성·학습 조건을 재검사합니다.
-7. 통과한 비공개 학습 사본만 제공자에 전송합니다. Tavus의 `auto_fix_training_image: true`도 유지합니다.
+3. 원본 참조용 전송 사본의 크기를 제한합니다. 별도 Gemini 시드 검사·생성 후 AI 검증 호출은 하지 않습니다.
+4. 모든 신규 생성 작업에서 **원본 시드**를 입력으로 Gemini 이미지를 한 번 새로 생성합니다. 제공자별 구도·크기를 명시하고 얼굴 외형을 보존하며, 성인 한 명·머리와 양쪽 어깨가 보이는 가슴 위 중심 구도·낮춘 팔·의복·중립 배경을 요청합니다. 단순 리사이즈만으로 대체하지 않습니다.
+5. 생성 결과의 파일 형식·크기를 검증하고 제공자 규격으로 정규화합니다. Anam은 1152×1152 JPEG, Tavus는 비율 보존·512px 이상·최대 1152×1536 JPEG, 4.5MB 이하로 제한합니다. AI로 얼굴·구도를 재검사하지 않습니다.
+6. 비공개 학습 사본을 요청한 제공자에 전송합니다. 최종 학습 적합 여부는 제공자가 판단하며, Tavus의 `auto_fix_training_image: true`도 유지합니다.
 
-직접 Gemini 키 사용 시 기본 모델은 검사 `gemini-2.5-flash`, 생성 `gemini-3.1-flash-image`입니다. 직접 키가 없을 때만 기존 Replit 관리형 연결을 사용합니다. 직접 키 오류 시 다른 계정으로 자동 전환하지 않습니다. 설정과 과금 구분은 `gemini-training-image-settings.md`를 참고하세요.
-한 작업에서 검사 최대 2회·이미지 재생성 최대 1회이며 SDK 자동 재시도는 끕니다.
-Gemini 검사도 외부 AI 처리 비용이 발생합니다. 사진의 성인 여부·얼굴 외형 검사는 모델 판단이지 신원 검증이나 제공자 수락 보장이 아닙니다.
+직접 Gemini 키 사용 시 기본 모델은 `gemini-3.1-flash-image`이며 검사 모델 설정은 생성에 사용하지 않습니다. 직접 키가 없을 때만 기존 Replit 관리형 연결을 사용합니다. 직접 키 오류 시 다른 계정으로 자동 전환하지 않습니다. 설정과 과금 구분은 `gemini-training-image-settings.md`를 참고하세요.
+한 작업에서 이미지 재생성 최대 1회이며 SDK 자동 재시도는 끕니다.
+Gemini 자체 콘텐츠 정책, 기본 파일 검증, 이미지 사용 동의 조건과 제공자 자체 수락 조건은 유지됩니다. 얼굴 일관성이나 학습 적합성이 AI 검사로 확인됐다고 표시하지 않습니다.
 
 ## 요청과 승인
 
@@ -46,8 +45,8 @@ Gemini 검사도 외부 AI 처리 비용이 발생합니다. 사진의 성인 �
 |---|---|
 | `TRAINING_IMAGE_AI_UNAVAILABLE` | Gemini 연결 설정 없음 |
 | `TRAINING_IMAGE_PREPARATION_FAILED` | 로컬 변환·저장·서명 실패 |
-| `TRAINING_IMAGE_INSPECTION_FAILED` | Gemini 조건 검사 실패 |
-| `TRAINING_IMAGE_SUBJECT_UNSUPPORTED` | 성인 한 명이라는 조건을 확인하지 못함 |
+| `TRAINING_IMAGE_INSPECTION_FAILED` | 과거 Gemini 검사 실패 기록. 신규 작업에서는 검사하지 않음 |
+| `TRAINING_IMAGE_SUBJECT_UNSUPPORTED` | 과거 대상 검사 실패 기록 |
 | `TRAINING_IMAGE_IDENTITY_UNCERTAIN` | 원본 얼굴이 불명확하거나 보정 후 외형 불일치 |
 | `TRAINING_IMAGE_REGENERATION_FAILED` | Gemini가 유효한 이미지를 반환하지 못함 |
 | `TRAINING_IMAGE_FRAMING_UNRESOLVED` | 보정 후에도 학습 구도 부적합 |

@@ -4,8 +4,8 @@ import { sourceBuildId } from "./runtime-build";
 /** GET metadata only. Never generate images, send seeds, retry, or change billing accounts. */
 export async function checkTrainingImageModels(env: NodeJS.ProcessEnv = process.env, transport: typeof fetch = fetch) {
   const settings = trainingImageAiStatus(env);
-  const models = await Promise.all((["inspection", "regeneration"] as const).map(async phase => {
-    const model = phase === "inspection" ? settings.inspectionModel : settings.imageModel;
+  const models = await Promise.all((["regeneration"] as const).map(async phase => {
+    const model = settings.imageModel;
     const base = { phase, model, httpStatus: null as number | null, generateContentSupported: false };
     if (model === "invalid") return { ...base, result: "invalid_configuration" as const };
     if (!settings.configured) return { ...base, result: "not_configured" as const };

@@ -37,8 +37,7 @@ export async function prepareTrainingImage(sourcePath: string, tenant: string, a
 } = {}) {
   try {
     const source = await (dependencies.read ?? readPrivateImage)(sourcePath);
-    const resized = await normalizeTrainingImage(source, provider);
-    const bytes = await ensureTrainingPortrait(source, resized, b => normalizeTrainingImage(b, provider), dependencies.generate, { assetId, provider });
+    const bytes = await ensureTrainingPortrait(source, b => normalizeTrainingImage(b, provider), dependencies.generate, { assetId, provider });
     const path = await (dependencies.save ?? savePrivateImage)(tenant, trainingImageId(assetId), bytes);
     return await (dependencies.sign ?? providerImageUrl)(path);
   } catch (error) {
