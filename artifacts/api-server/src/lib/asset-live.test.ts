@@ -51,13 +51,17 @@ const current = async (id: string) => (await db.select().from(avatarAssets).wher
 const report = (id: string, sessionId: string, who = owner, project = tenant) =>
   recordAssetPlayback(project, who, id, { sessionId, videoObserved: true, audioObserved: true });
 
-test("ready is not live-validated; cost, tenant, unsupported provider and ordinary-session gates fail closed", async () => {
+test("ready assets connect without playback certification; cost, tenant and provider gates remain router-owned", async () => {
   const a = await asset();
   assert.equal(presentAvatarAsset(a).liveValidation?.status, "unvalidated");
   assert.equal(presentAvatarAsset(a).capabilities.validation, "provisioned");
   await assert.rejects(createStockSession(owner, tenant, false, a.id, "validation"), { code: "LIVE_COST_CONFIRMATION_REQUIRED" });
   await assert.rejects(createStockSession(owner, "project-b", true, a.id, "validation"), { code: "AVATAR_ASSET_NOT_FOUND" });
-  await assert.rejects(createStockSession(owner, tenant, true, a.id), { code: "LIVE_VALIDATION_REQUIRED" });
+  const conversation = await createStockSession(owner, tenant, true, a.id);
+  assert.equal(conversation.purpose, "conversation");
+  assert.equal(conversation.avatarId, a.providerAvatarId);
+  assert.equal(presentAvatarAsset(await current(a.id)).liveValidation?.status, "unvalidated");
+  await pool.query("TRUNCATE avatar_sessions, avatar_session_events, renderer_commands");
   const anam = await asset("anam");
   assert.equal(presentAvatarAsset(anam).capabilities.liveRendering, false);
   await assert.rejects(createStockSession(owner, tenant, true, anam.id, "validation"), { code: "LIVE_PROVIDER_UNSUPPORTED" });
@@ -95,9 +99,14 @@ test("custom validation persists exact target; only matching owned live playback
   assert.equal(conversation.purpose, "conversation");
   assert.equal(conversation.avatarId, a.providerAvatarId);
   await assert.rejects(report(a.id, conversation.id), { code: "LIVE_VALIDATION_SESSION_INVALID" });
+  await db.update(avatarSessions).set({
+    status: "ended", rendererState: "closed", roomName: null, providerConversationId: null, leaseExpiresAt: null,
+  }).where(eq(avatarSessions.id, conversation.id));
   await db.update(avatarAssets).set({ providerAvatarId: "changed-face" }).where(eq(avatarAssets.id, a.id));
   assert.equal(presentAvatarAsset(await current(a.id)).liveValidation?.status, "unvalidated");
-  await assert.rejects(createStockSession("user-c", tenant, true, a.id), { code: "LIVE_VALIDATION_REQUIRED" });
+  const changed = await createStockSession("user-c", tenant, true, a.id);
+  assert.equal(changed.avatarId, "changed-face");
+  assert.equal(presentAvatarAsset(await current(a.id)).liveValidation?.status, "unvalidated");
 });
 
 test("consent review remains mandatory even for a ready asset", async () => {
