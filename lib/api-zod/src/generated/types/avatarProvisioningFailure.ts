@@ -10,10 +10,13 @@ import type { AvatarProvisioningFailureCreationOutcome } from './avatarProvision
 import type { AvatarProvisioningFailureNextAction } from './avatarProvisioningFailureNextAction';
 import type { AvatarProvisioningFailureReasonState } from './avatarProvisioningFailureReasonState';
 import type { AvatarProvisioningFailureStage } from './avatarProvisioningFailureStage';
+import type { AvatarProvisioningFailureTrainingImageStage } from './avatarProvisioningFailureTrainingImageStage';
 
 export interface AvatarProvisioningFailure {
   code: string;
   stage: AvatarProvisioningFailureStage;
+  /** Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase. */
+  trainingImageStage?: AvatarProvisioningFailureTrainingImageStage;
   category: AvatarProvisioningFailureCategory;
   /**
      * @minimum 100

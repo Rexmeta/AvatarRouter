@@ -1,4 +1,4 @@
-import { useGetSetup } from '@workspace/api-client-react';
+import { useGetSetup, useCheckTrainingImageModels } from '@workspace/api-client-react';
 import { RefreshCw, KeyRound } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 
@@ -7,6 +7,7 @@ export function TrainingImageAISettings() {
   const L = (en: string, ko: string) => lang === 'en' ? en : ko;
   const setup = useGetSetup({ query: { staleTime: 0, refetchOnMount: 'always', refetchInterval: 30000 } });
   const ai = setup.data?.trainingImageAI;
+  const diagnostic = useCheckTrainingImageModels({ query: { enabled: false, retry: false, gcTime: 0 } });
   return (
     <section className="mb-6 rounded-lg border border-border bg-card p-4" aria-label={L('Training image AI configuration', '학습 이미지 Gemini 설정')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -29,6 +30,30 @@ export function TrainingImageAISettings() {
         'Every custom creation: seed check → Gemini generates a provider-specific image → normalization and identity/framing verification → avatar provider → completion after provider confirmation. No resize-only fallback. Calls use the selected account’s billing and limits.',
         '모든 커스텀 생성: 시드 검사 → Gemini로 제공자별 이미지 생성 → 규격 정규화·얼굴·구도 검증 → 아바타 제공자 전송 → 제공자 확인 후 완료 안내. 단순 리사이즈 대체는 하지 않습니다. 선택된 연결 계정의 비용과 한도가 적용됩니다.',
       )}</p>
+      <div className="mt-3 border-t border-border pt-3 text-xs">
+        <button type="button" disabled={diagnostic.isFetching}
+          onClick={() => void diagnostic.refetch()}
+          className="rounded border border-border px-3 py-2 font-medium disabled:opacity-50">
+          {diagnostic.isFetching ? L('Checking models…', '모델 확인 중…') : L('Check model access', '모델 접근 진단')}
+        </button>
+        <p className="mt-2 text-muted-foreground">{L(
+          'Trusted router operator only. Reads model metadata using this server’s credential; sends no images and creates no avatar. Success does not verify generation or quota.',
+          '라우터 운영자 전용입니다. 현재 서버의 키로 모델 정보만 조회하며 이미지 전송·아바타 생성은 하지 않습니다. 성공해도 실제 생성·할당량이 검증된 것은 아닙니다.',
+        )}</p>
+        {diagnostic.isError && <p role="alert" className="mt-2 text-amber-500">{L(
+          'Model diagnostics could not be loaded. A trusted operator login and the updated router API are required.',
+          '모델 진단을 불러오지 못했습니다. 운영자 권한으로 로그인했는지, 수정된 라우터 API가 게시됐는지 확인하세요.',
+        )}</p>}
+        {diagnostic.data && !diagnostic.isFetching && !diagnostic.isError && <div className="mt-2 space-y-2" role="status">
+          <p>{L('API build', 'API 실행 버전')}: <code>{diagnostic.data.sourceBuildId}</code> · {diagnostic.data.source}</p>
+          {diagnostic.data.models.map(item => <p key={item.phase}>
+            {item.phase === 'inspection' ? L('Inspection / verification', '시드 검사·최종 검증') : L('Image generation', '이미지 재생성')}
+            {' · '}<code>{item.model}</code>{' · '}{item.httpStatus === null ? 'HTTP —' : `HTTP ${item.httpStatus}`}
+            {' · '}{item.result === 'available' ? L('Metadata accessible only', '모델 정보 접근 확인') : item.result}
+          </p>)}
+          <p className="text-muted-foreground">{L('Checked', '확인 시각')}: {diagnostic.data.checkedAt}</p>
+        </div>}
+      </div>
       <details className="mt-3 border-t border-border pt-3 text-xs">
         <summary className="cursor-pointer font-medium text-primary">{L('How to enter a Gemini API key securely', 'Gemini API 키 안전하게 입력하는 방법')}</summary>
         <ol className="mt-3 list-decimal space-y-2 pl-5 leading-relaxed text-muted-foreground">

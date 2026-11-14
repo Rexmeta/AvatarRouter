@@ -9,6 +9,24 @@ import * as zod from 'zod';
 
 
 /**
+ * Trusted interactive operator only. Makes bounded Gemini model metadata GET requests with the server credential. Never generates content or creates an avatar; metadata success is not generation verification.
+ */
+export const CheckTrainingImageModelsResponse = zod.object({
+  "source": zod.enum(['direct', 'replit', 'unconfigured']),
+  "sourceBuildId": zod.string(),
+  "checkedAt": zod.coerce.date(),
+  "generationVerified": zod.literal(false),
+  "models": zod.array(zod.object({
+  "phase": zod.enum(['inspection', 'regeneration']),
+  "model": zod.string(),
+  "httpStatus": zod.int().nullable(),
+  "generateContentSupported": zod.boolean(),
+  "result": zod.enum(['available', 'invalid_configuration', 'not_configured', 'unsupported_transport', 'http_error', 'invalid_metadata', 'unsupported_method', 'request_failed'])
+}))
+})
+
+
+/**
  * Interactive workspace owner only. API keys cannot manage or reset budgets.
  */
 export const GetWorkspaceBudgetParams = zod.object({
@@ -574,6 +592,7 @@ export const ReportAvatarLiveValidationResponse = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMin).max(reportAvatarLiveValidationResponseFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),
@@ -818,6 +837,7 @@ export const GetSeedLiveOptionsResponse = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMin).max(getSeedLiveOptionsResponseCandidatesItemFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),
@@ -886,6 +906,7 @@ export const ListAvatarAssetsResponseItem = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(listAvatarAssetsResponseFailureOneProviderHttpStatusMin).max(listAvatarAssetsResponseFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),
@@ -957,6 +978,7 @@ export const ProvisionAvatarResponse = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(provisionAvatarResponseFailureOneProviderHttpStatusMin).max(provisionAvatarResponseFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),
@@ -1015,6 +1037,7 @@ export const GetAvatarAssetResponse = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(getAvatarAssetResponseFailureOneProviderHttpStatusMin).max(getAvatarAssetResponseFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),
@@ -1073,6 +1096,7 @@ export const DeleteAvatarAssetResponse = zod.object({
   "failure": zod.union([zod.object({
   "code": zod.string(),
   "stage": zod.enum(['create', 'status', 'delete', 'unknown']),
+  "trainingImageStage": zod.enum(['configuration', 'inspection', 'regeneration', 'verification', 'unknown']).optional().describe('Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.'),
   "category": zod.enum(['training', 'authentication', 'billing', 'permission_or_plan', 'provider_limit', 'input', 'reconciliation', 'unknown']),
   "providerHttpStatus": zod.int().min(deleteAvatarAssetResponseFailureOneProviderHttpStatusMin).max(deleteAvatarAssetResponseFailureOneProviderHttpStatusMax).nullable(),
   "providerErrorCode": zod.string().nullable(),

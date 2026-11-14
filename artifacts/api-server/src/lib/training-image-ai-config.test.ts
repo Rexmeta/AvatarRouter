@@ -3,8 +3,23 @@ import assert from "node:assert/strict";
 import { trainingImageAiStatus, createTrainingImageGenerator } from "./training-image-ai-config";
 import { trainingImageAiFailure } from "./training-image-ai-failure";
 import { presentProvisioningFailure, storeProvisioningFailure } from "./provisioning-failure";
+import { GoogleGenAI } from "@google/genai";
 
 const managed = { AI_INTEGRATIONS_GEMINI_API_KEY: "managed-fixture", AI_INTEGRATIONS_GEMINI_BASE_URL: "https://proxy.invalid" };
+test("real SDK keeps direct v1beta endpoint with per-call timeout options", async () => {
+  let calls = 0;
+  const generate = createTrainingImageGenerator({ ...managed, GEMINI_API_KEY: "direct-fixture" }, options =>
+    new GoogleGenAI({ ...options, httpOptions: { ...options.httpOptions, fetch: (async (input, init) => {
+      calls++;
+      assert.equal(String(input), "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent");
+      assert.equal(new Headers(init?.headers).get("x-goog-api-key"), "direct-fixture");
+      return Response.json({ candidates: [{ content: { role: "model", parts: [{ text: "{}" }] } }] });
+    }) as typeof fetch } }));
+  await generate({ model: "gemini-2.5-flash", contents: "offline fixture", config: {
+    responseMimeType: "application/json", httpOptions: { timeout: 30_000, retryOptions: { attempts: 1 } },
+  } });
+  assert.equal(calls, 1);
+});
 test("direct key uses official Gemini SDK transport and never mixes credentials with the managed proxy", async () => {
   let called = 0;
   const env = { ...managed, GEMINI_API_KEY: "direct-fixture" };
@@ -34,7 +49,36 @@ test("managed configuration is preserved, empty direct key never falls back, and
   assert.throws(() => createTrainingImageGenerator({ ...managed, GEMINI_API_KEY: "" }, () => assert.fail()),
     { code: "TRAINING_IMAGE_AI_UNAVAILABLE" });
   assert.throws(() => createTrainingImageGenerator({ ...managed, GEMINI_TRAINING_IMAGE_MODEL: "https://private.invalid" }, () => assert.fail()),
-    { code: "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE" });
+    { code: "TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID" });
+});
+test("Google models/ resource names and surrounding whitespace normalize without switching models", () => {
+  const env = { ...managed, GEMINI_TRAINING_INSPECTION_MODEL: " models/gemini-2.5-flash \n",
+    GEMINI_TRAINING_IMAGE_MODEL: " models/gemini-3.1-flash-image " };
+  const status = trainingImageAiStatus(env);
+  assert.equal(status.inspectionModel, "gemini-2.5-flash");
+  assert.equal(status.imageModel, "gemini-3.1-flash-image");
+  assert.equal(status.modelConfigValid, true);
+  const invalid = { ...env, GEMINI_TRAINING_INSPECTION_MODEL: "https://secret.invalid/key" };
+  assert.equal(trainingImageAiStatus(invalid).inspectionModel, "invalid");
+  assert.doesNotMatch(JSON.stringify(trainingImageAiStatus(invalid)), /secret.invalid/);
+  assert.throws(() => createTrainingImageGenerator(invalid, () => assert.fail()),
+    { code: "TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID" });
+});
+test("invalid configuration and legacy unavailable errors do not masquerade as an observed 404", () => {
+  for (const phase of ["INSPECTION", "REGENERATION"]) {
+    const code = `TRAINING_IMAGE_AI_${phase}_MODEL_INVALID`;
+    const result = presentProvisioningFailure({ status: "failed", providerAvatarId: null, errorCode: storeProvisioningFailure(code) })!;
+    assert.equal(result.code, code);
+    assert.equal(result.category, "input");
+    assert.equal(result.creationOutcome, "not_created");
+    assert.equal(result.trainingImageStage, "configuration");
+    assert.doesNotMatch(result.messageKo, /HTTP 404/);
+  }
+  const legacy = presentProvisioningFailure({ status: "failed", providerAvatarId: null,
+    errorCode: "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE" })!;
+  assert.match(legacy.messageKo, /남아 있지 않습니다/);
+  assert.equal(legacy.stage, "unknown");
+  assert.equal(legacy.trainingImageStage, "unknown");
 });
 test("API key reason is recognized only as a fixed structured reason, not guessed from message text", () => {
   const e = { status: 400, message: JSON.stringify({ error: { details: [{ reason: "API_KEY_INVALID" }] } }) };
@@ -60,6 +104,7 @@ test("phase-specific Gemini 404 codes survive storage and reach RoleplayX withou
     const failure = presentProvisioningFailure({ status: "failed", providerAvatarId: null,
       errorCode: storeProvisioningFailure(code) })!;
     assert.equal(failure.code, code);
+    assert.equal(failure.trainingImageStage, phase.toLowerCase());
     assert.equal(failure.category, "permission_or_plan");
     assert.equal(failure.creationOutcome, "not_created");
     assert.equal(failure.providerHttpStatus, null);

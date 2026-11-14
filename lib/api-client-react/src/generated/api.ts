@@ -66,6 +66,7 @@ import type {
   SessionVideoObservation,
   Setup,
   TavusFullConnection,
+  TrainingImageModelDiagnostic,
   UpdateDeveloperKeyScopesInput,
   Usage,
   WorkspaceBudget,
@@ -99,6 +100,104 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCheckTrainingImageModelsUrl = () => {
+
+
+
+
+  return `/api/v1/operator/live-reconciliation/training-image-ai/check`
+}
+
+/**
+ * Trusted interactive operator only. Makes bounded Gemini model metadata GET requests with the server credential. Never generates content or creates an avatar; metadata success is not generation verification.
+ */
+export const checkTrainingImageModels = async ( options?: Parameters<typeof customFetch>[1]): Promise<TrainingImageModelDiagnostic> => {
+
+  return customFetch<TrainingImageModelDiagnostic>(getCheckTrainingImageModelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckTrainingImageModelsQueryKey = () => {
+    return [
+    `/api/v1/operator/live-reconciliation/training-image-ai/check`
+    ] as const;
+    }
+
+
+export const getCheckTrainingImageModelsQueryOptions = <TData = Awaited<ReturnType<typeof checkTrainingImageModels>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCheckTrainingImageModelsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkTrainingImageModels>>> = ({ signal }) => checkTrainingImageModels({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CheckTrainingImageModelsQueryResult = NonNullable<Awaited<ReturnType<typeof checkTrainingImageModels>>>
+export type CheckTrainingImageModelsQueryError = ErrorType<void>
+
+
+export function useCheckTrainingImageModels<TData = Awaited<ReturnType<typeof checkTrainingImageModels>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkTrainingImageModels>>,
+          TError,
+          Awaited<ReturnType<typeof checkTrainingImageModels>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCheckTrainingImageModels<TData = Awaited<ReturnType<typeof checkTrainingImageModels>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkTrainingImageModels>>,
+          TError,
+          Awaited<ReturnType<typeof checkTrainingImageModels>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCheckTrainingImageModels<TData = Awaited<ReturnType<typeof checkTrainingImageModels>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useCheckTrainingImageModels<TData = Awaited<ReturnType<typeof checkTrainingImageModels>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkTrainingImageModels>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCheckTrainingImageModelsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetWorkspaceBudgetUrl = (projectId: string,) => {
 

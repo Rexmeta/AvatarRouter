@@ -5,6 +5,7 @@ import {
   AttachLiveConversationIdResponse, ListLiveReconciliationResponse,
   CompareRendererDiagnosticsQueryParams, CompareRendererDiagnosticsResponse,
   ListRendererDiagnosticSessionsResponse,
+  CheckTrainingImageModelsResponse,
   RetryLiveCleanupBody, RetryLiveCleanupParams, RetryLiveCleanupResponse,
 } from "@workspace/api-zod";
 import { SessionProblem } from "../lib/session-service";
@@ -12,6 +13,7 @@ import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } fr
 import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { compareRendererDiagnostics, listRendererDiagnosticSessions } from "../lib/renderer-diagnostic-query";
 import { isTrustedLiveOperator } from "../lib/live-operator-access";
+import { checkTrainingImageModels } from "../lib/training-image-ai-diagnostic";
 export { isTrustedLiveOperator } from "../lib/live-operator-access";
 
 const trustedOperator: RequestHandler = (req, res, next) => {
@@ -33,6 +35,10 @@ const trustedOperator: RequestHandler = (req, res, next) => {
 
 const router = Router();
 router.use("/v1/operator/live-reconciliation", trustedOperator);
+
+router.get("/v1/operator/live-reconciliation/training-image-ai/check", async (_req, res): Promise<void> => {
+  res.json(CheckTrainingImageModelsResponse.parse(await checkTrainingImageModels()));
+});
 
 router.get("/v1/operator/live-reconciliation/diagnostics/sessions", async (_req, res): Promise<void> => {
   res.json(ListRendererDiagnosticSessionsResponse.parse(await listRendererDiagnosticSessions()));

@@ -291,6 +291,20 @@ export const AvatarProvisioningFailureStage = {
   unknown: 'unknown',
 } as const;
 
+/**
+ * Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase.
+ */
+export type AvatarProvisioningFailureTrainingImageStage = typeof AvatarProvisioningFailureTrainingImageStage[keyof typeof AvatarProvisioningFailureTrainingImageStage];
+
+
+export const AvatarProvisioningFailureTrainingImageStage = {
+  configuration: 'configuration',
+  inspection: 'inspection',
+  regeneration: 'regeneration',
+  verification: 'verification',
+  unknown: 'unknown',
+} as const;
+
 export type AvatarProvisioningFailureCategory = typeof AvatarProvisioningFailureCategory[keyof typeof AvatarProvisioningFailureCategory];
 
 
@@ -343,6 +357,8 @@ export const AvatarProvisioningFailureCreationOutcome = {
 export interface AvatarProvisioningFailure {
   code: string;
   stage: AvatarProvisioningFailureStage;
+  /** Additive image-preparation phase. The original provider lifecycle stage remains unchanged for compatibility. Unknown for legacy failures with no retained phase. */
+  trainingImageStage?: AvatarProvisioningFailureTrainingImageStage;
   category: AvatarProvisioningFailureCategory;
   /**
      * @minimum 100
@@ -553,6 +569,54 @@ export interface AvatarAsset {
   updatedAt: string;
   /** @nullable */
   expiresAt: string | null;
+}
+
+export type TrainingImageModelDiagnosticSource = typeof TrainingImageModelDiagnosticSource[keyof typeof TrainingImageModelDiagnosticSource];
+
+
+export const TrainingImageModelDiagnosticSource = {
+  direct: 'direct',
+  replit: 'replit',
+  unconfigured: 'unconfigured',
+} as const;
+
+export type TrainingImageModelCheckPhase = typeof TrainingImageModelCheckPhase[keyof typeof TrainingImageModelCheckPhase];
+
+
+export const TrainingImageModelCheckPhase = {
+  inspection: 'inspection',
+  regeneration: 'regeneration',
+} as const;
+
+export type TrainingImageModelCheckResult = typeof TrainingImageModelCheckResult[keyof typeof TrainingImageModelCheckResult];
+
+
+export const TrainingImageModelCheckResult = {
+  available: 'available',
+  invalid_configuration: 'invalid_configuration',
+  not_configured: 'not_configured',
+  unsupported_transport: 'unsupported_transport',
+  http_error: 'http_error',
+  invalid_metadata: 'invalid_metadata',
+  unsupported_method: 'unsupported_method',
+  request_failed: 'request_failed',
+} as const;
+
+export interface TrainingImageModelCheck {
+  phase: TrainingImageModelCheckPhase;
+  model: string;
+  /** @nullable */
+  httpStatus: number | null;
+  generateContentSupported: boolean;
+  result: TrainingImageModelCheckResult;
+}
+
+export interface TrainingImageModelDiagnostic {
+  source: TrainingImageModelDiagnosticSource;
+  sourceBuildId: string;
+  checkedAt: string;
+  generationVerified: false;
+  models: TrainingImageModelCheck[];
 }
 
 export interface AvatarPlaybackReport {

@@ -14,6 +14,7 @@ const codes = [
   "TRAINING_IMAGE_AI_CONTENT_BLOCKED",
   "TRAINING_IMAGE_AI_INSPECTION_MODEL_UNAVAILABLE", "TRAINING_IMAGE_AI_REGENERATION_MODEL_UNAVAILABLE",
   "TRAINING_IMAGE_AI_VERIFICATION_MODEL_UNAVAILABLE",
+  "TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID", "TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID",
 ] as const;
 type Evidence = {
   stage: "create" | "status" | "delete";
@@ -63,7 +64,9 @@ export function presentProvisioningFailure(row: {
     TRAINING_IMAGE_AI_AUTHENTICATION_FAILED: ["Gemini rejected the image-preparation credential. Check GEMINI_API_KEY or the selected managed connection. No avatar creation was sent.", "Gemini가 이미지 보정용 인증을 거절했습니다. GEMINI_API_KEY 또는 선택된 관리형 연결을 확인하세요. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_PERMISSION_DENIED: ["Gemini denied image preparation. Check API/project/model access; a credit shortage is not confirmed. No avatar creation was sent.", "Gemini 이미지 보정 접근이 거절됐습니다. API·프로젝트·모델 권한을 확인하세요. 잔액 부족이 확정된 것은 아닙니다. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_QUOTA_EXCEEDED: ["Gemini reported a quota or rate limit. Check the selected account's limits; this alone does not prove a billing shortage. No avatar creation was sent.", "Gemini가 할당량·요청 한도를 반환했습니다. 선택된 계정의 한도를 확인하세요. 이 응답만으로 잔액 부족을 확정할 수 없습니다. 아바타 생성은 전송하지 않았습니다."],
-    TRAINING_IMAGE_AI_MODEL_UNAVAILABLE: ["The configured Gemini model is invalid, unavailable or inaccessible. Check the training model settings. No avatar creation was sent.", "Gemini 모델 이름·사용 가능 여부·접근 권한을 확인하세요. 학습용 검사·이미지 모델 설정이 유효하지 않거나 접근할 수 없습니다. 아바타 생성은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_MODEL_UNAVAILABLE: ["A Gemini model error was retained without its original phase or HTTP status. It cannot establish which model failed or whether billing was involved. Ask the router operator to check model diagnostics; no avatar creation was sent.", "Gemini 모델 오류는 보존됐지만 원래 실패 단계·HTTP 상태는 남아 있지 않습니다. 검사 모델·이미지 모델 중 어느 쪽인지, 비용 문제인지 확정할 수 없습니다. 라우터 운영자가 모델 진단을 확인해야 합니다. 아바타 생성은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID: ["The inspection model setting has invalid syntax. Check GEMINI_TRAINING_INSPECTION_MODEL. No Gemini or avatar creation request was sent.", "검사 모델 설정 형식이 잘못됐습니다. GEMINI_TRAINING_INSPECTION_MODEL 값을 확인하세요. Gemini·아바타 생성 요청은 전송하지 않았습니다."],
+    TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID: ["The image generation model setting has invalid syntax. Check GEMINI_TRAINING_IMAGE_MODEL. No Gemini or avatar creation request was sent.", "이미지 생성 모델 설정 형식이 잘못됐습니다. GEMINI_TRAINING_IMAGE_MODEL 값을 확인하세요. Gemini·아바타 생성 요청은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_INSPECTION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during seed inspection, before image regeneration. Check the inspection model and production endpoint/access. This does not establish a billing shortage. No avatar creation was sent.", "시드 검사 단계에서 Gemini HTTP 404가 반환됐습니다. 이미지 재생성 전 실패입니다. 검사 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 비용 소진으로 확정할 수 없으며 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_REGENERATION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during image regeneration. Check the image generation model and production endpoint/access. No avatar creation was sent.", "이미지 재생성 단계에서 Gemini HTTP 404가 반환됐습니다. 이미지 생성 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 아바타 생성은 전송하지 않았습니다."],
     TRAINING_IMAGE_AI_VERIFICATION_MODEL_UNAVAILABLE: ["Gemini returned HTTP 404 during final identity/framing verification. The generated image was not sent to the avatar provider. Check the inspection model and production endpoint/access.", "생성 이미지의 최종 얼굴·구도 검증 단계에서 Gemini HTTP 404가 반환됐습니다. 검사 모델과 운영 서버의 API 주소·접근 권한을 확인하세요. 생성 이미지는 아바타 제공자에게 전송하지 않았습니다."],
@@ -72,6 +75,7 @@ export function presentProvisioningFailure(row: {
     TRAINING_IMAGE_AI_CONTENT_BLOCKED: ["Gemini blocked image generation under its content policy. Use an eligible image; no avatar creation was sent.", "Gemini 콘텐츠 정책으로 이미지 재생성이 차단됐습니다. 허용되는 원본 이미지를 사용하세요. 아바타 생성은 전송하지 않았습니다."],
   };
   const aiCategory = ["TRAINING_IMAGE_AI_AUTHENTICATION_FAILED", "TRAINING_IMAGE_AI_UNAVAILABLE"].includes(info.code) ? "authentication"
+    : info.code.endsWith("MODEL_INVALID") ? "input"
     : (info.code === "TRAINING_IMAGE_AI_PERMISSION_DENIED" || info.code.startsWith("TRAINING_IMAGE_AI_") && info.code.endsWith("MODEL_UNAVAILABLE")) ? "permission_or_plan"
     : info.code === "TRAINING_IMAGE_AI_QUOTA_EXCEEDED" ? "provider_limit"
     : info.code === "TRAINING_IMAGE_AI_BILLING_REQUIRED" ? "billing"
@@ -104,8 +108,14 @@ export function presentProvisioningFailure(row: {
     unknown: ["The operation failed; a specific cause was not retained. Check the existing asset without recreating it.",
       "작업이 실패했지만 구체적인 원인은 보존되지 않았습니다. 재생성하지 말고 기존 자산을 확인하세요."],
   };
+  const trainingImageStage = info.code.endsWith("MODEL_INVALID") ? "configuration" as const
+    : info.code.includes("_INSPECTION_") ? "inspection" as const
+    : info.code.includes("_REGENERATION_") ? "regeneration" as const
+    : info.code.includes("_VERIFICATION_") ? "verification" as const
+    : "unknown" as const;
   return {
     code: info.code, stage: info.stage, category,
+    ...(preparation ? { trainingImageStage } : {}),
     providerHttpStatus: info.httpStatus, providerErrorCode: info.providerCode,
     reasonState: info.reasonState,
     message: preparation ? preparationMessages[info.code]?.[0] ?? "The router could not prepare the training image. No provider creation request was sent. Check the source image and private storage." : framing ? "Tavus rejected the image framing or arm pose. Use a chest-up portrait cropped at or above the navel, with hands at or below chest height. Keep the head and both shoulders visible. Upload a new image version; do not retry the unchanged image." : messages[category][0]!,

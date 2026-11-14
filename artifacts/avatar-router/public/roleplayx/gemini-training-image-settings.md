@@ -1,5 +1,22 @@
 # Gemini 학습 이미지 연결
 
+## 모델 오류 진단
+
+아바타 자산 화면의 **모델 접근 진단**은 신뢰된 라우터 운영자만 실행할 수 있습니다.
+현재 API 서버의 키로 Google 모델 메타데이터를 GET 조회하여 검사·생성 모델 각각의 HTTP 상태와 실행 소스 버전을 표시합니다.
+이미지 전송·콘텐츠 생성·아바타 생성·기존 실패 작업 재시도는 하지 않습니다.
+메타데이터 HTTP 200은 실제 이미지 생성, 할당량 또는 Renderer Worker의 설정을 검증하지 않습니다.
+직접 키가 없는 관리형 연결은 이 Google 진단을 실행하지 않습니다.
+
+`models/gemini-…` 형태와 앞뒤 공백은 자동 정규화됩니다. 잘못된 명시 설정을 다른 모델로 대체하지 않습니다.
+잘못된 검사 설정은 `TRAINING_IMAGE_AI_INSPECTION_MODEL_INVALID`, 생성 설정은
+`TRAINING_IMAGE_AI_REGENERATION_MODEL_INVALID`로 구분합니다.
+기존 `TRAINING_IMAGE_AI_MODEL_UNAVAILABLE` 기록의 단계·HTTP 상태는 복원하거나 추정하지 않습니다.
+신규 실행 중 404는 검사·재생성·최종 검증별 오류 코드를 사용합니다.
+RoleplayX는 실패 응답의 `messageKo`와 `code`를 표시하고, 준비 단계 표시는
+선택 필드 `trainingImageStage`를 먼저 사용한 뒤 기존 `stage`로 대체할 수 있습니다.
+기존 `stage`는 제공자 생성·상태·삭제 단계 계약이므로 이미지 준비 오류에는 `unknown`이 유지됩니다.
+
 RoleplayX는 기존 시드 이미지만 AvatarRouter로 전송합니다. 모든 신규 커스텀 생성 작업에서 원본 기반 Gemini 이미지 생성, 제공자별 정규화, 얼굴 일관성·학습 구도 재검사는 AvatarRouter가 담당합니다. 정상 구도의 시드도 생성 단계를 생략하지 않습니다.
 키 설정이나 생성 요청 접수만으로 실제 아바타 생성 성공을 의미하지 않습니다.
 

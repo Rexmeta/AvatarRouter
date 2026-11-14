@@ -627,7 +627,7 @@ function AvatarDetailSheet({ id, onClose }: { id: string; onClose: () => void })
               {a.errorCode && <p className="mono rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" data-testid="text-avatar-error">{a.errorCode}</p>}
               {a.failure && <div role="alert" className="space-y-1 rounded border border-destructive/30 p-3 text-sm">
                 <p>{lang === 'ko' ? a.failure.messageKo : a.failure.message}</p>
-                <p className="font-mono text-xs">{a.failure.stage} · {a.failure.providerHttpStatus !== null ? `HTTP ${a.failure.providerHttpStatus}` : 'HTTP unknown'} · {a.failure.reasonState}</p>
+                <p className="font-mono text-xs">{a.failure.trainingImageStage ?? a.failure.stage} · {a.failure.providerHttpStatus !== null ? `HTTP ${a.failure.providerHttpStatus}` : 'HTTP unknown'} · {a.failure.reasonState}</p>
                 <p className="text-xs">{L('Do not recreate automatically. Inspect the existing asset with the operator.', '자동 재생성하지 마세요. 운영자와 기존 자산을 확인하세요.')}</p>
               </div>}
               {a.status === 'reconciliation_required' && <p className="text-xs text-[hsl(var(--warn))]">{L('Local and provider state disagree. An operator must reconcile before this asset can be used or deleted cleanly.', '로컬과 프로바이더 상태가 다릅니다. 운영자의 조정이 필요합니다.')}</p>}
