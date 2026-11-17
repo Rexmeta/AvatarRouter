@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { build, defineConfig } from 'vite';
 import { sdkBuild } from './vite.sdk.config';
+import { sdkCacheDelivery } from './scripts/sdk-cache-delivery';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
@@ -31,6 +32,7 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
+    sdkCacheDelivery(),
     {
       name: 'avatarrouter-hosted-client',
       configureServer(server) {

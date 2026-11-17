@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>SDK 캐시 전달 검증</title>
+<style>
+body { font: 16px system-ui; margin: 32px; max-width: 1000px; }
+button { padding: 12px 20px; } pre { white-space: pre-wrap; }
+iframe { width: 1px; height: 1px; border: 0; }
+</style>
+<h1>SDK 캐시 전달 검증</h1>
+<p>격리된 저장 세션 데이터와 테스트용 인증만 사용합니다. 실제 세션·토큰·제공자 호출은 금지됩니다.</p>
+<button id="run">전체 검증 실행</button>
+<p id="notice">대기 중</p>
+<button id="create" disabled>새 유료 세션 생성 불가</button>
+<pre id="results"></pre>
+<script type="module" src="./runner.js"></script>
+</html>

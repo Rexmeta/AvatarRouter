@@ -11,6 +11,7 @@
     "avatar:review-consent": "tsx ./src/avatar/review-consent.ts",
     "test:pcm": "tsx --test ./src/avatar/pcm.test.ts",
     "test:sdk-bundle": "tsx --test ../artifacts/avatar-router/src/sdk/avatarrouter-bundle.test.ts",
+    "test:sdk-cache:prepare": "tsx ../artifacts/avatar-router/scripts/prepare-sdk-cache-delivery.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
