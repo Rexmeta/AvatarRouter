@@ -12,10 +12,11 @@ import { AnamRuntime, terminateAnamResources } from "./anam-runtime";
 import { createAnamRecognitionReporter } from "./anam-recognition-diagnostics";
 import { closedPipelineOptions } from "./full-pipeline-cleanup";
 import { providerFailureStorageCode } from "./provider-session-failure";
+import { canResumeNativeSession } from "./native-session-handoff";
 
 type Runtime = Pick<StockRuntime, "start" | "stop" | "sendAudio" | "interrupt"> & { connected?: () => boolean };
 type Factory = (row: AvatarSessionRecord, onId: (id: string) => Promise<void>, beforeCreate: () => Promise<void>, rejected: () => Promise<void>, diagnostics: RendererDiagnostics) => Runtime;
-type Local = { runtime?: Runtime; closing: boolean; deadline: number; audioBusy: boolean; starting: boolean; task?: Promise<void>; diagnostics: RendererDiagnostics };
+type Local = { runtime?: Runtime; closing: boolean; deadline: number; audioBusy: boolean; starting: boolean; task?: Promise<void>; diagnostics: RendererDiagnostics; nativeResumeUntil?: number };
 
 /** RTC is owned exclusively here, never by an HTTP process. DB leases fence every state transition. */
 export class RendererWorker {
@@ -104,15 +105,17 @@ export class RendererWorker {
           !row.workerId && !row.stopRequestedAt && row.providerCreateState === "not_started" &&
           row.expiresAt.getTime() > Date.now() && !row.providerConversationId &&
           row.error !== "LIVE_CREATE_RECONCILIATION_REQUIRED";
+        const canResume = canResumeNativeSession(row);
         const [updated] = await tx.update(avatarSessions).set({
           workerId: this.id, heartbeatAt: sql`now()`, leaseExpiresAt: sql`now() + interval '20 seconds'`,
-          rendererState: canStart ? "starting" : row.rendererState === "maintenance_pending" ? "maintenance_pending" : "stopping",
+          rendererState: canResume ? "running" : canStart ? "starting" : row.rendererState === "maintenance_pending" ? "maintenance_pending" : "stopping",
         }).where(eq(avatarSessions.id, row.id)).returning();
-        return { row: updated!, canStart };
+        return { row: updated!, canStart, canResume };
       });
       if (claimed) {
         const local: Local = {
-          closing: !claimed.canStart, starting: claimed.canStart,
+          closing: !(claimed.canStart || claimed.canResume), starting: claimed.canStart || claimed.canResume,
+          ...(claimed.canResume ? { nativeResumeUntil: claimed.row.expiresAt.getTime() } : {}),
           deadline: Date.now() + LEASE_MS - HEARTBEAT_MS, audioBusy: false,
           diagnostics: new RendererDiagnostics({
             sessionId: claimed.row.id, workerId: this.id,
@@ -123,7 +126,7 @@ export class RendererWorker {
           Math.max(0, Date.now() - claimed.row.startedAt.getTime()),
           claimed.row.expiresAt.getTime() - Date.now(), LEASE_MS);
         this.locals.set(claimed.row.id, local);
-        local.task = (claimed.canStart ? this.initialize(claimed.row, local) : this.finish(claimed.row, local))
+        local.task = (claimed.canStart || claimed.canResume ? this.initialize(claimed.row, local) : this.finish(claimed.row, local))
           .catch(error => this.cleanupFailed(claimed.row.id, local, error));
       }
       await this.gcCommands();
@@ -137,6 +140,9 @@ export class RendererWorker {
     local.diagnostics.leaseLost(reason);
     this.locals.delete(id);
     local.closing = true;
+    // There is no local RTC in a confirmed native call. Leave that existing
+    // bounded call intact for its next supervisor; do not extend its expiry.
+    if (local.nativeResumeUntil && local.nativeResumeUntil > Date.now()) return;
     void local.runtime?.stop().catch(error => local.diagnostics.failure("lease_cleanup_failed", error));
   }
 
@@ -176,7 +182,10 @@ export class RendererWorker {
         local.closing = true;
         await this.finish(row, local);
       } else {
-        await this.event(row.id, "started", row.pipeline === "anam_full"
+        if (canResumeNativeSession(running)) local.nativeResumeUntil = running.expiresAt.getTime();
+        await this.event(row.id, canResumeNativeSession(row) ? "worker_resumed" : "started", canResumeNativeSession(row)
+          ? "Supervision of the existing native call resumed after worker handoff. No provider call was created and the session deadline was not extended."
+          : row.pipeline === "anam_full"
           ? "Anam single-start token ready for authorized SDK handoff. No browser connection, speech or video playback has been verified."
           : row.pipeline === "tavus_full"
           ? "Private Tavus full-pipeline connection ready. Tavus owns dialogue, voice and rendering; Daily client playback is not yet verified."
@@ -322,6 +331,15 @@ export class RendererWorker {
       const [row] = await db.select().from(avatarSessions).where(this.owns(id));
       if (!row) return this.loseLease(id, local);
       local.closing = true;
+      if (canResumeNativeSession(row)) {
+        const [released] = await db.update(avatarSessions).set({
+          workerId: null, leaseExpiresAt: sql`now()`,
+        }).where(this.owns(id)).returning();
+        this.locals.delete(id);
+        if (released) await this.event(id, "worker_handoff",
+          "Worker stopped supervising the existing native call. Media and the original provider deadline remain unchanged; no paid creation will be repeated.");
+        return;
+      }
       await this.finish(row, local);
     }));
   }

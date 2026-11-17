@@ -1,5 +1,6 @@
 import type { AvatarSessionRecord } from "@workspace/db";
 import { SessionProblem } from "./session-service";
+import { canResumeNativeSession } from "./native-session-handoff";
 import { storedProviderFailure } from "./provider-session-failure";
 import { readProviderRejection } from "./provider-rejection-diagnostic";
 import { STOCK_FACE } from "./stock-policy";
@@ -98,6 +99,12 @@ export class TavusFullRuntime {
   start() { return this.starting ??= this.initialize(); }
 
   private async initialize() {
+    if (canResumeNativeSession(this.row)) {
+      // The provider and browser still own the same call. No new persona,
+      // conversation, credentials or one-time browser handoff may be issued.
+      this.conversationId = this.row.providerConversationId;
+      return;
+    }
     // Each session owns its PAL: never mutate a shared persona or echo PAL.
     const pal = await request("/pals", fullPalBody(this.row.id,
       sessionFace(this.row), this.options), this.fetcher);
