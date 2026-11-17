@@ -6,6 +6,22 @@ import { presentProvisioningFailure, storeProvisioningFailure } from "./provisio
 import { GoogleGenAI } from "@google/genai";
 
 const managed = { AI_INTEGRATIONS_GEMINI_API_KEY: "managed-fixture", AI_INTEGRATIONS_GEMINI_BASE_URL: "https://proxy.invalid" };
+test("per-call SDK options cannot re-enable generation retries", async () => {
+  let calls = 0;
+  const request = { model: "gemini-3.1-flash-image", contents: "fixture",
+    config: { httpOptions: { timeout: 1234, retryOptions: { attempts: 5 } } } };
+  const generate = createTrainingImageGenerator({ GEMINI_API_KEY: "fixture" }, () => ({
+    models: { generateContent: async input => {
+      calls++;
+      assert.equal(input.config?.httpOptions?.retryOptions?.attempts, 1);
+      assert.equal(input.config?.httpOptions?.timeout, 1234);
+      throw Object.assign(Error("fixture failure"), { status: 503 });
+    } },
+  }));
+  await assert.rejects(generate(request), { status: 503 });
+  assert.equal(calls, 1);
+  assert.equal(request.config.httpOptions.retryOptions.attempts, 5);
+});
 test("real SDK keeps direct v1beta endpoint with per-call timeout options", async () => {
   let calls = 0;
   const generate = createTrainingImageGenerator({ ...managed, GEMINI_API_KEY: "direct-fixture" }, options =>

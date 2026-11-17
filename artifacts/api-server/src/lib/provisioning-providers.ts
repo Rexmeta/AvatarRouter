@@ -1,3 +1,4 @@
+import { auditedProvisioningCall } from "./provisioning-audit";
 import type { ProvisioningProvider } from "@workspace/api-zod";
 import { SessionProblem } from "./session-service";
 import { classifyProviderRejection, readProviderRejection } from "./provider-rejection-diagnostic";
@@ -53,13 +54,14 @@ export class ImageProviderAdapter {
     if (!key) throw new ProviderFailure("PROVIDER_NOT_CONFIGURED");
     let response: Response;
     try {
-      response = await this.transport(`${this.provider === "anam" ? "https://api.anam.ai/v1/avatars" : "https://tavusapi.com/v2/faces"}${path}`, {
+      const send = () => this.transport(`${this.provider === "anam" ? "https://api.anam.ai/v1/avatars" : "https://tavusapi.com/v2/faces"}${path}`, {
         method, headers: {
           ...(this.provider === "anam" ? { Authorization: `Bearer ${key}` } : { "x-api-key": key }),
           "Content-Type": "application/json",
         }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000),
         redirect: "error",
       });
+      response = method === "POST" ? await auditedProvisioningCall("provider_create", send) : await send();
     } catch { throw new ProviderFailure("PROVIDER_NETWORK_ERROR", method === "POST", true,
       { stage, httpStatus: null, providerCode: null, reasonState: "body_missing" }); }
     if (method === "DELETE" && response.status === 404) return {};

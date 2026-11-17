@@ -40,5 +40,10 @@ export function createTrainingImageGenerator(
     : factory({ apiKey: env.AI_INTEGRATIONS_GEMINI_API_KEY!, httpOptions: {
       baseUrl: env.AI_INTEGRATIONS_GEMINI_BASE_URL!, apiVersion: "", retryOptions: { attempts: 1 },
     } });
-  return request => ai.models.generateContent(request);
+  return request => ai.models.generateContent({
+    ...request,
+    config: { ...request.config, httpOptions: {
+      ...request.config?.httpOptions, retryOptions: { attempts: 1 },
+    } },
+  });
 }

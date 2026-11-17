@@ -4,6 +4,7 @@ import { validateImage } from "./image-validation";
 import { createTrainingImageGenerator, trainingImageAiStatus, type TrainingImageGenerate } from "./training-image-ai-config";
 import { trainingImageAiFailure } from "./training-image-ai-failure";
 import { logger } from "./logger";
+import { auditedProvisioningCall } from "./provisioning-audit";
 
 type Generate = TrainingImageGenerate;
 
@@ -51,7 +52,7 @@ export async function ensureTrainingPortrait(
   // authoritative; technical image validation and consent checks remain in place.
   let generated: Buffer;
   try {
-    const r = await generate({
+    const r = await auditedProvisioningCall("gemini_generate", () => generate({
       model: settings.imageModel,
       contents: [{ role: "user", parts: [
         { text: `Edit the provided seed image into a professional live-avatar TRAINING PORTRAIT of the SAME subject.
@@ -67,7 +68,7 @@ Do not add text, logos or other people. Preserve the subject's visual style. Ret
         reference,
       ] }],
       config: { responseModalities: ["IMAGE", "TEXT"], httpOptions: { timeout: 90_000, retryOptions: { attempts: 1 } } },
-    });
+    }), settings);
     if (r.promptFeedback?.blockReason || ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "IMAGE_SAFETY"].includes(String(r.candidates?.[0]?.finishReason))) {
       throw new ProviderFailure("TRAINING_IMAGE_AI_CONTENT_BLOCKED");
     }

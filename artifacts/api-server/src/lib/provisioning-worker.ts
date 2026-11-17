@@ -4,6 +4,7 @@ import { providerImageUrl } from "./private-images";
 import { logger } from "./logger";
 import { storeProvisioningFailure, decodeProvisioningFailure } from "./provisioning-failure";
 import { prepareTrainingImage, removeTrainingImage } from "./training-image";
+import { withProvisioningAudit, auditProvisioningStage, type ProvisioningAuditEntry } from "./provisioning-audit";
 
 export function provisioningOutcome(error: unknown, creating: boolean) {
   const issue = error instanceof ProviderFailure ? error : new ProviderFailure("PROVISIONING_INTERNAL_ERROR", creating);
@@ -18,6 +19,7 @@ export async function runProvisioningTick(options: {
   signImage?: typeof providerImageUrl;
   prepareImage?: typeof prepareTrainingImage;
   removePreparedImage?: typeof removeTrainingImage;
+  auditSink?: (entry: ProvisioningAuditEntry) => void;
 } = {}) {
   const row = await db.transaction(async tx => {
     const [job] = await tx.select().from(avatarAssets).where(sql`
@@ -43,32 +45,55 @@ export async function runProvisioningTick(options: {
   if (!row) return;
   const creating = row.status === "queued";
   const adapter = options.adapter ?? new ImageProviderAdapter(row.providerId);
+  return withProvisioningAudit({
+    assetId: row.id, provider: row.providerId,
+    operation: creating ? "create" : row.status === "deleting" ? "delete" : "status",
+  }, async () => {
   let dispatched = false;
+  let stage: "image_preparation" | "provider_create" | "provider_status" | "provider_delete" | "persistence" = "image_preparation";
   try {
     if (creating) {
+      auditProvisioningStage(stage, "started");
       const [source] = await db.select().from(imageAssets).where(and(eq(imageAssets.id, row.imageAssetId), eq(imageAssets.tenantId, row.tenantId)));
       if (!source) throw new ProviderFailure("SOURCE_IMAGE_MISSING");
       const signedUrl = options.signImage
         ? await options.signImage(source.objectPath) // Existing test adapters only.
         : await (options.prepareImage ?? prepareTrainingImage)(source.objectPath, row.tenantId, row.id, row.providerId);
+      auditProvisioningStage(stage, "completed");
       const [owned] = await db.select({ id: avatarAssets.id }).from(avatarAssets).where(and(
         eq(avatarAssets.id, row.id), eq(avatarAssets.status, "submitting"),
         eq(avatarAssets.leaseUntil, row.leaseUntil),
         sql`${avatarAssets.leaseUntil} > now()`,
       )).limit(1);
-      if (!owned) return; // Long AI/storage calls may outlive ownership; never dispatch after lease loss.
+      if (!owned) {
+        auditProvisioningStage("provider_create", "skipped");
+        return; // Long AI/storage calls may outlive ownership; never dispatch after lease loss.
+      }
+      stage = "provider_create";
+      auditProvisioningStage(stage, "started");
       dispatched = true;
       const result = await adapter.create(row.name, signedUrl, row.voiceName);
+      auditProvisioningStage(stage, "completed");
+      stage = "persistence";
+      auditProvisioningStage(stage, "started");
       await finish(row, { providerAvatarId: result.id, status: result.ready ? "ready" : "processing", errorCode: null });
+      auditProvisioningStage(stage, "completed");
     } else if (row.status === "processing") {
+      stage = "provider_status";
+      auditProvisioningStage(stage, "started");
       if (!row.providerAvatarId) throw new ProviderFailure("PROVIDER_ID_MISSING");
       await finish(row, { status: await adapter.poll(row.providerAvatarId), errorCode: null });
+      auditProvisioningStage(stage, "completed");
     } else if (row.status === "deleting") {
+      stage = "provider_delete";
+      auditProvisioningStage(stage, "started");
       if (row.providerAvatarId) await adapter.remove(row.providerAvatarId);
       await (options.removePreparedImage ?? removeTrainingImage)(row.tenantId, row.id);
       await finish(row, { status: "deleted", deletionStatus: "confirmed", errorCode: null, providerAvatarId: null });
+      auditProvisioningStage(stage, "completed");
     }
   } catch (error) {
+    auditProvisioningStage(stage, "failed");
     const outcome = provisioningOutcome(error, creating && dispatched);
     await finish(row, {
       status: row.status === "deleting" ? "deleting"
@@ -83,6 +108,7 @@ export async function runProvisioningTick(options: {
       providerIdPresent: !!row.providerAvatarId, creationOutcomeUncertain: outcome.ambiguous,
     }, "Avatar provisioning operation requires attention");
   }
+  }, options.auditSink);
 }
 async function finish(row: AvatarAssetRecord, changes: Partial<typeof avatarAssets.$inferInsert>) {
   await db.update(avatarAssets).set({

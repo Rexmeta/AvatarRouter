@@ -8,6 +8,7 @@ import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers"
 import { prepareTrainingImage, normalizeTrainingImage } from "./training-image";
 import sharp from "sharp";
 import type { GenerateContentResponse } from "@google/genai";
+import type { ProvisioningAuditEntry } from "./provisioning-audit";
 const schema = `automatic_provision_test_${randomUUID().replaceAll("-", "")}`;
 before(async () => {
   await pool.query(`CREATE SCHEMA ${schema}`);
@@ -64,6 +65,7 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
   const generated = await sharp({ create: { width: 512, height: 512, channels: 3, background: "#642" } }).png().toBuffer();
   let generatedCalls = 0, posts = 0, polls = 0;
   const order: string[] = [];
+  const audit: ProvisioningAuditEntry[] = [];
   const adapter = new ImageProviderAdapter(providerId, (async (url, init) => {
     assert.ok(String(url).startsWith(providerId === "tavus" ? "https://tavusapi.com/v2/faces" : "https://api.anam.ai/v1/avatars"));
     assert.doesNotMatch(String(url), /\/pals/);
@@ -79,7 +81,8 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
     polls++;
     return Response.json({ status: "completed" });
   }) as typeof fetch, () => "fixture");
-  const options = { onlyId: asset.id, adapter, prepareImage: (path: string, tenant: string, id: string, provider: "tavus" | "anam") =>
+  const options = { onlyId: asset.id, adapter, auditSink: (entry: ProvisioningAuditEntry) => { audit.push(entry); },
+    prepareImage: (path: string, tenant: string, id: string, provider: "tavus" | "anam") =>
     prepareTrainingImage(path, tenant, id, provider, {
       read: async () => seed,
       generate: async request => {
@@ -128,6 +131,20 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
   await provisionAsset("owner", { imageAssetId, providerId, personaId: "persona_auto" });
   await runProvisioningTick(options);
   assert.equal(posts, 1); assert.equal(generatedCalls, 1);
+  const creation = audit.filter(entry => entry.operation === "create");
+  assert.equal(new Set(creation.map(entry => entry.attemptId)).size, 1);
+  assert.equal(creation.filter(entry => entry.stage === "gemini_generate" && entry.event === "call_started").length, 1);
+  assert.equal(creation.filter(entry => entry.stage === "provider_create" && entry.event === "call_started").length, 1);
+  const final = creation.at(-1)!;
+  assert.equal(final.geminiCallsStarted, 1);
+  assert.equal(final.providerCreatesStarted, 1);
+  assert.equal(final.event, "finished");
+  assert.ok(creation.some(entry => entry.stage === "persistence" && entry.event === "completed"));
+  for (const poll of audit.filter(entry => entry.operation === "status")) {
+    assert.equal(poll.providerCreatesStarted, 0);
+    assert.equal(poll.geminiCallsStarted, 0);
+    assert.notEqual(poll.attemptId, final.attemptId);
+  }
 });
 test("Anam ambiguous creation stays quarantined without another Gemini call or provider POST", async () => {
   const imageAssetId = await source();
