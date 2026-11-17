@@ -31,9 +31,9 @@ Rights confirmation and a consent-reference string are attestations, not verifie
 
 **How to apply:** Require the existing source-rights attestation and real-person consent reference, but do not add a router operator-approval queue. Record new real-person attestations as `attested`, never self-upgrade them to independently `verified`. Provider identity and policy checks remain authoritative.
 
-Creation requests authorize automatic source preparation and submission, without an intermediate approval step. Resize first; if training framing is unsuitable, use Gemini with the original seed, then check the final portrait and identity consistency before provider submission.
+Creation requests authorize automatic source preparation and submission, without an intermediate approval step. Always generate the provider-specific training image through Gemini from the original seed; omit separate seed inspection and post-generation AI verification. Keep technical file validation, normalization and rights attestations.
 
-**Why:** The user explicitly requested: "중간에 승인절차 없이 요청 오면 바로 작업해서 생성시켜" and requested Gemini regeneration when simple resizing cannot satisfy training conditions.
+**Why:** The user explicitly requested automatic submission and later required Gemini generation on every custom creation, then instructed "검사 절차는 제외해". See training-image-ai-policy.md for the current scope.
 
 **How to apply:** Preserve the original, bound paid AI calls, and distinguish a known local preparation failure from an uncertain provider POST. Only an explicit new request may repeat a known pre-submission preparation failure; never automatically retry ambiguous avatar creation.
 

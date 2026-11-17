@@ -54,14 +54,15 @@ test("small sources auto-queue with no cost prompt; prepared image, exact person
   }
 });
 
-for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: request → mandatory Gemini generation → verified storage → correct provider → completion, without approval`, async () => {
+for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: request → one Gemini generation → normalized storage → correct provider → completion, without inspection`, async () => {
   const imageAssetId = await source();
   // costConfirmed and a second approval are intentionally absent.
   const asset = await provisionAsset("owner", { imageAssetId, providerId, personaId: "persona_auto" });
   assert.equal(presentAvatarAsset(asset).completionMessage, null);
   const seed = await sharp({ create: { width: 512, height: 512, channels: 3, background: "#246" } }).jpeg().toBuffer();
+  const original = Buffer.from(seed);
   const generated = await sharp({ create: { width: 512, height: 512, channels: 3, background: "#642" } }).png().toBuffer();
-  let generatedCalls = 0, inspected = 0, posts = 0, polls = 0;
+  let generatedCalls = 0, posts = 0, polls = 0;
   const order: string[] = [];
   const adapter = new ImageProviderAdapter(providerId, (async (url, init) => {
     assert.ok(String(url).startsWith(providerId === "tavus" ? "https://tavusapi.com/v2/faces" : "https://api.anam.ai/v1/avatars"));
@@ -82,19 +83,26 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
     prepareTrainingImage(path, tenant, id, provider, {
       read: async () => seed,
       generate: async request => {
-        if (request.config?.responseModalities?.includes("IMAGE")) {
-          generatedCalls++; order.push("generate");
-          assert.ok(JSON.stringify(request.contents).includes(seed.toString("base64")));
-          return { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: generated.toString("base64") } }] } }] } as GenerateContentResponse;
-        }
-        inspected++; order.push(inspected === 1 ? "inspect" : "verify");
-        // Even a compliant seed must go through image generation.
-        return { text: JSON.stringify({ acceptable: true, identityConsistent: true, safeAdultSubject: true }) } as GenerateContentResponse;
+        generatedCalls++; order.push("generate");
+        assert.deepEqual(request.config?.responseModalities, ["IMAGE", "TEXT"]);
+        assert.equal(request.config?.responseMimeType, undefined);
+        assert.equal(request.config?.httpOptions?.retryOptions?.attempts, 1);
+        assert.ok(JSON.stringify(request.contents).includes(seed.toString("base64")));
+        assert.match(JSON.stringify(request.contents), providerId === "anam" ? /Anam.*1152 x 1152/ : /Tavus Phoenix 4.5/);
+        return { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: generated.toString("base64") } }] } }] } as GenerateContentResponse;
       },
       save: async (_tenant, _id, bytes) => {
         order.push("save");
         assert.deepEqual(bytes, await normalizeTrainingImage(generated, providerId));
         assert.notDeepEqual(bytes, seed);
+        const metadata = await sharp(bytes).metadata();
+        assert.equal(metadata.format, "jpeg");
+        assert.equal(metadata.hasAlpha, false);
+        assert.ok(bytes.length <= 4_500_000);
+        if (providerId === "anam") {
+          assert.equal(metadata.width, 1152);
+          assert.equal(metadata.height, 1152);
+        }
         return "private-generated-fixture";
       },
       sign: async path => { assert.equal(path, "private-generated-fixture"); order.push("sign"); return "https://example.invalid/generated-only.jpg"; },
@@ -110,14 +118,41 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
   }
   const result = presentAvatarAsset(row!);
   assert.equal(result.status, "ready");
+  assert.ok(result.providerAvatarId);
   assert.match(result.completionMessageKo!, /생성이 완료/);
   assert.equal(result.failure, null);
-  assert.deepEqual(order, ["inspect", "generate", "verify", "save", "sign", "provider"]);
-  assert.equal(generatedCalls, 1); assert.equal(inspected, 2); assert.equal(posts, 1);
+  assert.deepEqual(order, ["generate", "save", "sign", "provider"]);
+  assert.deepEqual(seed, original);
+  assert.equal(generatedCalls, 1); assert.equal(posts, 1);
   assert.equal(polls, providerId === "tavus" ? 1 : 0);
   await provisionAsset("owner", { imageAssetId, providerId, personaId: "persona_auto" });
   await runProvisioningTick(options);
   assert.equal(posts, 1); assert.equal(generatedCalls, 1);
+});
+test("Anam ambiguous creation stays quarantined without another Gemini call or provider POST", async () => {
+  const imageAssetId = await source();
+  const asset = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+  let preparations = 0, posts = 0;
+  const adapter = new ImageProviderAdapter("anam", (async () => {
+    posts++;
+    throw Error("private network response");
+  }) as typeof fetch, () => "fixture");
+  const options = { onlyId: asset.id, adapter, prepareImage: async () => {
+    preparations++;
+    return "https://example.invalid/prepared.jpg";
+  } };
+  await runProvisioningTick(options);
+  const [row] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+  const result = presentAvatarAsset(row!);
+  assert.equal(result.status, "reconciliation_required");
+  assert.equal(result.completionMessageKo, null);
+  assert.equal(result.failure?.creationOutcome, "unknown");
+  assert.doesNotMatch(JSON.stringify(result), /private network response/);
+  const existing = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+  assert.equal(existing.id, asset.id);
+  await runProvisioningTick(options);
+  assert.equal(preparations, 1);
+  assert.equal(posts, 1);
 });
 test("preparation failure sends no creation POST, exposes a local failure, and never auto-retries", async () => {
   const imageAssetId = await source();
