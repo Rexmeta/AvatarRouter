@@ -13,6 +13,12 @@ The same rule applies to billable live-conversation POSTs, not just persistent a
 
 **How to apply:** Persist a pre-dispatch state, keep known provider IDs through cleanup, and require operator reconciliation after ambiguous creation. Safe polling is different from safe creation retry. Do not mark deletion confirmed when the provider result is unknown.
 
+Anam custom-avatar creation can outlast a short synchronous HTTP wait and still create a resource after the router has stopped waiting.
+
+**Why:** A bounded production check completed image preparation, then reported a network failure about 30 seconds later; a matching newly created Anam resource appeared after that failure. The original exception type was not retained, so timeout was likely rather than conclusively proven.
+
+**How to apply:** Treat network failures as unknown creation, not proof of rejection or quota exhaustion. Reconcile with read-only provider evidence before any repeat POST; account for delayed IDs and worker ownership when adjusting request deadlines. Name/time matches alone must not silently restore an ID.
+
 Session status is not cleanup evidence: a worker may mark an ambiguous session failed while its provider conversation or room is still billable. Admission must remain blocked while the reconciliation warning or remote references remain; only confirmed provider termination and room absence can release them.
 
 **Why:** An integration test initially treated `status = failed` as proof that capacity could be released, but the existing worker intentionally records failure before the remote state is known.
