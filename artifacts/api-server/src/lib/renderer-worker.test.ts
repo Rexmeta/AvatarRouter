@@ -105,6 +105,72 @@ test("unexpected RTC loss retains a safe failure reason after confirmed cleanup"
   assert.equal(closed.providerConversationId, null);
 });
 
+test("native Tavus supervision survives worker shutdown and lease recovery without paid recreation", async () => {
+  const originalFetch = globalThis.fetch;
+  const paths: string[] = [];
+  let allowCleanup = false;
+  globalThis.fetch = async (input, init) => {
+    const path = String(input);
+    paths.push(`${init?.method ?? "GET"} ${path}`);
+    assert.equal(allowCleanup, true, "worker handoff must not contact or stop the provider");
+    if (path.endsWith("/conversations/existing-native") && init?.method === "GET") {
+      return Response.json({ status: "ended" });
+    }
+    assert.ok(path.endsWith("/conversations/existing-native/end") || path.endsWith("/pals/existing-pal"));
+    return new Response("{}", { status: 200 });
+  };
+  const row = await fixture({
+    pipeline: "tavus_full", roomName: null, rendererState: "running",
+    providerCreateState: "known", providerConversationId: "existing-native",
+    expiresAt: new Date(Date.now() + 600_000),
+    fullPipeline: { systemPrompt: "fixture", palId: "existing-pal", url: "https://fixture.daily.co/room", token: "private-fixture" },
+  });
+  try {
+    const first = new RendererWorker();
+    workers.push(first);
+    await first.tick();
+    await eventually(async () => (await get(row.id)).workerId === first.id);
+    await eventually(async () => (await db.select().from(avatarSessionEvents).where(
+      and(eq(avatarSessionEvents.sessionId, row.id), eq(avatarSessionEvents.type, "worker_resumed")))).length > 0);
+    await first.shutdown();
+    let saved = await get(row.id);
+    assert.equal(saved.status, "active");
+    assert.equal(saved.rendererState, "running");
+    assert.equal(saved.workerId, null);
+    assert.equal(saved.providerConversationId, "existing-native");
+    assert.equal(saved.expiresAt.getTime(), row.expiresAt.getTime());
+    assert.equal(paths.length, 0);
+
+    const second = new RendererWorker();
+    workers.push(second);
+    await second.tick();
+    await eventually(async () => (await get(row.id)).workerId === second.id);
+    // Simulate abrupt lease loss: no server lease => another worker may own supervision.
+    await db.update(avatarSessions).set({ leaseExpiresAt: new Date(0) }).where(eq(avatarSessions.id, row.id));
+    await second.tick();
+    await eventually(async () => (await get(row.id)).workerId === second.id &&
+      (await get(row.id)).rendererState === "running");
+    assert.equal(paths.length, 0);
+    assert.equal((await get(row.id)).status, "active");
+
+    // Explicit user end still terminates the SAME provider call.
+    allowCleanup = true;
+    await apiA.closeStockSession(row.ownerHash, row.id);
+    await second.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    saved = await get(row.id);
+    assert.equal(saved.status, "ended");
+    assert.equal(paths.filter(p => p.endsWith("/conversations/existing-native/end")).length, 1);
+    assert.ok(!paths.some(p => p.endsWith("/conversations") || p.endsWith("/pals")));
+  } finally {
+    // Ensure failed assertions can still release the isolated fixture.
+    allowCleanup = true;
+    await apiA.closeStockSession(row.ownerHash, row.id).catch(() => {});
+    await Promise.allSettled(workers.map(w => w.shutdown()));
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("native Anam handoff is single-use, scoped and cleaned from authoritative provider records", async () => {
   const originalFetch = globalThis.fetch;
   const remoteId = randomUUID();
@@ -162,6 +228,35 @@ test("native Anam handoff is single-use, scoped and cleaned from authoritative p
     assert.equal((await get(row.id)).fullPipeline, null);
     assert.equal(calls.filter(x => x.endsWith("/auth/session-token")).length, 1);
     assert.ok(!calls.some(x => x.includes("/engine/")));
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("an expired native call is cleaned up, not resumed or recreated", async () => {
+  const originalFetch = globalThis.fetch;
+  const paths: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    const path = String(input);
+    paths.push(`${init?.method ?? "GET"} ${path}`);
+    if (path.endsWith("/conversations/expired-native") && init?.method === "GET") {
+      return Response.json({ status: "ended" });
+    }
+    assert.ok(path.endsWith("/conversations/expired-native/end") || path.endsWith("/pals/expired-pal"));
+    return Response.json({});
+  };
+  try {
+    const row = await fixture({
+      pipeline: "tavus_full", roomName: null, rendererState: "running",
+      providerCreateState: "known", providerConversationId: "expired-native",
+      expiresAt: new Date(Date.now() - 1000),
+      fullPipeline: { systemPrompt: "fixture", palId: "expired-pal", url: "https://fixture.daily.co/room", token: "private-fixture" },
+    });
+    const w = new RendererWorker();
+    workers.push(w);
+    await w.tick();
+    await eventually(async () => (await get(row.id)).rendererState === "closed");
+    assert.equal((await get(row.id)).status, "expired");
+    assert.equal(paths.filter(p => p.endsWith("/conversations/expired-native/end")).length, 1);
+    assert.ok(!paths.some(p => p.endsWith("/conversations") || p.endsWith("/pals")));
   } finally { globalThis.fetch = originalFetch; }
 });
 
