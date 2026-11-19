@@ -1,4 +1,4 @@
-import { auditedProvisioningCall } from "./provisioning-audit";
+import { auditedProvisioningCall, ProvisioningAuditUnavailableError } from "./provisioning-audit";
 import type { ProvisioningProvider } from "@workspace/api-zod";
 import { SessionProblem } from "./session-service";
 import { classifyProviderRejection, readProviderRejection } from "./provider-rejection-diagnostic";
@@ -62,8 +62,15 @@ export class ImageProviderAdapter {
         redirect: "error",
       });
       response = method === "POST" ? await auditedProvisioningCall("provider_create", send) : await send();
-    } catch { throw new ProviderFailure("PROVIDER_NETWORK_ERROR", method === "POST", true,
-      { stage, httpStatus: null, providerCode: null, reasonState: "body_missing" }); }
+    } catch (error) {
+      if (error instanceof ProvisioningAuditUnavailableError) {
+        // No provider request was dispatched: do not quarantine as an
+        // ambiguous paid creation just because the local ledger was unavailable.
+        throw new ProviderFailure("PROVISIONING_INTERNAL_ERROR");
+      }
+      throw new ProviderFailure("PROVIDER_NETWORK_ERROR", method === "POST", true,
+        { stage, httpStatus: null, providerCode: null, reasonState: "body_missing" });
+    }
     if (method === "DELETE" && response.status === 404) return {};
     if (!response.ok) {
       const code = response.status === 401 ? "PROVIDER_AUTHENTICATION_FAILED"

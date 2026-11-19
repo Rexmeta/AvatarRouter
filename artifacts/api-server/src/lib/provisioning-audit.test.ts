@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import type { GenerateContentResponse } from "@google/genai";
-import { auditedProvisioningCall, auditProvisioningStage, withProvisioningAudit, type ProvisioningAuditEntry } from "./provisioning-audit";
+import {
+  auditedProvisioningCall, auditProvisioningStage, withProvisioningAudit,
+  type ProvisioningAuditEntry, type ProvisioningAuditStore,
+} from "./provisioning-audit";
 import { ensureTrainingPortrait } from "./gemini-training-image";
 import { ImageProviderAdapter } from "./provisioning-providers";
 import { sourceBuildId } from "./runtime-build";
@@ -11,11 +14,11 @@ const context = { assetId: "fixture-asset", provider: "anam" as const, operation
 test("one attempt links sequential stage events, model selection and bounded invocation counters", async () => {
   const entries: ProvisioningAuditEntry[] = [];
   await withProvisioningAudit(context, async () => {
-    auditProvisioningStage("image_preparation", "started");
+    await auditProvisioningStage("image_preparation", "started");
     await auditedProvisioningCall("gemini_generate", async () => "image", { source: "direct", imageModel: "gemini-3.1-flash-image" });
-    auditProvisioningStage("image_preparation", "completed");
+    await auditProvisioningStage("image_preparation", "completed");
     await auditedProvisioningCall("provider_create", async () => "resource");
-    auditProvisioningStage("persistence", "completed");
+    await auditProvisioningStage("persistence", "completed");
   }, entry => { entries.push(entry); });
   assert.equal(new Set(entries.map(e => e.attemptId)).size, 1);
   assert.equal(entries[0]!.event, "started");
@@ -38,7 +41,7 @@ test("failed paid calls are counted once, never retried, and a second invocation
       await assert.rejects(auditedProvisioningCall(kind, async () => { calls++; }), /CALL_LIMIT_EXCEEDED/);
     }, e => { entries.push(e); });
     assert.equal(calls, 1);
-    assert.equal(entries.filter(e => e.event === "call_failed").length, 1);
+    assert.equal(entries.filter(e => e.event === "call_result_unknown").length, 1);
     assert.equal(entries.filter(e => e.event === "call_blocked").length, 1);
     assert.doesNotMatch(JSON.stringify(entries), /private upstream content/);
   }
@@ -101,4 +104,52 @@ test("absent credentials never count as a provider transport invocation", async 
     await assert.rejects(adapter.create("fixture", "https://example.invalid", "fixture"), { code: "PROVIDER_NOT_CONFIGURED" });
   }, entry => { entries.push(entry); });
   assert.equal(entries.at(-1)!.providerCreatesStarted, 0);
+});
+
+function memoryAuditStore(failUpdate?: (patch: Record<string, unknown>) => boolean) {
+  const rows = new Map<string, Record<string, unknown>>();
+  const store: ProvisioningAuditStore = {
+    create: async record => { rows.set(record.attemptId, { ...record }); },
+    update: async (attemptId, patch) => {
+      if (failUpdate?.(patch as Record<string, unknown>)) throw Error("private database error");
+      const current = rows.get(attemptId);
+      if (!current) throw Error("missing audit row");
+      rows.set(attemptId, { ...current, ...patch });
+    },
+  };
+  return { store, rows };
+}
+
+test("durable call reservation and dispatch marker exist before work; an interrupted result stays unknown", async () => {
+  const { store, rows } = memoryAuditStore();
+  let startedAtDispatch = false;
+  const sink: (entry: ProvisioningAuditEntry) => void = () => { throw Error("log sink unavailable"); };
+  await withProvisioningAudit(context, async () => {
+    await assert.rejects(auditedProvisioningCall("provider_create", async () => {
+      const attempt = [...rows.values()][0]!;
+      assert.equal(attempt.providerCreateCallState, "started");
+      assert.equal(attempt.providerCreatesStarted, 1);
+      startedAtDispatch = true;
+      throw Error("simulated lost transport response");
+    }));
+  }, { store, sink });
+  const row = [...rows.values()][0]!;
+  assert.equal(startedAtDispatch, true);
+  assert.equal(row.providerCreateCallState, "result_unknown");
+  assert.equal(row.state, "result_unknown");
+  assert.equal(row.providerCreatesStarted, 1);
+  assert.doesNotMatch(JSON.stringify(row), /simulated lost transport response|private database error/);
+});
+
+test("audit write failure before dispatch blocks the call without claiming it started", async () => {
+  const { store, rows } = memoryAuditStore(patch => patch.event === "call_reserved");
+  let invoked = 0;
+  await withProvisioningAudit(context, async () => {
+    await assert.rejects(auditedProvisioningCall("gemini_generate", async () => { invoked++; }),
+      /PROVISIONING_AUDIT_UNAVAILABLE/);
+  }, { store });
+  const row = [...rows.values()][0]!;
+  assert.equal(invoked, 0);
+  assert.equal(row.geminiCallsStarted, 0);
+  assert.equal(row.geminiCallState, "not_started");
 });

@@ -1,23 +1,33 @@
 import test, { before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { db, pool, imageAssets, avatarAssets, eq } from "@workspace/db";
+import { db, pool, imageAssets, avatarAssets, provisioningAttempts, eq } from "@workspace/db";
 import { provisionAsset, presentAvatarAsset } from "./asset-service";
 import { runProvisioningTick } from "./provisioning-worker";
 import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers";
 import { prepareTrainingImage, normalizeTrainingImage } from "./training-image";
 import sharp from "sharp";
 import type { GenerateContentResponse } from "@google/genai";
-import type { ProvisioningAuditEntry } from "./provisioning-audit";
+import {
+  initialProvisioningAttempt, type ProvisioningAuditEntry,
+  type ProvisioningAuditStore,
+} from "./provisioning-audit";
 const schema = `automatic_provision_test_${randomUUID().replaceAll("-", "")}`;
 before(async () => {
   await pool.query(`CREATE SCHEMA ${schema}`);
   pool.on("connect", c => { void c.query(`SET search_path TO ${schema}`).catch(() => {}); });
   await pool.query(`SET search_path TO ${schema}`);
   for (const table of ["image_assets", "avatar_assets"]) await pool.query(`CREATE TABLE ${table} (LIKE public.${table} INCLUDING ALL)`);
+  await pool.query(`CREATE TABLE provisioning_attempts (
+    attempt_id uuid PRIMARY KEY, asset_id text NOT NULL, provider_id text NOT NULL, source_build_id text NOT NULL,
+    state text NOT NULL, stage text NOT NULL, event text NOT NULL, sequence integer NOT NULL, elapsed_ms integer NOT NULL DEFAULT 0,
+    gemini_calls_started smallint NOT NULL DEFAULT 0, gemini_call_state text NOT NULL DEFAULT 'not_started',
+    provider_creates_started smallint NOT NULL DEFAULT 0, provider_create_call_state text NOT NULL DEFAULT 'not_started',
+    created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+  )`);
 });
 beforeEach(async () => {
-  await pool.query("TRUNCATE image_assets, avatar_assets");
+  await pool.query("TRUNCATE image_assets, avatar_assets, provisioning_attempts");
   process.env.TAVUS_API_KEY = process.env.ANAM_API_KEY = "fixture";
 });
 after(async () => { await pool.query(`DROP SCHEMA ${schema} CASCADE`); await pool.end(); });
@@ -128,6 +138,12 @@ for (const providerId of ["tavus", "anam"] as const) test(`${providerId}: reques
   assert.deepEqual(seed, original);
   assert.equal(generatedCalls, 1); assert.equal(posts, 1);
   assert.equal(polls, providerId === "tavus" ? 1 : 0);
+    const [attempt] = await db.select().from(provisioningAttempts).where(eq(provisioningAttempts.assetId, asset.id));
+    assert.equal(attempt!.state, "finished");
+    assert.equal(attempt!.geminiCallsStarted, 1);
+    assert.equal(attempt!.geminiCallState, "returned");
+    assert.equal(attempt!.providerCreatesStarted, 1);
+    assert.equal(attempt!.providerCreateCallState, "returned");
   await provisionAsset("owner", { imageAssetId, providerId, personaId: "persona_auto" });
   await runProvisioningTick(options);
   assert.equal(posts, 1); assert.equal(generatedCalls, 1);
@@ -170,6 +186,65 @@ test("Anam ambiguous creation stays quarantined without another Gemini call or p
   await runProvisioningTick(options);
   assert.equal(preparations, 1);
   assert.equal(posts, 1);
+  const [attempt] = await db.select().from(provisioningAttempts).where(eq(provisioningAttempts.assetId, asset.id));
+  assert.equal(attempt!.state, "result_unknown");
+  assert.equal(attempt!.providerCreateCallState, "result_unknown");
+  assert.equal(attempt!.providerCreatesStarted, 1);
+});
+
+test("a stale submitting asset marks its started creation result unknown without another provider call", async () => {
+  const imageAssetId = await source();
+  const asset = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+  const attempt = initialProvisioningAttempt({
+    assetId: asset.id, provider: "anam", operation: "create",
+  });
+  await db.insert(provisioningAttempts).values({
+    ...attempt, stage: "provider_create", event: "call_started", sequence: 3,
+    providerCreatesStarted: 1, providerCreateCallState: "started",
+  });
+  await db.update(avatarAssets).set({
+    status: "submitting", leaseUntil: new Date(0), updatedAt: new Date(),
+  }).where(eq(avatarAssets.id, asset.id));
+  let providerCalls = 0;
+  await runProvisioningTick({
+    onlyId: asset.id,
+    adapter: new ImageProviderAdapter("anam", async () => { providerCalls++; return Response.json({ id: "must-not-be-called" }); }, () => "fixture"),
+  });
+  const [updatedAsset] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+  const [updatedAttempt] = await db.select().from(provisioningAttempts).where(eq(provisioningAttempts.attemptId, attempt.attemptId));
+  assert.equal(providerCalls, 0);
+  assert.equal(updatedAsset!.status, "reconciliation_required");
+  assert.equal(updatedAttempt!.state, "result_unknown");
+  assert.equal(updatedAttempt!.event, "recovered_unknown");
+  assert.equal(updatedAttempt!.stage, "provider_create");
+  assert.equal(updatedAttempt!.providerCreateCallState, "result_unknown");
+  assert.equal(updatedAttempt!.providerCreatesStarted, 1);
+});
+
+test("audit write loss after provider response does not prevent saving the known provider ID", async () => {
+  const imageAssetId = await source();
+  const asset = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+  let calls = 0;
+  const adapter = new ImageProviderAdapter("anam", async () => {
+    calls++;
+    return Response.json({ id: "known-provider-resource" });
+  }, () => "fixture");
+  const store: ProvisioningAuditStore = {
+    create: async record => { await db.insert(provisioningAttempts).values(record); },
+    update: async (attemptId, patch) => {
+      if (patch.stage === "provider_create" && patch.event === "call_returned") throw Error("audit store unavailable");
+      await db.update(provisioningAttempts).set({ ...patch, updatedAt: new Date() })
+        .where(eq(provisioningAttempts.attemptId, attemptId));
+    },
+  };
+  await runProvisioningTick({
+    onlyId: asset.id, adapter, auditStore: store,
+    prepareImage: async () => "https://example.invalid/prepared.jpg",
+  });
+  const [updatedAsset] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+  assert.equal(calls, 1);
+  assert.equal(updatedAsset!.status, "ready");
+  assert.equal(updatedAsset!.providerAvatarId, "known-provider-resource");
 });
 test("preparation failure sends no creation POST, exposes a local failure, and never auto-retries", async () => {
   const imageAssetId = await source();

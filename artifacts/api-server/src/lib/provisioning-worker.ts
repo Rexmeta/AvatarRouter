@@ -1,10 +1,15 @@
-import { db, avatarAssets, imageAssets, and, eq, sql, type AvatarAssetRecord } from "@workspace/db";
+import { randomUUID } from "node:crypto";
+import { db, avatarAssets, imageAssets, provisioningAttempts, and, eq, sql, type AvatarAssetRecord } from "@workspace/db";
 import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers";
 import { providerImageUrl } from "./private-images";
 import { logger } from "./logger";
 import { storeProvisioningFailure, decodeProvisioningFailure } from "./provisioning-failure";
 import { prepareTrainingImage, removeTrainingImage } from "./training-image";
-import { withProvisioningAudit, auditProvisioningStage, type ProvisioningAuditEntry } from "./provisioning-audit";
+import {
+  withProvisioningAudit, auditProvisioningStage, initialProvisioningAttempt,
+  recoverInterruptedProvisioningAttempt, type ProvisioningAuditEntry,
+  type ProvisioningAuditStore,
+} from "./provisioning-audit";
 
 export function provisioningOutcome(error: unknown, creating: boolean) {
   const issue = error instanceof ProviderFailure ? error : new ProviderFailure("PROVISIONING_INTERNAL_ERROR", creating);
@@ -20,7 +25,9 @@ export async function runProvisioningTick(options: {
   prepareImage?: typeof prepareTrainingImage;
   removePreparedImage?: typeof removeTrainingImage;
   auditSink?: (entry: ProvisioningAuditEntry) => void;
+  auditStore?: ProvisioningAuditStore;
 } = {}) {
+  let recoveredSubmissionAssetId: string | undefined;
   const row = await db.transaction(async tx => {
     const [job] = await tx.select().from(avatarAssets).where(sql`
       ${avatarAssets.status} in ('queued','submitting','processing','deleting')
@@ -32,17 +39,35 @@ export async function runProvisioningTick(options: {
     if (job.status === "submitting") {
       // Crash/timeout after upstream POST may have created a paid resource.
       // A new POST is unsafe, so require operator reconciliation.
+      recoveredSubmissionAssetId = job.id;
       await tx.update(avatarAssets).set({ status: "reconciliation_required", errorCode: "SUBMISSION_INTERRUPTED", leaseUntil: null, updatedAt: new Date() }).where(eq(avatarAssets.id, job.id));
       return undefined;
+    }
+    const attemptId = job.status === "queued" ? randomUUID() : undefined;
+    if (attemptId) {
+      await tx.insert(provisioningAttempts).values(initialProvisioningAttempt({
+        assetId: job.id, provider: job.providerId, operation: "create",
+      }, attemptId));
     }
     const leaseUntil = new Date(Date.now() + 300_000);
     await tx.update(avatarAssets).set({
       status: job.status === "queued" ? "submitting" : job.status,
       leaseUntil, updatedAt: new Date(),
     }).where(eq(avatarAssets.id, job.id));
-    return { ...job, leaseUntil };
+    return { ...job, leaseUntil, provisioningAttemptId: attemptId };
   });
-  if (!row) return;
+  if (!row) {
+    if (recoveredSubmissionAssetId) {
+      // Recovery bookkeeping is best-effort and must never block the existing
+      // reconciliation fence on the asset itself.
+      try {
+        await db.transaction(tx => recoverInterruptedProvisioningAttempt(tx, recoveredSubmissionAssetId!));
+      } catch {
+        logger.warn({ assetId: recoveredSubmissionAssetId }, "Could not append provisioning attempt recovery state");
+      }
+    }
+    return;
+  }
   const creating = row.status === "queued";
   const adapter = options.adapter ?? new ImageProviderAdapter(row.providerId);
   return withProvisioningAudit({
@@ -53,47 +78,47 @@ export async function runProvisioningTick(options: {
   let stage: "image_preparation" | "provider_create" | "provider_status" | "provider_delete" | "persistence" = "image_preparation";
   try {
     if (creating) {
-      auditProvisioningStage(stage, "started");
+      await auditProvisioningStage(stage, "started");
       const [source] = await db.select().from(imageAssets).where(and(eq(imageAssets.id, row.imageAssetId), eq(imageAssets.tenantId, row.tenantId)));
       if (!source) throw new ProviderFailure("SOURCE_IMAGE_MISSING");
       const signedUrl = options.signImage
         ? await options.signImage(source.objectPath) // Existing test adapters only.
         : await (options.prepareImage ?? prepareTrainingImage)(source.objectPath, row.tenantId, row.id, row.providerId);
-      auditProvisioningStage(stage, "completed");
+      await auditProvisioningStage(stage, "completed");
       const [owned] = await db.select({ id: avatarAssets.id }).from(avatarAssets).where(and(
         eq(avatarAssets.id, row.id), eq(avatarAssets.status, "submitting"),
         eq(avatarAssets.leaseUntil, row.leaseUntil),
         sql`${avatarAssets.leaseUntil} > now()`,
       )).limit(1);
       if (!owned) {
-        auditProvisioningStage("provider_create", "skipped");
+        await auditProvisioningStage("provider_create", "skipped");
         return; // Long AI/storage calls may outlive ownership; never dispatch after lease loss.
       }
       stage = "provider_create";
-      auditProvisioningStage(stage, "started");
+      await auditProvisioningStage(stage, "started");
       dispatched = true;
       const result = await adapter.create(row.name, signedUrl, row.voiceName);
-      auditProvisioningStage(stage, "completed");
+      await auditProvisioningStage(stage, "completed");
       stage = "persistence";
-      auditProvisioningStage(stage, "started");
+      await auditProvisioningStage(stage, "started");
       await finish(row, { providerAvatarId: result.id, status: result.ready ? "ready" : "processing", errorCode: null });
-      auditProvisioningStage(stage, "completed");
+      await auditProvisioningStage(stage, "completed");
     } else if (row.status === "processing") {
       stage = "provider_status";
-      auditProvisioningStage(stage, "started");
+      await auditProvisioningStage(stage, "started");
       if (!row.providerAvatarId) throw new ProviderFailure("PROVIDER_ID_MISSING");
       await finish(row, { status: await adapter.poll(row.providerAvatarId), errorCode: null });
-      auditProvisioningStage(stage, "completed");
+      await auditProvisioningStage(stage, "completed");
     } else if (row.status === "deleting") {
       stage = "provider_delete";
-      auditProvisioningStage(stage, "started");
+      await auditProvisioningStage(stage, "started");
       if (row.providerAvatarId) await adapter.remove(row.providerAvatarId);
       await (options.removePreparedImage ?? removeTrainingImage)(row.tenantId, row.id);
       await finish(row, { status: "deleted", deletionStatus: "confirmed", errorCode: null, providerAvatarId: null });
-      auditProvisioningStage(stage, "completed");
+      await auditProvisioningStage(stage, "completed");
     }
   } catch (error) {
-    auditProvisioningStage(stage, "failed");
+    await auditProvisioningStage(stage, "failed");
     const outcome = provisioningOutcome(error, creating && dispatched);
     await finish(row, {
       status: row.status === "deleting" ? "deleting"
@@ -108,7 +133,13 @@ export async function runProvisioningTick(options: {
       providerIdPresent: !!row.providerAvatarId, creationOutcomeUncertain: outcome.ambiguous,
     }, "Avatar provisioning operation requires attention");
   }
-  }, options.auditSink);
+  }, {
+    attemptId: row.provisioningAttemptId,
+    initiallyPersisted: creating,
+    persist: creating,
+    sink: options.auditSink,
+    store: options.auditStore,
+  });
 }
 async function finish(row: AvatarAssetRecord, changes: Partial<typeof avatarAssets.$inferInsert>) {
   await db.update(avatarAssets).set({
