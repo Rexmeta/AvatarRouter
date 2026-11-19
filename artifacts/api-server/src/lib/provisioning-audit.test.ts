@@ -6,11 +6,21 @@ import {
   auditedProvisioningCall, auditProvisioningStage, withProvisioningAudit,
   type ProvisioningAuditEntry, type ProvisioningAuditStore,
 } from "./provisioning-audit";
+import { scheduleProvisioningAttemptPrune } from "./provisioning-attempt-retention";
 import { ensureTrainingPortrait } from "./gemini-training-image";
 import { ImageProviderAdapter } from "./provisioning-providers";
 import { sourceBuildId } from "./runtime-build";
 
 const context = { assetId: "fixture-asset", provider: "anam" as const, operation: "create" as const };
+test("retention cleanup errors are swallowed and left for background retry", async () => {
+  let attempted = false;
+  await scheduleProvisioningAttemptPrune(async () => {
+    attempted = true;
+    throw Error("private database detail");
+  }, Date.now() + 2 * 24 * 60 * 60 * 1000);
+  assert.equal(attempted, true);
+});
+
 test("one attempt links sequential stage events, model selection and bounded invocation counters", async () => {
   const entries: ProvisioningAuditEntry[] = [];
   await withProvisioningAudit(context, async () => {

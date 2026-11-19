@@ -13,6 +13,10 @@ import {
   initialProvisioningAttempt, type ProvisioningAuditEntry,
   type ProvisioningAuditStore,
 } from "./provisioning-audit";
+import {
+  PROVISIONING_ATTEMPT_RETENTION_DAYS, pruneProvisioningAttempts,
+  scheduleProvisioningAttemptPrune,
+} from "./provisioning-attempt-retention";
 const schema = `automatic_provision_test_${randomUUID().replaceAll("-", "")}`;
 before(async () => {
   await pool.query(`CREATE SCHEMA ${schema}`);
@@ -32,6 +36,29 @@ beforeEach(async () => {
   process.env.TAVUS_API_KEY = process.env.ANAM_API_KEY = "fixture";
 });
 after(async () => { await pool.query(`DROP SCHEMA ${schema} CASCADE`); await pool.end(); });
+test("retention removes only finished attempts older than the documented period", async () => {
+  const now = new Date();
+  const old = new Date(now.getTime() - (PROVISIONING_ATTEMPT_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000);
+  const recent = new Date(now.getTime() - (PROVISIONING_ATTEMPT_RETENTION_DAYS - 1) * 24 * 60 * 60 * 1000);
+  const make = (state: "active" | "finished" | "result_unknown", updatedAt: Date) => ({
+    ...initialProvisioningAttempt({ assetId: `retention-${randomUUID()}`, provider: "anam", operation: "create" }),
+    state, updatedAt, createdAt: old,
+  });
+  const attempts = [
+    make("finished", old),
+    make("finished", recent),
+    make("active", old),
+    make("result_unknown", old),
+  ];
+  await db.insert(provisioningAttempts).values(attempts);
+
+  const deleted = await pruneProvisioningAttempts();
+  const remaining = await db.select().from(provisioningAttempts);
+  assert.equal(deleted, 1);
+  assert.equal(remaining.length, 3);
+  assert.deepEqual(remaining.map(row => row.state).sort(), ["active", "finished", "result_unknown"]);
+  assert.ok(remaining.some(row => row.state === "finished" && row.updatedAt.getTime() === recent.getTime()));
+});
 async function source(likeness: "synthetic" | "real_person" = "synthetic") {
   const id = randomUUID();
   await db.insert(imageAssets).values({
@@ -41,6 +68,60 @@ async function source(likeness: "synthetic" | "real_person" = "synthetic") {
   });
   return id;
 }
+test("a failed retention cleanup does not block provider ID persistence or remote deletion", async () => {
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  await db.insert(provisioningAttempts).values({
+    ...initialProvisioningAttempt({ assetId: "retention-failure-fixture", provider: "anam", operation: "create" }),
+    state: "finished", updatedAt: old, createdAt: old,
+  });
+  const functionName = `${schema}.reject_provisioning_attempt_retention`;
+  const triggerName = "reject_provisioning_attempt_retention";
+  await pool.query(`
+    CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'RETENTION_DELETE_FAILURE';
+    END;
+    $$;
+    CREATE TRIGGER ${triggerName}
+    BEFORE DELETE ON ${schema}.provisioning_attempts
+    FOR EACH ROW EXECUTE FUNCTION ${functionName}();
+  `);
+
+  let removeCalls = 0;
+  try {
+    await scheduleProvisioningAttemptPrune(() => pruneProvisioningAttempts(), Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const imageAssetId = await source();
+    const asset = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+    const adapter = new ImageProviderAdapter("anam", async (_url, init) => {
+      if (init?.method === "DELETE") {
+        removeCalls++;
+        return Response.json({});
+      }
+      return Response.json({ id: "persisted-despite-retention-failure" });
+    }, () => "fixture");
+    await runProvisioningTick({
+      onlyId: asset.id, adapter,
+      prepareImage: async () => "https://example.invalid/prepared.jpg",
+      removePreparedImage: async () => {},
+    });
+    let [row] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+    assert.equal(row!.status, "ready");
+    assert.equal(row!.providerAvatarId, "persisted-despite-retention-failure");
+
+    await db.update(avatarAssets).set({ status: "deleting", leaseUntil: null })
+      .where(eq(avatarAssets.id, asset.id));
+    await runProvisioningTick({
+      onlyId: asset.id, adapter,
+      removePreparedImage: async () => {},
+    });
+    [row] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+    assert.equal(removeCalls, 1);
+    assert.equal(row!.status, "deleted");
+  } finally {
+    await pool.query(`DROP TRIGGER ${triggerName} ON ${schema}.provisioning_attempts`);
+    await pool.query(`DROP FUNCTION ${functionName}()`);
+  }
+});
 test("small sources auto-queue with no cost prompt; prepared image, exact persona name and one create reach either adapter", async () => {
   for (const providerId of ["tavus", "anam"] as const) {
     const imageAssetId = await source("real_person");

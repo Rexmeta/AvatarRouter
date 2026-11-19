@@ -10,6 +10,7 @@ import {
   recoverInterruptedProvisioningAttempt, type ProvisioningAuditEntry,
   type ProvisioningAuditStore,
 } from "./provisioning-audit";
+import { scheduleProvisioningAttemptPrune } from "./provisioning-attempt-retention";
 
 export function provisioningOutcome(error: unknown, creating: boolean) {
   const issue = error instanceof ProviderFailure ? error : new ProviderFailure("PROVISIONING_INTERNAL_ERROR", creating);
@@ -27,6 +28,7 @@ export async function runProvisioningTick(options: {
   auditSink?: (entry: ProvisioningAuditEntry) => void;
   auditStore?: ProvisioningAuditStore;
 } = {}) {
+  void scheduleProvisioningAttemptPrune();
   let recoveredSubmissionAssetId: string | undefined;
   const row = await db.transaction(async tx => {
     const [job] = await tx.select().from(avatarAssets).where(sql`

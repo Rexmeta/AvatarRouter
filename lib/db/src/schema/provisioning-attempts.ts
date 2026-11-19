@@ -34,6 +34,7 @@ export const provisioningAttempts = pgTable("provisioning_attempts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("provisioning_attempts_asset_state_created").on(table.assetId, table.state, table.createdAt),
+  index("provisioning_attempts_state_updated").on(table.state, table.updatedAt),
 ]);
 
 export type ProvisioningAttemptRecord = typeof provisioningAttempts.$inferSelect;
