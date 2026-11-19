@@ -5,6 +5,7 @@ import { db, pool, imageAssets, avatarAssets, provisioningAttempts, eq } from "@
 import { provisionAsset, presentAvatarAsset } from "./asset-service";
 import { runProvisioningTick } from "./provisioning-worker";
 import { ImageProviderAdapter, ProviderFailure } from "./provisioning-providers";
+import { logger } from "./logger";
 import { prepareTrainingImage, normalizeTrainingImage } from "./training-image";
 import sharp from "sharp";
 import type { GenerateContentResponse } from "@google/genai";
@@ -219,6 +220,74 @@ test("a stale submitting asset marks its started creation result unknown without
   assert.equal(updatedAttempt!.stage, "provider_create");
   assert.equal(updatedAttempt!.providerCreateCallState, "result_unknown");
   assert.equal(updatedAttempt!.providerCreatesStarted, 1);
+});
+
+test("a failed audit recovery write keeps a stale submission quarantined and logs no database details", async () => {
+  const imageAssetId = await source();
+  const asset = await provisionAsset("owner", { imageAssetId, providerId: "anam" });
+  const attempt = initialProvisioningAttempt({
+    assetId: asset.id, provider: "anam", operation: "create",
+  });
+  await db.insert(provisioningAttempts).values({
+    ...attempt, stage: "provider_create", event: "call_started", sequence: 3,
+    providerCreatesStarted: 1, providerCreateCallState: "started",
+  });
+  await db.update(avatarAssets).set({
+    status: "submitting", leaseUntil: new Date(0), updatedAt: new Date(),
+  }).where(eq(avatarAssets.id, asset.id));
+
+  const functionName = `${schema}.reject_provisioning_attempt_recovery`;
+  const triggerName = "reject_provisioning_attempt_recovery";
+  await pool.query(`
+    CREATE FUNCTION ${functionName}() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'SENSITIVE_LEDGER_DB_ERROR_MARKER';
+    END;
+    $$;
+    CREATE TRIGGER ${triggerName}
+    BEFORE UPDATE ON ${schema}.provisioning_attempts
+    FOR EACH ROW EXECUTE FUNCTION ${functionName}();
+  `);
+
+  const warnings: unknown[][] = [];
+  const warnDescriptor = Object.getOwnPropertyDescriptor(logger, "warn");
+  assert.ok(warnDescriptor, "logger.warn should be an own property");
+  Object.defineProperty(logger, "warn", {
+    ...warnDescriptor,
+    value: (...args: unknown[]) => { warnings.push(args); },
+  });
+  let preparationCalls = 0;
+  let providerCalls = 0;
+  const adapter = new ImageProviderAdapter("anam", async () => {
+    providerCalls++;
+    return Response.json({ id: "must-not-be-created" });
+  }, () => "fixture");
+  try {
+    const options = {
+      onlyId: asset.id,
+      adapter,
+      prepareImage: async () => {
+        preparationCalls++;
+        return "https://example.invalid/prepared.jpg";
+      },
+    };
+    await runProvisioningTick(options);
+    await runProvisioningTick(options);
+  } finally {
+    Object.defineProperty(logger, "warn", warnDescriptor);
+    await pool.query(`DROP TRIGGER ${triggerName} ON ${schema}.provisioning_attempts`);
+    await pool.query(`DROP FUNCTION ${functionName}()`);
+  }
+
+  const [updatedAsset] = await db.select().from(avatarAssets).where(eq(avatarAssets.id, asset.id));
+  assert.equal(updatedAsset!.status, "reconciliation_required");
+  assert.equal(updatedAsset!.errorCode, "SUBMISSION_INTERRUPTED");
+  assert.equal(updatedAsset!.leaseUntil, null);
+  assert.equal(preparationCalls, 0);
+  assert.equal(providerCalls, 0);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]![1], "Could not append provisioning attempt recovery state");
+  assert.doesNotMatch(JSON.stringify(warnings), /SENSITIVE_LEDGER_DB_ERROR_MARKER/);
 });
 
 test("audit write loss after provider response does not prevent saving the known provider ID", async () => {
