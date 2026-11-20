@@ -193,8 +193,10 @@ function ShellRoutes() {
           <Route path="/workspaces/:projectId/:section" component={Workspace} />
           <Route path="/workspaces/:projectId" component={Workspace} />
           <Route path="/account/:section" component={Account} />
-          <Route path="/avatar-assets" component={AvatarAssets} />
-          <Route path="/avatar-assets/:id" component={AvatarAssets} />
+          <Route path="/avatar-assets/images"><AvatarAssets key="images" section="images" /></Route>
+          <Route path="/avatar-assets/guide"><AvatarAssets key="guide" section="guide" /></Route>
+          <Route path="/avatar-assets"><AvatarAssets key="avatars" /></Route>
+          <Route path="/avatar-assets/:id"><AvatarAssets key="avatars" /></Route>
           <Route path="/playground" component={Playground} />
           <Route path="/providers" component={Providers} />
           <Route path="/sessions" component={Sessions} />

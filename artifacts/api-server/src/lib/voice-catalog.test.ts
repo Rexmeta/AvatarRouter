@@ -66,6 +66,42 @@ test("operator gender assignments override provider metadata and unknown remains
   await assert.rejects(catalog.requireSelection("anam", "anam-female"), { code: "VOICE_NOT_AVAILABLE" });
 });
 
+test("Tavus stock gender uses exact provider tags in both catalogs without guessing ambiguous data", async () => {
+  const rows = [
+    { voice_id: "stock-f", voice_name: "Voice One", voice_type: "system", tags: ["en", "female", " FEMALE "] },
+    { voice_id: "stock-m", voice_name: "Voice Two", voice_type: "system", tags: ["male", "American"] },
+    { voice_id: "stock-conflict", voice_name: "Voice Three", voice_type: "system", tags: ["male", "female"] },
+    { voice_id: "stock-unknown", voice_name: "Female Character", voice_type: "system", tags: ["female-presenting", { tag_name: "female" }] },
+    { voice_id: "private-tag", voice_name: "Account voice", voice_type: "user", tags: ["female"] },
+    { voice_id: "explicit-value", voice_name: "Voice Four", voice_type: "system", gender: "neutral", tags: ["female"] },
+  ];
+  const catalog = new VoiceCatalog(async input => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "tavusapi.com");
+    const data = url.searchParams.get("source") === "system" ? rows.filter(row => row.voice_type === "system") : rows;
+    return response({ data, total_count: data.length });
+  }, Date.now, {
+    list: async () => [{ providerId: "tavus", voiceId: "stock-m", gender: "neutral" }],
+    set: async () => {},
+  }, () => ({ anam: undefined, tavus: "test-key" }));
+  const integration = await catalog.list();
+  const stock = await catalog.listStock("tavus");
+  for (const { voices } of [integration, stock]) {
+    const actual = Object.fromEntries(voices.map(voice => [voice.id, [voice.gender, voice.genderSource]]));
+    assert.deepEqual(actual["stock-f"], ["female", "provider"]);
+    assert.deepEqual(actual["stock-m"], ["neutral", "admin"]);
+    assert.deepEqual(actual["stock-conflict"], ["unclassified", "unknown"]);
+    assert.deepEqual(actual["stock-unknown"], ["unclassified", "unknown"]);
+    assert.deepEqual(actual["explicit-value"], ["neutral", "provider"]);
+    assert.doesNotMatch(JSON.stringify(voices), /"tags"/);
+  }
+  assert.equal(integration.voices.find(voice => voice.id === "private-tag")?.gender, "unclassified");
+  assert.ok(!stock.voices.some(voice => voice.id === "private-tag"));
+  assert.equal((await catalog.requireSelection("tavus", "stock-f", "female")).genderSource, "provider");
+  await assert.rejects(catalog.requireSelection("tavus", "stock-conflict"), { code: "VOICE_NOT_AVAILABLE" });
+  await assert.rejects(catalog.requireSelection("tavus", "stock-f", "male"), { code: "VOICE_GENDER_CHANGED" });
+});
+
 test("provider outages are isolated and cannot be treated as an empty successful catalog", async () => {
   const { catalog } = harness({ tavusStatus: 429 });
   const result = await catalog.list();

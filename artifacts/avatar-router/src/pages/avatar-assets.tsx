@@ -24,6 +24,7 @@ import { useAssetWorkspace } from '@/lib/workspace-assets';
 import { SeedLiveOptionsButton } from '@/components/seed-live-options';
 import { WorkspaceStockCatalog } from '@/components/workspace-stock-catalog';
 import { TrainingImageAISettings } from '@/components/training-image-ai-settings';
+import { avatarAssetNavigation, type AvatarAssetSection } from '@/lib/avatar-asset-sections';
 
 const MAX_BYTES = 4.5 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -36,40 +37,37 @@ function useL() {
   return (en: string, ko: string) => (lang === 'en' ? en : ko);
 }
 
-export default function AvatarAssets() {
+const descriptions: Record<AvatarAssetSection, [string, string]> = {
+  images: ['Upload and manage private source images. Start avatar creation from an image in the library.', '비공개 원본 이미지를 업로드하고 관리합니다. 라이브러리의 이미지에서 아바타 생성을 시작할 수 있습니다.'],
+  avatars: ['Track custom avatar creation and open a result to see its details.', '커스텀 아바타의 생성 상태를 확인하고 상세 정보를 열 수 있습니다.'],
+  faces: ['Browse the stock faces available from each provider.', '제공자별 스톡 얼굴을 확인합니다.'],
+  voices: ['Find provider stock voices by name, gender or language.', '제공자별 스톡 음성을 이름·성별·언어로 찾아봅니다.'],
+  guide: ['Check provider requirements and the image-generation setup before creating an avatar.', '아바타를 생성하기 전에 제공자별 요구 사항과 이미지 생성 설정을 확인합니다.'],
+};
+
+export default function AvatarAssets({ section = 'avatars' }: { section?: AvatarAssetSection }) {
   const { user, isLoaded } = useUser();
+  const { projectId } = useAssetWorkspace();
   const L = useL();
-  const head = (
-    <>
-    <PageHead
-      index="02b / avatar assets"
-      title={L('Avatar assets', '아바타 에셋')}
-      lede={L(
-        'Ingest a source image you hold rights to, then ask a provider to build a reusable avatar from it. Every state here is what the server and provider actually report.',
-        '권리를 보유한 원본 이미지를 업로드하고 프로바이더에 재사용 가능한 아바타 생성을 요청하세요. 여기의 모든 상태는 서버와 프로바이더가 실제로 보고한 값입니다.',
-      )}
-    />
-    <TrainingImageAISettings />
-    </>
-  );
-  if (!isLoaded) return <div>{head}<div className="grid gap-6 lg:grid-cols-2"><Skel className="h-80" /><Skel className="h-80" /></div></div>;
-  if (!user) {
-    return (
-      <div>
-        {head}
-        <StockEntry />
-        <SignedOutGate />
-        <div className="mt-8"><CapabilityPanel /></div>
-      </div>
-    );
+  const menu = avatarAssetNavigation(projectId ?? undefined);
+  const current = menu.find(item => item.id === section);
+  if (!current) return null;
+  const head = <PageHead index="AVATAR ASSETS" title={L(current.en, current.ko)} lede={L(...descriptions[section])} />;
+  if (section === 'guide') {
+    return <div>{head}{!projectId && <StockEntry />}<TrainingImageAISettings /><CapabilityPanel /></div>;
   }
-  return <SignedIn head={head} />;
+  if (!isLoaded) return <div>{head}<Skel className="h-64" /></div>;
+  if (!user) return <div>{head}<SignedOutGate /></div>;
+  if (projectId && (section === 'faces' || section === 'voices')) {
+    return <div>{head}<WorkspaceStockCatalog projectId={projectId} kind={section} /></div>;
+  }
+  if (section !== 'images' && section !== 'avatars') return null;
+  const sourceHref = menu.find(item => item.id === 'images')!.href;
+  return <div>{head}<SignedIn section={section} sourceHref={sourceHref} /></div>;
 }
 
 function StockEntry() {
-  const { projectId } = useAssetWorkspace();
   const L = useL();
-  if (projectId) return <div className="mb-6 rounded border border-primary/30 bg-primary/5 p-4 text-sm">{L('These assets belong to this project. Integrate with its server-side API key; the personal Playground is a separate workspace.', '이 에셋은 현재 프로젝트 소속입니다. 해당 프로젝트의 서버 API 키로 연동하세요. 개인 Playground는 별도 공간입니다.')}</div>;
   return (
     <Link href="/playground#stock" data-testid="link-stock-playground" className="rise mb-6 flex items-center justify-between gap-4 rounded-md border border-primary/40 bg-primary/5 px-4 py-3 transition hover:bg-primary/10">
       <span>
@@ -90,7 +88,7 @@ function SignedOutGate() {
           <div className="eyebrow mb-2">{L('Private workspace', '비공개 작업 공간')}</div>
           <h2 className="text-xl font-semibold">{L('Sign in to see your images and avatars.', '이미지와 아바타를 보려면 로그인하세요.')}</h2>
           <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-            {L('Uploads are scoped to your account and never listed publicly. Provider capabilities below are public.', '업로드는 계정 단위로 격리되며 공개되지 않습니다. 아래 프로바이더 기능 정보는 공개입니다.')}
+            {L('Uploads are scoped to your account and never listed publicly.', '업로드는 계정별로 격리되며 공개되지 않습니다.')}
           </p>
           <div className="mt-5 flex gap-2">
             <Link href="/sign-in" data-testid="link-gate-sign-in" className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition active:scale-[.97]">
@@ -109,7 +107,7 @@ function SignedOutGate() {
   );
 }
 
-function SignedIn({ head }: { head: ReactNode }) {
+function SignedIn({ section, sourceHref }: { section: 'images' | 'avatars'; sourceHref: string }) {
   const { projectId, request, base } = useAssetWorkspace();
   const { user } = useUser();
   const L = useL();
@@ -121,7 +119,7 @@ function SignedIn({ head }: { head: ReactNode }) {
     request,
     query: {
       queryKey: [...getListImageAssetsQueryKey(), projectId],
-      enabled: !!user,
+      enabled: !!user && section === 'images',
       staleTime: 15000,
     },
   });
@@ -135,10 +133,8 @@ function SignedIn({ head }: { head: ReactNode }) {
     },
   });
 
-  return (
-    <div>
-      {head}
-      <StockEntry />
+  if (section === 'images') return (
+    <>
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <IngestPanel images={images.data ?? []} />
         <Panel title={L('Private image library', '비공개 이미지 라이브러리')} aside={<span className="mono text-[10.5px] text-muted-foreground">{images.data?.length ?? 0}</span>}>
@@ -159,8 +155,15 @@ function SignedIn({ head }: { head: ReactNode }) {
           )}
         </Panel>
       </div>
+      <ProvisionDialog img={provisionFor} onClose={() => setProvisionFor(null)} />
+    </>
+  );
 
-      <div className="mt-8">
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap justify-end">
+        <Link href={sourceHref} className="arw-button"><ImageUp size={14}/>{L('Start with a source image', '원본 이미지에서 생성')}</Link>
+      </div>
         <Panel title={L('Provisioned avatars', '프로비저닝된 아바타')} aside={avatars.isFetching ? <span className="mono text-[10.5px] text-muted-foreground">{L('syncing', '동기화 중')}</span> : null}>
           {avatars.isLoading ? (
             <div className="space-y-2 p-4">{[0, 1, 2].map((i) => <Skel key={i} className="h-14" />)}</div>
@@ -176,15 +179,8 @@ function SignedIn({ head }: { head: ReactNode }) {
             </ul>
           )}
         </Panel>
-      </div>
-
-      {projectId && <WorkspaceStockCatalog projectId={projectId} />}
-
-      <div className="mt-8"><CapabilityPanel /></div>
-
-      <ProvisionDialog img={provisionFor} onClose={() => setProvisionFor(null)} />
       <AvatarDetailSheet id={params.id ?? ''} onClose={() => setLocation(base)} />
-    </div>
+    </>
   );
 }
 

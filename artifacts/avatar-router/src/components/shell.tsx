@@ -2,9 +2,12 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useUser } from '@clerk/react';
 import { useListDeveloperKeys } from '@workspace/api-client-react';
-import { Activity, ArrowLeft, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, MonitorPlay, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
+import { Activity, ArrowLeft, AudioLines, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, MonitorPlay, ScanFace, Settings, ShieldCheck, UserRound, Wand2, X } from 'lucide-react';
 import { AuthControl } from './auth-control';
 import { useI18n } from '@/lib/i18n';
+import { activeAvatarAssetSection, avatarAssetNavigation } from '@/lib/avatar-asset-sections';
+
+const assetIcons = { images: ImageUp, avatars: Wand2, faces: ScanFace, voices: AudioLines, guide: BookOpen };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [loc, navigate] = useLocation();
@@ -19,12 +22,21 @@ export function Shell({ children }: { children: ReactNode }) {
   const personal = /^\/(avatar-assets|playground|sessions|usage)/.test(loc);
   const inside = !!projectId || personal;
   const base = projectId ? `/workspaces/${projectId}` : '';
+  const currentAsset = activeAvatarAssetSection(loc, projectId);
+  const assetMenu = inside ? <div key="avatar-assets" role="group" aria-label={t('Avatar assets', '아바타 에셋')}>
+    <div className="arw-sidebar-label workspace-label">{t('AVATAR ASSETS', '아바타 에셋')}</div>
+    {avatarAssetNavigation(projectId).map(item => {
+      const Icon = assetIcons[item.id];
+      return <Link key={item.id} href={item.href} className="console-navlink" aria-current={item.id === currentAsset ? 'page' : undefined} onClick={() => setOpen(false)}>
+        <Icon size={16}/>{ko ? item.ko : item.en}
+      </Link>;
+    })}
+  </div> : null;
   const navigation = inside ? [
     [projectId ? `${base}/activity` : '/usage', Activity, t('Activity', '활동')],
     [projectId ? `${base}/sessions` : '/sessions', ListTree, t('Sessions & logs', '세션·로그')],
     ...(projectId ? [[`${base}/live-check`, MonitorPlay, t('Live media check', '라이브 미디어 점검')]] : []),
     ...(projectId ? [[`${base}/keys`, KeyRound, t('API keys', 'API 키')]] : []),
-    [projectId ? `${base}/assets` : '/avatar-assets', ImageUp, t('Avatars & assets', '아바타·에셋')],
     [projectId ? `${base}/limits` : '/usage', ShieldCheck, t('Usage & limits', '사용량·한도')],
     ...(projectId ? [[`${base}/settings`, Settings, t('Settings', '설정')]] : [['/playground', FlaskConical, 'Playground']]),
   ] : [
@@ -65,6 +77,7 @@ export function Shell({ children }: { children: ReactNode }) {
             const Component = Icon as typeof Activity;
             return <Link key={`${href}-${i}`} href={href as string} className="console-navlink" aria-current={loc === href || loc.startsWith(`${href}/`) ? 'page' : undefined} onClick={()=>setOpen(false)}><Component size={16}/>{label as string}</Link>;
           })}
+          {assetMenu}
           <div className="arw-sidebar-label">{t('PRODUCT','제품')}</div>
           <Link className="console-navlink" href="/providers" onClick={()=>setOpen(false)}><Boxes size={16}/>{t('Avatars & providers','아바타·제공자')}</Link>
           <Link className="console-navlink" href="/docs" onClick={()=>setOpen(false)}><BookOpen size={16}/>{t('Documentation','연동 문서')}</Link>

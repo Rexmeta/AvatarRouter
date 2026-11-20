@@ -20,3 +20,5 @@ Use the existing integration project as a workspace, with Personal Studio separa
 **Why:** The approved console must manage existing RoleplayX integrations without changing their keys or asset ownership. A new independent workspace tenant would strand existing integrations.
 
 **How to apply:** New account-console features must resolve exact project ownership server-side. A workspace label or client selector is not authority, and project membership never grants operator reconciliation privileges.
+
+Keep private asset management, provider catalogs, and creation guidance in separate workspace destinations. **Why:** The user found the all-in-one avatar asset page too crowded. **How to apply:** Add new functionality under the relevant destination rather than rebuilding a single combined page; keep old asset-detail links valid.

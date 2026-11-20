@@ -67,6 +67,15 @@ function genderValue(value: unknown): VoiceGender | null {
   return null;
 }
 
+function providerGenderValue(providerId: VoiceProviderId, voice: Record<string, unknown>): VoiceGender | null {
+  const explicit = genderValue(voice.gender);
+  if (explicit || providerId !== "tavus" || voice.voice_type !== "system" || !Array.isArray(voice.tags)) return explicit;
+  // Tavus system voices return classification as exact string tags rather
+  // than a gender property. Do not infer gender from names or ambiguous tags.
+  const genders = new Set(voice.tags.map(genderValue).filter(gender => gender !== null));
+  return genders.size === 1 ? [...genders][0]! : null;
+}
+
 function languagesValue(voice: Record<string, unknown>): string[] {
   const raw = voice.languages ?? voice.languageCodes ?? voice.language_codes ?? voice.language;
   const values = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
@@ -86,7 +95,7 @@ function normalizeVoice(providerId: VoiceProviderId, voice: Record<string, unkno
   const description = safeText(voice.description, 1000);
   return {
     voice: { id, providerId, name, description, languages: languagesValue(voice), available,
-      providerGender: genderValue(voice.gender),
+      providerGender: providerGenderValue(providerId, voice),
       stock: providerId === "anam" ? voice.createdByOrganizationId === null : voice.voice_type === "system" },
   };
 }

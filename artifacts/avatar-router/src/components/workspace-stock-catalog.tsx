@@ -24,29 +24,26 @@ function useL() {
   return (en: string, ko: string) => (lang === 'en' ? en : ko);
 }
 
-export function WorkspaceStockCatalog({ projectId }: { projectId: string }) {
+export function WorkspaceStockCatalog({ projectId, kind }: { projectId: string; kind: 'faces' | 'voices' }) {
   const L = useL();
   const { user } = useUser();
   const uid = user?.id ?? 'anon';
   return (
-    <section className="mt-8" aria-labelledby="stock-catalog-title" data-testid="section-stock-catalog">
+    <section aria-labelledby="stock-catalog-title" data-testid="section-stock-catalog">
       <div className="mb-4 flex flex-col gap-1">
-        <div className="eyebrow flex items-center gap-1.5"><Library className="h-3 w-3" /> {L('Read-only reference', '읽기 전용 참고')}</div>
-        <h2 id="stock-catalog-title" className="text-xl font-semibold tracking-tight">{L('Provider stock catalog', '프로바이더 기본 카탈로그')}</h2>
+        <h2 id="stock-catalog-title" className="eyebrow flex items-center gap-1.5"><Library className="h-3 w-3" /> {L('Read-only catalog', '읽기 전용 카탈로그')}</h2>
         <p className="max-w-3xl text-sm text-muted-foreground">
           {L(
-            'Stock faces and voices published by each provider. These are not your private assets and cannot be edited here. "Selectable" means the existing RoleplayX integration supports choosing this item; "Catalog only" means it is listed for reference. Neither guarantees live session admission, quota, playback, or that every face and voice pairing works.',
-            '각 프로바이더가 제공하는 기본 얼굴과 음성입니다. 비공개 에셋이 아니며 여기서 수정할 수 없습니다. "선택 가능"은 기존 RoleplayX 연동이 이 항목 선택을 지원한다는 뜻이고, "카탈로그 전용"은 참고용 목록이라는 뜻입니다. 어느 쪽도 라이브 세션 승인, 할당량, 재생, 모든 얼굴과 음성 조합의 동작을 보장하지 않습니다.',
+            '"Selectable" means the existing RoleplayX integration supports choosing the item. It does not guarantee live admission, available quota, playback or compatibility with every face and voice pairing.',
+            '‘선택 가능’은 기존 RoleplayX 연동에서 선택할 수 있다는 뜻입니다. 라이브 연결, 사용 한도, 재생 또는 모든 얼굴·음성 조합의 호환을 보장하지는 않습니다.',
           )}
         </p>
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-        {PROVIDERS.map((p) => (
-          <div key={`${uid}:${projectId}:${p.id}`} className="space-y-4">
-            <FacesPanel projectId={projectId} provider={p} uid={uid} />
-            <VoicesPanel projectId={projectId} provider={p} uid={uid} />
-          </div>
-        ))}
+        {PROVIDERS.map((provider) => {
+          const Panel = kind === 'faces' ? FacesPanel : VoicesPanel;
+          return <Panel key={`${uid}:${projectId}:${provider.id}:${kind}`} projectId={projectId} provider={provider} uid={uid} />;
+        })}
       </div>
     </section>
   );
