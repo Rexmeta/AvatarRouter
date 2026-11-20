@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { db, eq, voiceGenderOverrides } from "@workspace/db";
+import { logger } from "./logger";
 import { SessionProblem } from "./session-service";
 
 export type VoiceProviderId = "anam" | "tavus";
@@ -24,6 +25,18 @@ type OverrideStore = {
   list(): Promise<Override[]>;
   set(providerId: VoiceProviderId, voiceId: string, gender: VoiceGender, operatorUserId: string): Promise<void>;
 };
+
+export function voiceOverrideFailureReason(error: unknown) {
+  // Drizzle wraps PostgreSQL errors; log only an allowlisted classification.
+  for (let depth = 0; depth < 3 && error && typeof error === "object"; depth++) {
+    const { code, cause } = error as { code?: unknown; cause?: unknown };
+    if (code === "42P01") return "missing_table";
+    if (code === "42703") return "missing_column";
+    if (code === "42501") return "permission_denied";
+    error = cause;
+  }
+  return "read_or_write_failed";
+}
 
 const endpoint: Record<VoiceProviderId, string> = {
   anam: "https://api.anam.ai/v1/voices",
@@ -177,10 +190,11 @@ export class VoiceCatalog {
         : Promise.resolve<ProviderLoad>({ status: "unconfigured", voices: [] }),
       keys.tavus ? this.load("tavus", keys.tavus)
         : Promise.resolve<ProviderLoad>({ status: "unconfigured", voices: [] }),
-      this.overrides.list(),
-    ]).catch(() => {
-      throw new SessionProblem(503, "VOICE_CATALOG_UNAVAILABLE", "Voice catalog settings are temporarily unavailable.");
-    });
+      this.overrides.list().catch(error => {
+        logger.warn({ stage: "read", reason: voiceOverrideFailureReason(error) }, "Voice catalog override storage unavailable");
+        throw new SessionProblem(503, "VOICE_CATALOG_UNAVAILABLE", "Voice catalog settings are temporarily unavailable.");
+      }),
+    ]);
     const overrideMap = new Map(overrides.map(row => [JSON.stringify([row.providerId, row.voiceId]), row.gender]));
     const merge = (providerId: VoiceProviderId, result: ProviderLoad) => result.voices.map(voice => {
       const override = overrideMap.get(JSON.stringify([providerId, voice.id]));
@@ -219,7 +233,10 @@ export class VoiceCatalog {
     if (!catalog.voices.some(voice => voice.providerId === providerId && voice.id === voiceId)) {
       throw new SessionProblem(404, "VOICE_NOT_FOUND", "That voice is not in the current provider catalog.");
     }
-    await this.overrides.set(providerId, voiceId, gender, operatorUserId);
+    await this.overrides.set(providerId, voiceId, gender, operatorUserId).catch(error => {
+      logger.warn({ stage: "write", reason: voiceOverrideFailureReason(error) }, "Voice catalog override storage unavailable");
+      throw new SessionProblem(503, "VOICE_CATALOG_UNAVAILABLE", "Voice catalog settings are temporarily unavailable.");
+    });
     const updated = await this.list();
     return updated.voices.find(voice => voice.providerId === providerId && voice.id === voiceId)!;
   }

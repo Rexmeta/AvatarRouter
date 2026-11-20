@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { VoiceCatalog } from "./voice-catalog";
+import { VoiceCatalog, voiceOverrideFailureReason } from "./voice-catalog";
 
 type Gender = "male" | "female" | "neutral" | "unclassified";
 const response = (value: unknown, status = 200) =>
@@ -83,4 +83,17 @@ test("unconfigured providers are reported without a provider request", async () 
   assert.equal(called, false);
   assert.deepEqual(result.providers.map(provider => provider.status), ["unconfigured", "unconfigured"]);
   assert.deepEqual(result.voices, []);
+});
+
+test("missing override storage fails closed for voice selection and logs only an allowlisted reason", async () => {
+  const missing = Object.assign(new Error("private database detail"), { code: "42P01" });
+  const error = new Error("private query text", { cause: missing });
+  assert.equal(voiceOverrideFailureReason(error), "missing_table");
+  assert.equal(voiceOverrideFailureReason({ code: "untrusted string" }), "read_or_write_failed");
+  const catalog = new VoiceCatalog(async () => response([]), () => 1000,
+    { list: async () => { throw error; }, set: async () => {} }, () => ({ anam: undefined, tavus: "mock-key" }));
+  for (const result of [() => catalog.list(), () => catalog.requireSelection("tavus", "saved-voice", "female")]) {
+    await assert.rejects(result, { status: 503, code: "VOICE_CATALOG_UNAVAILABLE",
+      message: "Voice catalog settings are temporarily unavailable." });
+  }
 });
