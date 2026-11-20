@@ -1760,6 +1760,19 @@ export type GetDeveloperWorkspace200 = {
   limits: LiveLimits;
 };
 
+export type ListVoicesParams = {
+  /**
+   * @minimum 0
+   * @maximum 5000
+   */
+  offset?: number;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  limit?: number;
+};
+
 export type GetLiveLimitsParams = {
   providerId?: GetLiveLimitsProviderId;
   /** Optional pipeline-specific configuration check. Tavus full uses Daily and needs no LiveKit credentials. Omit for the legacy renderer check. Does not verify provider billing or credits. */

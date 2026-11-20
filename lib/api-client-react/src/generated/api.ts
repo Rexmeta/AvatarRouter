@@ -44,6 +44,7 @@ import type {
   ImageAsset,
   ImageInput,
   IssuedDeveloperKey,
+  ListVoicesParams,
   LiveAudioInput,
   LiveAudioResult,
   LiveCleanupInput,
@@ -3270,21 +3271,28 @@ export function useListAvatars<TData = Awaited<ReturnType<typeof listAvatars>>, 
 
 
 
-export const getListVoicesUrl = () => {
+export const getListVoicesUrl = (params?: ListVoicesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/voices`
+  return stringifiedParams.length > 0 ? `/api/v1/voices?${stringifiedParams}` : `/api/v1/voices`
 }
 
 /**
- * Requires assets:read. Provider credentials, sample URLs and raw provider payloads are never returned.
+ * Requires assets:read. The response is bounded for existing RoleplayX clients. Follow X-Voice-Catalog-Next-Offset when present, even if the returned page is shorter than limit. Session validation uses the full catalog independently. No credentials, sample URLs or raw provider payloads are returned.
  * @summary List safe provider voice metadata for an authorized project
  */
-export const listVoices = async ( options?: Parameters<typeof customFetch>[1]): Promise<VoiceCatalogResponse> => {
+export const listVoices = async (params?: ListVoicesParams, options?: Parameters<typeof customFetch>[1]): Promise<VoiceCatalogResponse> => {
 
-  return customFetch<VoiceCatalogResponse>(getListVoicesUrl(),
+  return customFetch<VoiceCatalogResponse>(getListVoicesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -3297,23 +3305,23 @@ export const listVoices = async ( options?: Parameters<typeof customFetch>[1]): 
 
 
 
-export const getListVoicesQueryKey = () => {
+export const getListVoicesQueryKey = (params?: ListVoicesParams,) => {
     return [
-    `/api/v1/voices`
+    `/api/v1/voices`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListVoicesQueryOptions = <TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListVoicesQueryOptions = <TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(params?: ListVoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListVoicesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListVoicesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVoices>>> = ({ signal }) => listVoices({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVoices>>> = ({ signal }) => listVoices(params, { signal, ...requestOptions });
 
 
 
@@ -3327,7 +3335,7 @@ export type ListVoicesQueryError = ErrorType<void>
 
 
 export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
+ params: undefined |  ListVoicesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listVoices>>,
           TError,
@@ -3337,7 +3345,7 @@ export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TE
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
+ params?: ListVoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listVoices>>,
           TError,
@@ -3347,7 +3355,7 @@ export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TE
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: ListVoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -3355,11 +3363,11 @@ export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TE
  */
 
 export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: ListVoicesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListVoicesQueryOptions(options)
+  const queryOptions = getListVoicesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

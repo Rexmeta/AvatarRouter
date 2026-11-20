@@ -518,14 +518,25 @@ paths:
       operationId: listVoices
       tags: [AvatarRouter]
       summary: List safe provider voice metadata for an authorized project
-      description: "Requires assets:read. Provider credentials, sample URLs and raw provider payloads are never returned."
+      description: "Requires assets:read. The response is bounded for existing RoleplayX clients. Follow X-Voice-Catalog-Next-Offset when present, even if the returned page is shorter than limit. Session validation uses the full catalog independently. No credentials, sample URLs or raw provider payloads are returned."
       security:
         - AvatarPlaygroundOwner: []
         - RoleplayXDelegationJWT: []
         - ServiceApiKey: []
+      parameters:
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 5000, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 1000 } }
       responses:
         "200":
           description: Normalized voice catalog and per-provider availability
+          headers:
+            X-Voice-Catalog-Total:
+              description: Number of entries in the current combined normalized catalog.
+              required: true
+              schema: { type: integer }
+            X-Voice-Catalog-Next-Offset:
+              description: Pass as offset for the next page. Absent on the last page.
+              schema: { type: integer }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VoiceCatalogResponse" }

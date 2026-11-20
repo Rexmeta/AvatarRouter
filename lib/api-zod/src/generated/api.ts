@@ -1205,9 +1205,23 @@ export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
 
 /**
- * Requires assets:read. Provider credentials, sample URLs and raw provider payloads are never returned.
+ * Requires assets:read. The response is bounded for existing RoleplayX clients. Follow X-Voice-Catalog-Next-Offset when present, even if the returned page is shorter than limit. Session validation uses the full catalog independently. No credentials, sample URLs or raw provider payloads are returned.
  * @summary List safe provider voice metadata for an authorized project
  */
+export const listVoicesQueryOffsetDefault = 0;
+export const listVoicesQueryOffsetMin = 0;
+export const listVoicesQueryOffsetMax = 5000;
+
+export const listVoicesQueryLimitDefault = 1000;
+export const listVoicesQueryLimitMax = 1000;
+
+
+
+export const ListVoicesQueryParams = zod.object({
+  "offset": zod.coerce.number().int().min(listVoicesQueryOffsetMin).max(listVoicesQueryOffsetMax).default(listVoicesQueryOffsetDefault),
+  "limit": zod.coerce.number().int().min(1).max(listVoicesQueryLimitMax).default(listVoicesQueryLimitDefault)
+})
+
 export const listVoicesResponseProvidersMax = 2;
 
 export const listVoicesResponseVoicesItemIdMax = 160;

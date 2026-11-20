@@ -5,7 +5,7 @@ import {
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
   SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
   GetTavusFullConnectionResponse, GetTavusFinalTranscriptResponse,
-  ListVoicesResponse,
+  ListVoicesQueryParams, ListVoicesResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundLimit } from "../middlewares/playground-owner";
@@ -27,6 +27,7 @@ import { FinalTranscriptProblem } from "../lib/tavus-final-transcript";
 import { readSessionTranscript } from "../lib/session-transcript";
 import { tavusRoleplayOptions } from "../lib/roleplay-context";
 import { voiceCatalog, type VoiceGender, type VoiceProviderId } from "../lib/voice-catalog";
+import { voiceCatalogPage } from "../lib/voice-catalog-page";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -40,8 +41,13 @@ router.get("/v1/avatars", async (_req, res) => {
   const base = getAvatars().filter(a => !process.env.TAVUS_API_KEY || a.id !== STOCK_AVATAR);
   res.set("Cache-Control", "private, no-store").json(ListAvatarsResponse.parse([...base, ...stock]));
 });
-router.get("/v1/voices", assetTenant, async (_req, res) => {
-  res.set("Cache-Control", "private, no-store").json(ListVoicesResponse.parse(await voiceCatalog.list()));
+router.get("/v1/voices", assetTenant, async (req, res) => {
+  const { offset, limit } = ListVoicesQueryParams.parse(req.query);
+  const { page, total, nextOffset } = voiceCatalogPage(await voiceCatalog.list(), offset, limit);
+  res.set("Cache-Control", "private, no-store");
+  res.set("X-Voice-Catalog-Total", String(total));
+  if (nextOffset !== null) res.set("X-Voice-Catalog-Next-Offset", String(nextOffset));
+  res.json(ListVoicesResponse.parse(page));
 });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
 router.get("/v1/live-limits", assetTenant, async (req, res): Promise<void> => {

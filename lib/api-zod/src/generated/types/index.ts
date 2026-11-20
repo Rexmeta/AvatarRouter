@@ -68,6 +68,7 @@ export * from './imageInputLikeness';
 export * from './integrationContract';
 export * from './integrationContractCustomValidationPipelinesItem';
 export * from './issuedDeveloperKey';
+export * from './listVoicesParams';
 export * from './liveAudioInput';
 export * from './liveAudioResult';
 export * from './liveCleanupInput';

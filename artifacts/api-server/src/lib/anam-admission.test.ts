@@ -51,7 +51,7 @@ test("native admission requires authentication and integration context before an
       voices: [{ id: "page-11-voice", providerId: "anam" as const, name: "Late voice", description: "",
         gender: "female" as const, genderSource: "provider" as const, languages: ["ko"], available: true }],
     }));
-    const listVoices = (headers?: Record<string, string>) => fetch(`${origin}/api/v1/voices`, { headers });
+    const listVoices = (headers?: Record<string, string>, query = "") => fetch(`${origin}/api/v1/voices${query}`, { headers });
     assert.equal((await listVoices()).status, 401);
     assert.equal((await listVoices({ "x-test-integration": "authorized" })).status, 403);
     assert.equal((await listVoices({ "x-test-integration": "read-assets", "x-avatar-workspace-id": "another-workspace" })).status, 403);
@@ -59,9 +59,14 @@ test("native admission requires authentication and integration context before an
     const listResponse = await listVoices({ "x-test-integration": "read-assets" });
     assert.equal(listResponse.status, 200);
     assert.equal(listResponse.headers.get("cache-control"), "private, no-store");
+    assert.equal(listResponse.headers.get("x-voice-catalog-total"), "1");
+    assert.equal(listResponse.headers.get("x-voice-catalog-next-offset"), null);
     const listed = await listResponse.json() as { voices: { id: string }[] };
     assert.equal(listed.voices[0]?.id, "page-11-voice");
     assert.equal(catalogRead.mock.callCount(), 1);
+    const nextPage = await listVoices({ "x-test-integration": "read-assets" }, "?offset=1&limit=5");
+    assert.equal(nextPage.status, 200);
+    assert.deepEqual((await nextPage.json() as {voices: unknown[]}).voices, []);
     const validateVoice = t.mock.method(voiceCatalog, "requireSelection", async () => {
       throw new Error("Voice verification must not run before cost confirmation");
     });
