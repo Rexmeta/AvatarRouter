@@ -22,6 +22,7 @@ import { setSelectedAsset, useSelectedAsset } from '@/lib/selected-asset';
 import { cn } from '@/lib/utils';
 import { useAssetWorkspace } from '@/lib/workspace-assets';
 import { SeedLiveOptionsButton } from '@/components/seed-live-options';
+import { WorkspaceStockCatalog } from '@/components/workspace-stock-catalog';
 import { TrainingImageAISettings } from '@/components/training-image-ai-settings';
 
 const MAX_BYTES = 4.5 * 1024 * 1024;
@@ -176,6 +177,8 @@ function SignedIn({ head }: { head: ReactNode }) {
           )}
         </Panel>
       </div>
+
+      {projectId && <WorkspaceStockCatalog projectId={projectId} />}
 
       <div className="mt-8"><CapabilityPanel /></div>
 

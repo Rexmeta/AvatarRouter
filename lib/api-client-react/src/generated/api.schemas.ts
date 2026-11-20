@@ -5,6 +5,80 @@
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
  * OpenAPI spec version: 0.9.0
  */
+export type WorkspaceStockProvider = typeof WorkspaceStockProvider[keyof typeof WorkspaceStockProvider];
+
+
+export const WorkspaceStockProvider = {
+  tavus: 'tavus',
+  anam: 'anam',
+} as const;
+
+export type WorkspaceStockStatus = typeof WorkspaceStockStatus[keyof typeof WorkspaceStockStatus];
+
+
+export const WorkspaceStockStatus = {
+  available: 'available',
+  unconfigured: 'unconfigured',
+  unavailable: 'unavailable',
+} as const;
+
+/**
+ * Existing RoleplayX integration supports selecting this type of item, or the item is reference-only. Neither value verifies media, credit or admission.
+ */
+export type WorkspaceStockSelection = typeof WorkspaceStockSelection[keyof typeof WorkspaceStockSelection];
+
+
+export const WorkspaceStockSelection = {
+  supported: 'supported',
+  browse_only: 'browse_only',
+} as const;
+
+export interface WorkspaceStockFace {
+  id: string;
+  name: string;
+  /** @nullable */
+  thumbnailUrl: string | null;
+  selection: WorkspaceStockSelection;
+}
+
+export type WorkspaceStockVoiceGender = typeof WorkspaceStockVoiceGender[keyof typeof WorkspaceStockVoiceGender];
+
+
+export const WorkspaceStockVoiceGender = {
+  male: 'male',
+  female: 'female',
+  neutral: 'neutral',
+  unclassified: 'unclassified',
+} as const;
+
+export type WorkspaceStockVoiceGenderSource = typeof WorkspaceStockVoiceGenderSource[keyof typeof WorkspaceStockVoiceGenderSource];
+
+
+export const WorkspaceStockVoiceGenderSource = {
+  provider: 'provider',
+  admin: 'admin',
+  unknown: 'unknown',
+} as const;
+
+export interface WorkspaceStockVoice {
+  id: string;
+  name: string;
+  gender: WorkspaceStockVoiceGender;
+  genderSource: WorkspaceStockVoiceGenderSource;
+  languages: string[];
+  selection: WorkspaceStockSelection;
+}
+
+export interface WorkspaceStockFaces {
+  status: WorkspaceStockStatus;
+  items: WorkspaceStockFace[];
+}
+
+export interface WorkspaceStockVoices {
+  status: WorkspaceStockStatus;
+  items: WorkspaceStockVoice[];
+}
+
 export type BudgetUpdateScope = typeof BudgetUpdateScope[keyof typeof BudgetUpdateScope];
 
 

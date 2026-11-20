@@ -15,6 +15,7 @@ import { presentSession } from "../lib/session-service";
 import { GetWorkspaceBudgetResponse, UpdateWorkspaceBudgetBody, ResetWorkspaceBudgetBody } from "@workspace/api-zod";
 import { workspaceBudget, mutateWorkspaceBudget } from "../lib/workspace-budgets";
 import { isTrustedLiveOperator } from "../lib/live-operator-access";
+import { createWorkspaceStockRoutes } from "./workspace-stock-catalog";
 
 const router = Router();
 const owner: RequestHandler = (req, res, next) => {
@@ -30,6 +31,7 @@ const owner: RequestHandler = (req, res, next) => {
   next();
 };
 router.use("/v1/developer", owner, rateLimit({ windowMs: 60_000, limit: 60, validate: { xForwardedForHeader: false }, standardHeaders: "draft-7", legacyHeaders: false }));
+router.use(createWorkspaceStockRoutes());
 router.get("/v1/developer/keys", async (_req, res) => {
   res.json(ListDeveloperKeysResponse.parse(await listDeveloperKeys(res.locals.developerOwner)));
 });

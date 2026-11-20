@@ -9,6 +9,46 @@ import * as zod from 'zod';
 
 
 /**
+ * Interactive project owner only. Read-only provider stock faces; no session admission, account assets, or private media.
+ */
+export const GetWorkspaceStockFacesParams = zod.object({
+  "projectId": zod.uuid(),
+  "providerId": zod.enum(['tavus', 'anam'])
+})
+
+export const GetWorkspaceStockFacesResponse = zod.object({
+  "status": zod.enum(['available', 'unconfigured', 'unavailable']),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "thumbnailUrl": zod.url().nullable(),
+  "selection": zod.enum(['supported', 'browse_only']).describe('Existing RoleplayX integration supports selecting this type of item, or the item is reference-only. Neither value verifies media, credit or admission.')
+}))
+})
+
+
+/**
+ * Interactive project owner only. Read-only verified stock voice metadata; no account voices, samples, or classification writes.
+ */
+export const GetWorkspaceStockVoicesParams = zod.object({
+  "projectId": zod.uuid(),
+  "providerId": zod.enum(['tavus', 'anam'])
+})
+
+export const GetWorkspaceStockVoicesResponse = zod.object({
+  "status": zod.enum(['available', 'unconfigured', 'unavailable']),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "gender": zod.enum(['male', 'female', 'neutral', 'unclassified']),
+  "genderSource": zod.enum(['provider', 'admin', 'unknown']),
+  "languages": zod.array(zod.string()),
+  "selection": zod.enum(['supported', 'browse_only']).describe('Existing RoleplayX integration supports selecting this type of item, or the item is reference-only. Neither value verifies media, credit or admission.')
+}))
+})
+
+
+/**
  * Trusted interactive operator only. Makes bounded Gemini model metadata GET requests with the server credential. Never generates content or creates an avatar; metadata success is not generation verification.
  */
 export const CheckTrainingImageModelsResponse = zod.object({

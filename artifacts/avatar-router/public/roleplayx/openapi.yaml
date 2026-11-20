@@ -15,6 +15,40 @@ tags:
       Stock Lucy renderer endpoints and the additive RoleplayX server-to-server identity bridge.
       RoleplayX owns dialogue in external_audio mode; Tavus owns dialogue in explicit tavus_full mode.
 paths:
+  /v1/developer/workspaces/{projectId}/stock-catalog/{providerId}/faces:
+    get:
+      operationId: getWorkspaceStockFaces
+      security: [{ ClerkSessionJWT: [] }]
+      description: Interactive project owner only. Read-only provider stock faces; no session admission, account assets, or private media.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: providerId, in: path, required: true, schema: { $ref: "#/components/schemas/WorkspaceStockProvider" } }
+      responses:
+        "200":
+          description: Independent provider face catalog status and safe public metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceStockFaces" }
+        "401": { description: Interactive sign-in required. }
+        "403": { description: Integration credentials or cross-origin access rejected. }
+        "404": { description: "Workspace not owned, missing, or unsupported provider." }
+  /v1/developer/workspaces/{projectId}/stock-catalog/{providerId}/voices:
+    get:
+      operationId: getWorkspaceStockVoices
+      security: [{ ClerkSessionJWT: [] }]
+      description: Interactive project owner only. Read-only verified stock voice metadata; no account voices, samples, or classification writes.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: providerId, in: path, required: true, schema: { $ref: "#/components/schemas/WorkspaceStockProvider" } }
+      responses:
+        "200":
+          description: Independent provider voice catalog status and safe public metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceStockVoices" }
+        "401": { description: Interactive sign-in required. }
+        "403": { description: Integration credentials or cross-origin access rejected. }
+        "404": { description: "Workspace not owned, missing, or unsupported provider." }
   /v1/operator/live-reconciliation/training-image-ai/check:
     get:
       operationId: checkTrainingImageModels
@@ -1017,6 +1051,46 @@ components:
         RoleplayX HTTPS JWKS URL. Lifetime is at most 60 seconds. It binds iss, aud, client_id, opaque sub,
         tenant_id, jti, iat, exp and a least-privilege scope claim. No RoleplayX session JWT or signing secret is shared.
   schemas:
+    WorkspaceStockProvider:
+      type: string
+      enum: [tavus, anam]
+    WorkspaceStockStatus:
+      type: string
+      enum: [available, unconfigured, unavailable]
+    WorkspaceStockSelection:
+      type: string
+      enum: [supported, browse_only]
+      description: Existing RoleplayX integration supports selecting this type of item, or the item is reference-only. Neither value verifies media, credit or admission.
+    WorkspaceStockFace:
+      type: object
+      required: [id, name, thumbnailUrl, selection]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        thumbnailUrl: { type: [string, "null"], format: uri }
+        selection: { $ref: "#/components/schemas/WorkspaceStockSelection" }
+    WorkspaceStockVoice:
+      type: object
+      required: [id, name, gender, genderSource, languages, selection]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        gender: { type: string, enum: [male, female, neutral, unclassified] }
+        genderSource: { type: string, enum: [provider, admin, unknown] }
+        languages: { type: array, items: { type: string } }
+        selection: { $ref: "#/components/schemas/WorkspaceStockSelection" }
+    WorkspaceStockFaces:
+      type: object
+      required: [status, items]
+      properties:
+        status: { $ref: "#/components/schemas/WorkspaceStockStatus" }
+        items: { type: array, items: { $ref: "#/components/schemas/WorkspaceStockFace" } }
+    WorkspaceStockVoices:
+      type: object
+      required: [status, items]
+      properties:
+        status: { $ref: "#/components/schemas/WorkspaceStockStatus" }
+        items: { type: array, items: { $ref: "#/components/schemas/WorkspaceStockVoice" } }
     BudgetUpdate:
       type: object
       additionalProperties: false

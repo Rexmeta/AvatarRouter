@@ -74,7 +74,10 @@ import type {
   VoiceCatalogResponse,
   WorkspaceBudget,
   WorkspaceLiveCheck,
-  WorkspaceLiveConsent
+  WorkspaceLiveConsent,
+  WorkspaceStockFaces,
+  WorkspaceStockProvider,
+  WorkspaceStockVoices
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -103,6 +106,218 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetWorkspaceStockFacesUrl = (projectId: string,
+    providerId: WorkspaceStockProvider,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/stock-catalog/${providerId}/faces`
+}
+
+/**
+ * Interactive project owner only. Read-only provider stock faces; no session admission, account assets, or private media.
+ */
+export const getWorkspaceStockFaces = async (projectId: string,
+    providerId: WorkspaceStockProvider, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceStockFaces> => {
+
+  return customFetch<WorkspaceStockFaces>(getGetWorkspaceStockFacesUrl(projectId,providerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceStockFacesQueryKey = (projectId: string,
+    providerId: WorkspaceStockProvider,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/stock-catalog/${providerId}/faces`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceStockFacesQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError = ErrorType<void>>(projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceStockFacesQueryKey(projectId,providerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceStockFaces>>> = ({ signal }) => getWorkspaceStockFaces(projectId,providerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined && providerId !== null && providerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkspaceStockFacesQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceStockFaces>>>
+export type GetWorkspaceStockFacesQueryError = ErrorType<void>
+
+
+export function useGetWorkspaceStockFaces<TData = Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceStockFaces>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceStockFaces>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceStockFaces<TData = Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceStockFaces>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceStockFaces>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceStockFaces<TData = Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWorkspaceStockFaces<TData = Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockFaces>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWorkspaceStockFacesQueryOptions(projectId,providerId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWorkspaceStockVoicesUrl = (projectId: string,
+    providerId: WorkspaceStockProvider,) => {
+
+
+
+
+  return `/api/v1/developer/workspaces/${projectId}/stock-catalog/${providerId}/voices`
+}
+
+/**
+ * Interactive project owner only. Read-only verified stock voice metadata; no account voices, samples, or classification writes.
+ */
+export const getWorkspaceStockVoices = async (projectId: string,
+    providerId: WorkspaceStockProvider, options?: Parameters<typeof customFetch>[1]): Promise<WorkspaceStockVoices> => {
+
+  return customFetch<WorkspaceStockVoices>(getGetWorkspaceStockVoicesUrl(projectId,providerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceStockVoicesQueryKey = (projectId: string,
+    providerId: WorkspaceStockProvider,) => {
+    return [
+    `/api/v1/developer/workspaces/${projectId}/stock-catalog/${providerId}/voices`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceStockVoicesQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError = ErrorType<void>>(projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceStockVoicesQueryKey(projectId,providerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceStockVoices>>> = ({ signal }) => getWorkspaceStockVoices(projectId,providerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined && providerId !== null && providerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWorkspaceStockVoicesQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceStockVoices>>>
+export type GetWorkspaceStockVoicesQueryError = ErrorType<void>
+
+
+export function useGetWorkspaceStockVoices<TData = Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceStockVoices>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceStockVoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceStockVoices<TData = Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWorkspaceStockVoices>>,
+          TError,
+          Awaited<ReturnType<typeof getWorkspaceStockVoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWorkspaceStockVoices<TData = Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetWorkspaceStockVoices<TData = Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError = ErrorType<void>>(
+ projectId: string,
+    providerId: WorkspaceStockProvider, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceStockVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWorkspaceStockVoicesQueryOptions(projectId,providerId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCheckTrainingImageModelsUrl = () => {
 

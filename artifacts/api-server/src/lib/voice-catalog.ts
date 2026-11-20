@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { db, eq, voiceGenderOverrides } from "@workspace/db";
 import { logger } from "./logger";
+import { readCatalogJson, stockCatalogPages } from "./provider-catalog-http";
 import { SessionProblem } from "./session-service";
 
 export type VoiceProviderId = "anam" | "tavus";
@@ -44,7 +45,6 @@ const endpoint: Record<VoiceProviderId, string> = {
 };
 const maxPages = 10;
 const pageSize = 100;
-const maxBodyBytes = 2_000_000;
 const safeText = (value: unknown, max: number) =>
   typeof value === "string" && value.trim() && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value)
     ? value.trim() : "";
@@ -90,29 +90,9 @@ function normalizeVoice(providerId: VoiceProviderId, voice: Record<string, unkno
   };
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
-  const length = Number(response.headers.get("content-length") ?? 0);
-  if (length > maxBodyBytes || !response.body) throw new Error("invalid_body");
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  const reader = response.body.getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maxBodyBytes) throw new Error("body_too_large");
-      chunks.push(value);
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-  }
-  return JSON.parse(Buffer.concat(chunks, size).toString("utf8"));
-}
-
 export class VoiceCatalog {
-  private cache = new Map<VoiceProviderId, CacheEntry>();
-  private pending = new Map<VoiceProviderId, { key: string; result: Promise<ProviderLoad> }>();
+  private cache = new Map<string, CacheEntry>();
+  private pending = new Map<string, { key: string; result: Promise<ProviderLoad> }>();
 
   constructor(
     private request: typeof fetch = fetch,
@@ -134,21 +114,24 @@ export class VoiceCatalog {
     private keys = () => ({ anam: process.env.ANAM_API_KEY, tavus: process.env.TAVUS_API_KEY }),
   ) {}
 
-  private async load(providerId: VoiceProviderId, key: string): Promise<ProviderLoad> {
+  private async load(providerId: VoiceProviderId, key: string, stockOnly = false): Promise<ProviderLoad> {
+    const scope = `${providerId}:${stockOnly ? "stock" : "all"}`;
     const fingerprint = createHash("sha256").update(key).digest("hex");
-    const cached = this.cache.get(providerId);
+    const cached = this.cache.get(scope);
     if (cached?.key === fingerprint && cached.until > this.now()) return cached.value;
-    const existing = this.pending.get(providerId);
+    const existing = this.pending.get(scope);
     if (existing?.key === fingerprint) return existing.result;
-    const task = this.fetchProvider(providerId, key).catch(() => ({
+    const task = (stockOnly ? this.fetchStock(providerId, key) : this.fetchProvider(providerId, key)).catch(() => ({
       status: "unavailable" as const, voices: [],
     })).then(value => {
-      this.cache.set(providerId, { key: fingerprint, until: this.now() + (value.status === "available" ? 300_000 : 30_000), value });
+      if (this.pending.get(scope)?.result === task) {
+        this.cache.set(scope, { key: fingerprint, until: this.now() + (value.status === "available" ? 300_000 : 30_000), value });
+      }
       return value;
     }).finally(() => {
-      if (this.pending.get(providerId)?.result === task) this.pending.delete(providerId);
+      if (this.pending.get(scope)?.result === task) this.pending.delete(scope);
     });
-    this.pending.set(providerId, { key: fingerprint, result: task });
+    this.pending.set(scope, { key: fingerprint, result: task });
     return task;
   }
 
@@ -172,7 +155,7 @@ export class VoiceCatalog {
         signal: AbortSignal.timeout(7_000),
       });
       if (!response.ok) throw new Error("catalog_rejected");
-      const rows = pickArray(await boundedJson(response));
+      const rows = pickArray(await readCatalogJson(response));
       if (!rows || rows.length > pageSize) throw new Error("invalid_catalog");
       for (const row of rows) {
         const normalized = normalizeVoice(providerId, row);
@@ -183,6 +166,46 @@ export class VoiceCatalog {
     throw new Error("incomplete_catalog");
   }
 
+  private async fetchStock(providerId: VoiceProviderId, key: string): Promise<ProviderLoad> {
+    const voices = new Map<string, ProviderVoice>();
+    for await (const rows of stockCatalogPages(this.request, providerId, endpoint[providerId], key,
+      providerId === "tavus" ? { source: "system" } : {})) {
+      for (const row of rows) {
+        if (providerId === "tavus" ? row.voice_type !== "system" : row.createdByOrganizationId !== null) continue;
+        const normalized = normalizeVoice(providerId, row);
+        if (normalized) voices.set(normalized.voice.id, normalized.voice);
+      }
+    }
+    return { status: "available", voices: [...voices.values()] };
+  }
+
+  private async classifications() {
+    const overrides = await this.overrides.list().catch(error => {
+      logger.warn({ stage: "read", reason: voiceOverrideFailureReason(error) }, "Voice catalog override storage unavailable");
+      throw new SessionProblem(503, "VOICE_CATALOG_UNAVAILABLE", "Voice catalog settings are temporarily unavailable.");
+    });
+    return new Map(overrides.map(row => [JSON.stringify([row.providerId, row.voiceId]), row.gender]));
+  }
+
+  private classify(result: ProviderLoad, overrides: Awaited<ReturnType<VoiceCatalog["classifications"]>>): CatalogVoice[] {
+    return result.voices.map(({ providerGender, ...voice }) => {
+      const override = overrides.get(JSON.stringify([voice.providerId, voice.id]));
+      return {
+        ...voice,
+        gender: override ?? providerGender ?? "unclassified",
+        genderSource: override !== undefined ? "admin" : providerGender ? "provider" : "unknown",
+      };
+    });
+  }
+
+  async listStock(providerId: VoiceProviderId): Promise<{ status: ProviderState["status"]; voices: CatalogVoice[] }> {
+    const key = this.keys()[providerId];
+    if (!key) return { status: "unconfigured", voices: [] };
+    const result = await this.load(providerId, key, true);
+    if (result.status !== "available" || result.voices.length === 0) return { status: result.status, voices: [] };
+    return { status: "available", voices: this.classify(result, await this.classifications()) };
+  }
+
   async list(): Promise<{ providers: ProviderState[]; voices: CatalogVoice[] }> {
     const keys = this.keys();
     const [anam, tavus, overrides] = await Promise.all([
@@ -190,26 +213,13 @@ export class VoiceCatalog {
         : Promise.resolve<ProviderLoad>({ status: "unconfigured", voices: [] }),
       keys.tavus ? this.load("tavus", keys.tavus)
         : Promise.resolve<ProviderLoad>({ status: "unconfigured", voices: [] }),
-      this.overrides.list().catch(error => {
-        logger.warn({ stage: "read", reason: voiceOverrideFailureReason(error) }, "Voice catalog override storage unavailable");
-        throw new SessionProblem(503, "VOICE_CATALOG_UNAVAILABLE", "Voice catalog settings are temporarily unavailable.");
-      }),
+      this.classifications(),
     ]);
-    const overrideMap = new Map(overrides.map(row => [JSON.stringify([row.providerId, row.voiceId]), row.gender]));
-    const merge = (providerId: VoiceProviderId, result: ProviderLoad) => result.voices.map(voice => {
-      const override = overrideMap.get(JSON.stringify([providerId, voice.id]));
-      const { providerGender, ...publicVoice } = voice;
-      return {
-        ...publicVoice,
-        gender: override ?? providerGender ?? "unclassified",
-        genderSource: override !== undefined ? "admin" as const : providerGender ? "provider" as const : "unknown" as const,
-      };
-    });
     const providerStates: ProviderState[] = [
       { providerId: "anam", status: anam.status, errorCode: anam.status === "unavailable" ? "VOICE_CATALOG_UNAVAILABLE" : null },
       { providerId: "tavus", status: tavus.status, errorCode: tavus.status === "unavailable" ? "VOICE_CATALOG_UNAVAILABLE" : null },
     ];
-    return { providers: providerStates, voices: [...merge("anam", anam), ...merge("tavus", tavus)] };
+    return { providers: providerStates, voices: [...this.classify(anam, overrides), ...this.classify(tavus, overrides)] };
   }
 
   async requireSelection(providerId: VoiceProviderId, voiceId: string, expectedGender?: VoiceGender) {
