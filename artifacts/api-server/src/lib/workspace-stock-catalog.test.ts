@@ -75,7 +75,7 @@ test("stock browsing filters private items and media, reuses classifications and
   assert.equal(writes, 0);
 });
 
-test("long Anam stock voice lists paginate without changing the integration admission catalog", async () => {
+test("long Anam lists support stable selection after page ten without exposing account voices as stock", async () => {
   let stockPages = 0;
   let fail = false;
   const request: typeof fetch = async input => {
@@ -87,25 +87,33 @@ test("long Anam stock voice lists paginate without changing the integration admi
       id: `voice-${number}-${i}`, displayName: "Voice", languages: ["en"], gender: "FEMALE",
       createdByOrganizationId: i === 1 ? "org-private" : i === 2 ? undefined : null,
     }));
-    return fail ? page(items, number + 1, 1002) : page(items, number, 1002);
+    return fail && number === 11 ? page(items, number + 1, 1002) : page(items, number, 1002);
   };
   let clock = 1;
   const credentials = () => ({ anam: "test", tavus: undefined });
   const voices = new VoiceCatalog(request, () => clock, { list: async () => [], set: async () => {} }, credentials);
   const catalog = new WorkspaceStockCatalog(request, credentials, new StockCatalog(request), voices);
-  const stock = await catalog.listVoices("anam");
+  const [stock, integration] = await Promise.all([catalog.listVoices("anam"), voices.list()]);
   assert.equal(stock.status, "available");
   assert.equal(stockPages, 11);
   assert.equal(stock.items.length, 981);
   assert.equal(stock.items.at(-1)?.id, "voice-11-0");
   assert.equal(stock.items[0]?.genderSource, "provider");
-  assert.ok(stock.items.every(x => x.selection === "browse_only"));
-  await assert.rejects(voices.requireSelection("anam", "voice-1-0"), { code: "VOICE_CATALOG_UNAVAILABLE" });
-  assert.equal(stockPages, 21);
+  assert.ok(stock.items.every(x => x.selection === "supported"));
+  assert.equal(integration.providers.find(x => x.providerId === "anam")?.status, "available");
+  assert.equal(integration.voices.length, 1002);
+  assert.ok(integration.voices.some(x => x.id === "voice-11-1")); // Existing authenticated integration scope, not workspace stock.
+  const selected = await voices.requireSelection("anam", "voice-11-0", "female");
+  assert.equal(selected.id, "voice-11-0");
+  await assert.rejects(voices.requireSelection("anam", "voice-11-0", "male"), { code: "VOICE_GENDER_CHANGED" });
+  await assert.rejects(voices.requireSelection("anam", "nonexistent"), { code: "VOICE_NOT_AVAILABLE" });
+  assert.equal(stockPages, 11); // Both views and selection share one verified upstream load.
   assert.deepEqual(await catalog.listFaces("tavus"), { status: "unconfigured", items: [] });
   clock += 310_000;
   fail = true;
   assert.deepEqual(await catalog.listVoices("anam"), { status: "unavailable", items: [] });
+  await assert.rejects(voices.requireSelection("anam", "voice-1-0"), { code: "VOICE_CATALOG_UNAVAILABLE" });
+  assert.equal(stockPages, 22);
 });
 
 test("a verified empty stock catalog is not an upstream failure", async () => {

@@ -18,7 +18,7 @@ function harness(options: { anamStatus?: number; tavusStatus?: number } = {}) {
       return response({ data: [
         { id: "anam-female", displayName: "Anam voice", gender: "female", description: "sample voice", sampleUrl: "https://signed.example/token" },
         { id: "anam-no-gender", displayName: "No gender", description: "no provider gender" },
-      ], meta: { next: null } });
+      ], meta: { currentPage: 1, lastPage: 1, total: 2 } });
     }
     if (options.tavusStatus && options.tavusStatus !== 200) return response({ error: "private provider detail" }, options.tavusStatus);
     return response({ data: [

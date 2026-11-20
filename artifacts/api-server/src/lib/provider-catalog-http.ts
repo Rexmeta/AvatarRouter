@@ -37,7 +37,7 @@ const tavusPage = z.object({ data: rows, total_count: totalCount });
 
 // Pagination must positively verify completeness; a truncated page is not a
 // verified empty catalog. The timeout covers all pages, including their bodies.
-export async function* stockCatalogPages(request: typeof fetch, provider: "tavus" | "anam",
+export async function* verifiedCatalogPages(request: typeof fetch, provider: "tavus" | "anam",
   endpoint: string, key: string, filters: Record<string, string> = {}) {
   const signal = AbortSignal.timeout(20_000);
   let total: number | undefined;

@@ -5,15 +5,16 @@ import express, { type ErrorRequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import router from "../routes/avatar-router";
 import { SessionProblem } from "./session-service";
+import { voiceCatalog } from "./voice-catalog";
 
-test("native admission requires authentication and integration context before any paid call", async () => {
+test("native admission requires authentication and integration context before any paid call", async (t) => {
   const app = express();
   app.use(express.json(), cookieParser());
   // Test-only Clerk identity. No tokens, DB writes, SDK or provider requests.
   app.use((req, res, next) => {
-    if (req.get("x-test-integration") === "authorized") {
+    if (req.get("x-test-integration") === "authorized" || req.get("x-test-integration") === "read-assets") {
       res.locals.serviceApiIdentity = { provider: "api-key", tenantId: "test-tenant", ownerHash: "test-owner",
-        scopes: ["sessions:create", "sessions:read"] };
+        scopes: req.get("x-test-integration") === "read-assets" ? ["assets:read"] : ["sessions:create", "sessions:read"] };
     }
     Object.assign(req, {
       auth: Object.assign(
@@ -45,6 +46,25 @@ test("native admission requires authentication and integration context before an
     return originalFetch(input, init);
   };
   try {
+    const catalogRead = t.mock.method(voiceCatalog, "list", async () => ({
+      providers: [{ providerId: "anam" as const, status: "available" as const, errorCode: null }],
+      voices: [{ id: "page-11-voice", providerId: "anam" as const, name: "Late voice", description: "",
+        gender: "female" as const, genderSource: "provider" as const, languages: ["ko"], available: true }],
+    }));
+    const listVoices = (headers?: Record<string, string>) => fetch(`${origin}/api/v1/voices`, { headers });
+    assert.equal((await listVoices()).status, 401);
+    assert.equal((await listVoices({ "x-test-integration": "authorized" })).status, 403);
+    assert.equal((await listVoices({ "x-test-integration": "read-assets", "x-avatar-workspace-id": "another-workspace" })).status, 403);
+    assert.equal(catalogRead.mock.callCount(), 0);
+    const listResponse = await listVoices({ "x-test-integration": "read-assets" });
+    assert.equal(listResponse.status, 200);
+    assert.equal(listResponse.headers.get("cache-control"), "private, no-store");
+    const listed = await listResponse.json() as { voices: { id: string }[] };
+    assert.equal(listed.voices[0]?.id, "page-11-voice");
+    assert.equal(catalogRead.mock.callCount(), 1);
+    const validateVoice = t.mock.method(voiceCatalog, "requireSelection", async () => {
+      throw new Error("Voice verification must not run before cost confirmation");
+    });
     for (const providerId of ["anam", "tavus"]) {
     for (const roleplay of [undefined, { persona: "구매 담당자", scenario: "예산 협상", language: "Korean" }]) {
       const response = await fetch(`${origin}/api/v1/sessions`, {
@@ -83,6 +103,7 @@ test("native admission requires authentication and integration context before an
     }
     assert.equal(await post({ ...anam, fullPipeline: { systemPrompt: " " } }), "INVALID_ROLEPLAY_CONTEXT");
     assert.equal(await post({ ...anam, fullPipeline: { ...fullPipeline, voiceId: "anam-voice" } }), "LIVE_COST_CONFIRMATION_REQUIRED");
+    assert.equal(validateVoice.mock.callCount(), 0);
     assert.equal(await post({ ...anam, fullPipeline, roleplay: { persona: "hotel", scenario: "checkin" } }), "INVALID_PIPELINE_CONFIG");
     const alive = await fetch(`${origin}/api/v1/providers`);
     assert.equal(alive.status, 200);

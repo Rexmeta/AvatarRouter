@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { stockCatalogPages } from "./provider-catalog-http";
+import { verifiedCatalogPages } from "./provider-catalog-http";
 import { stockCatalog } from "./stock-catalog";
 import { voiceCatalog, type VoiceProviderId } from "./voice-catalog";
 
@@ -62,7 +62,7 @@ export class WorkspaceStockCatalog {
 
   private async loadAnamFaces(key: string): Promise<StockList<Face>> {
     const items = new Map<string, Face>();
-    for await (const rows of stockCatalogPages(this.request, "anam", "https://api.anam.ai/v1/avatars", key)) {
+    for await (const rows of verifiedCatalogPages(this.request, "anam", "https://api.anam.ai/v1/avatars", key)) {
       for (const row of rows) {
         // The documented explicit null identifies stock. A missing field does
         // not, and no related persona or account media may enter this catalog.
@@ -85,9 +85,7 @@ export class WorkspaceStockCatalog {
       const { status, voices } = await this.voices.listStock(provider);
       const items = voices.map(({ id, name, gender, genderSource, languages, available }) => ({
         id, name, gender, genderSource, languages,
-        // Anam's workspace listing can span more pages than the existing
-        // RoleplayX-facing admission catalog. Browsing does not extend admission.
-        selection: (provider === "tavus" && available && gender !== "unclassified" ? "supported" : "browse_only") as Selection,
+        selection: (available && gender !== "unclassified" ? "supported" : "browse_only") as Selection,
       }));
       return { status, items };
     } catch {
