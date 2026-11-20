@@ -4,6 +4,7 @@ import avatarRouter from "./avatar-router";
 import assetRouter from "./asset-router";
 import developerKeysRouter from "./developer-keys";
 import liveReconciliationRouter from "./live-reconciliation";
+import operatorVoicesRouter from "./operator-voices";
 
 const router: IRouter = Router();
 
@@ -11,6 +12,7 @@ router.use(healthRouter);
 router.use(developerKeysRouter);
 router.use(assetRouter);
 router.use(liveReconciliationRouter);
+router.use(operatorVoicesRouter);
 router.use(avatarRouter);
 
 export default router;

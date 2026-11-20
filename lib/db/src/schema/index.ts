@@ -24,3 +24,4 @@ export * from "./image-assets";
 export * from "./avatar-assets";
 export * from "./live-budgets";
 export * from "./provisioning-attempts";
+export * from "./voice-gender-overrides";

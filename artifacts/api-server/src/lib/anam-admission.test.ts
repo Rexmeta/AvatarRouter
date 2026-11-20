@@ -82,7 +82,7 @@ test("native admission requires authentication and integration context before an
       assert.equal(await post({ ...base, roleplay: { persona: "호텔 직원", scenario: "H204 체크인" } }), "LIVE_COST_CONFIRMATION_REQUIRED");
     }
     assert.equal(await post({ ...anam, fullPipeline: { systemPrompt: " " } }), "INVALID_ROLEPLAY_CONTEXT");
-    assert.equal(await post({ ...anam, fullPipeline: { ...fullPipeline, voiceId: "tavus-voice" } }), "ANAM_UNSUPPORTED_VOICE");
+    assert.equal(await post({ ...anam, fullPipeline: { ...fullPipeline, voiceId: "anam-voice" } }), "LIVE_COST_CONFIRMATION_REQUIRED");
     assert.equal(await post({ ...anam, fullPipeline, roleplay: { persona: "hotel", scenario: "checkin" } }), "INVALID_PIPELINE_CONFIG");
     const alive = await fetch(`${origin}/api/v1/providers`);
     assert.equal(alive.status, 200);

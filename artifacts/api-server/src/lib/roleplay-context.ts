@@ -17,5 +17,9 @@ export function roleplayPrompt(context: RoleplayContext) {
 }
 
 export function tavusRoleplayOptions(context: RoleplayContext) {
-  return { systemPrompt: roleplayPrompt(context), context: context.scenario, greeting: context.greeting };
+  return {
+    systemPrompt: roleplayPrompt(context), context: context.scenario, greeting: context.greeting,
+    ...(context.voiceId ? { voiceId: context.voiceId } : {}),
+    ...(context.voiceGender ? { voiceGender: context.voiceGender } : {}),
+  };
 }

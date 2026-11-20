@@ -8,6 +8,7 @@ export function requiredRoleplayxScope(method: string, path: string): string | u
   method = method === "HEAD" ? "GET" : method;
   path = path.toLowerCase().replace(/\/+$/, "");
   if (path === "/api/v1/live-limits" && method === "GET") return "live-limits:read";
+  if (path === "/api/v1/voices" && method === "GET") return "assets:read";
   if (path === "/api/v1/sessions" && method === "GET") return "sessions:read";
   if (path === "/api/v1/sessions" && method === "POST") return "sessions:create";
   if (/^\/api\/v1\/sessions\/[^/]+$/.test(path) && method === "GET") return "sessions:read";

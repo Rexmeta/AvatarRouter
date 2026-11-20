@@ -26,11 +26,16 @@ const template = {
   tools: [{ name: "private-webhook" }], knowledge: [{ id: "private-folder" }],
   brain: { systemPrompt: "shared-private-prompt" },
 };
-const roleplay = { persona: "까다로운 구매 담당자", scenario: "가격 협상 연습. 예산 100만원.", language: "Korean", greeting: "가격을 설명해 주세요." };
+const roleplay = { persona: "까다로운 구매 담당자", scenario: "가격 협상 연습. 예산 100만원.", language: "Korean", greeting: "가격을 설명해 주세요.",
+  voiceId: "anam-selected-voice", voiceGender: "female" as const };
 
 test("roleplay contract enforces required fields and bounded inputs", () => {
   const input = { providerId: "anam", avatarId: "anam-persona-default", mode: "live", pipeline: "anam_full", roleplay };
   assert.deepEqual(CreateSessionBody.parse(input).roleplay, roleplay);
+  assert.equal(CreateSessionBody.safeParse({
+    providerId: "anam", avatarId: "anam-persona-default", mode: "live", pipeline: "anam_full",
+    fullPipeline: { systemPrompt: "roleplay", voiceId: "anam-selected-voice", voiceGender: "female" },
+  }).success, true);
   for (const invalid of [{ persona: "x" }, { ...roleplay, scenario: "" }, { ...roleplay, persona: "x".repeat(8001) }, { ...roleplay, scenario: "x".repeat(16001) }]) {
     assert.equal(CreateSessionBody.safeParse({ ...input, roleplay: invalid }).success, false);
   }
@@ -39,7 +44,7 @@ test("roleplay contract enforces required fields and bounded inputs", () => {
 test("ephemeral roleplay uses template media only, isolated prompts and no shared knowledge or tools", () => {
   const config = anamRoleplayPersona(template, roleplay);
   assert.equal(config.avatarId, id);
-  assert.equal(config.voiceId, remoteId);
+  assert.equal(config.voiceId, roleplay.voiceId);
   assert.equal(config.initialMessage, roleplay.greeting);
   assert.equal(config.maxSessionLengthSeconds, 120);
   assert.ok(config.systemPrompt.includes(roleplay.persona));
@@ -49,6 +54,7 @@ test("ephemeral roleplay uses template media only, isolated prompts and no share
     assert.ok(!JSON.stringify(config).includes(secret));
   }
   assert.ok(!("personaId" in config));
+  assert.equal(template.voice.id, remoteId);
   const second = anamRoleplayPersona(template, { persona: "다른 역할", scenario: "별도 대화" });
   assert.ok(!second.systemPrompt.includes(roleplay.persona));
   assert.throws(() => anamRoleplayPersona({ ...template, voice: null }, roleplay), { code: "ANAM_TEMPLATE_INVALID" });
@@ -91,8 +97,9 @@ test("missing or invalid template never falls back to shared persona or issues a
 
 test("legacy Tavus context is adapted to Anam instead of starting the saved persona", async () => {
   const context = { systemPrompt: "당신은 호텔 직원입니다.", context: "예약 H204, 조식은 별도입니다.",
-    greeting: "예약 번호를 알려주세요.", languages: ["ko"] };
+    greeting: "예약 번호를 알려주세요.", languages: ["ko"], voiceId: "anam-selected-voice", voiceGender: "female" as const };
   const config = anamFullPersona(template, context);
+  assert.equal(config.voiceId, context.voiceId);
   assert.ok(config.systemPrompt.includes(context.systemPrompt));
   assert.ok(config.systemPrompt.includes(context.context));
   assert.ok(config.systemPrompt.includes("ko"));
@@ -118,10 +125,11 @@ test("legacy Tavus context is adapted to Anam instead of starting the saved pers
   assert.ok(!JSON.stringify(saved).includes(context.greeting));
   assert.ok(!anamFullPersona(template, { systemPrompt: "구매 담당자", context: "월 100만원" }).systemPrompt.includes("H204"));
   assert.throws(() => anamFullPersona(template, { systemPrompt: " " }), { code: "INVALID_ROLEPLAY_CONTEXT" });
-  assert.throws(() => anamFullPersona(template, { systemPrompt: "valid", voiceId: "tavus-only" }), { code: "ANAM_UNSUPPORTED_VOICE" });
+  assert.equal(anamFullPersona(template, { systemPrompt: "valid", voiceId: "anam-selected-voice" }).voiceId, "anam-selected-voice");
 });
 
 test("Anam uses server-selected persona, single-start short token and explicit scope", () => {
+  assert.equal(requiredRoleplayxScope("GET", "/api/v1/voices"), "assets:read");
   assert.equal(requiredRoleplayxScope("POST", `/api/v1/sessions/${id}/client-connection`), "sessions:connect");
   assert.equal(requiredRoleplayxScope("GET", `/api/v1/sessions/${id}/client-connection`), "unrecognized:route");
   assert.deepEqual(anamTokenBody(id), {

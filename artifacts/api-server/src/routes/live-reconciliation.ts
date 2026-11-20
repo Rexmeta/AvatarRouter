@@ -1,4 +1,4 @@
-import { Router, type RequestHandler } from "express";
+import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import {
   AttachLiveConversationIdBody, AttachLiveConversationIdParams,
@@ -10,28 +10,11 @@ import {
 } from "@workspace/api-zod";
 import { SessionProblem } from "../lib/session-service";
 import { attachLiveConversationId, listLiveReconciliation, retryLiveCleanup } from "../lib/live-session-operator";
-import { assertSameOriginForBridgeRequest } from "../middlewares/session-owner";
 import { compareRendererDiagnostics, listRendererDiagnosticSessions } from "../lib/renderer-diagnostic-query";
 import { isTrustedLiveOperator } from "../lib/live-operator-access";
 import { checkTrainingImageModels } from "../lib/training-image-ai-diagnostic";
+import { trustedOperator } from "../middlewares/trusted-operator";
 export { isTrustedLiveOperator } from "../lib/live-operator-access";
-
-const trustedOperator: RequestHandler = (req, res, next) => {
-  res.set("Cache-Control", "private, no-store");
-  if (res.locals.serviceApiIdentity || res.locals.roleplayxIdentity) {
-    throw new SessionProblem(403, "TRUSTED_OPERATOR_REQUIRED", "Only a trusted signed-in operator can reconcile live sessions.");
-  }
-  const { userId } = getAuth(req);
-  if (!userId) throw new SessionProblem(401, "AUTHENTICATION_REQUIRED", "Sign in with a trusted operator account.");
-  if (!isTrustedLiveOperator(userId)) {
-    throw new SessionProblem(403, "TRUSTED_OPERATOR_REQUIRED", "This signed-in account is not authorized for live session reconciliation.");
-  }
-  assertSameOriginForBridgeRequest(req);
-  if (req.get("sec-fetch-site") === "cross-site") {
-    throw new SessionProblem(403, "ORIGIN_REJECTED", "Cross-site operator requests are not allowed.");
-  }
-  next();
-};
 
 const router = Router();
 router.use("/v1/operator/live-reconciliation", trustedOperator);

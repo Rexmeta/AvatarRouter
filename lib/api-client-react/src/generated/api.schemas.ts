@@ -732,6 +732,112 @@ export interface Provider {
   implemented: boolean;
 }
 
+export type VoiceCatalogProviderProviderId = typeof VoiceCatalogProviderProviderId[keyof typeof VoiceCatalogProviderProviderId];
+
+
+export const VoiceCatalogProviderProviderId = {
+  anam: 'anam',
+  tavus: 'tavus',
+} as const;
+
+export type VoiceCatalogProviderStatus = typeof VoiceCatalogProviderStatus[keyof typeof VoiceCatalogProviderStatus];
+
+
+export const VoiceCatalogProviderStatus = {
+  available: 'available',
+  unconfigured: 'unconfigured',
+  unavailable: 'unavailable',
+} as const;
+
+/**
+ * @nullable
+ */
+export type VoiceCatalogProviderErrorCode = typeof VoiceCatalogProviderErrorCode[keyof typeof VoiceCatalogProviderErrorCode] | null;
+
+
+export const VoiceCatalogProviderErrorCode = {
+  VOICE_CATALOG_UNAVAILABLE: 'VOICE_CATALOG_UNAVAILABLE',
+} as const;
+
+export interface VoiceCatalogProvider {
+  providerId: VoiceCatalogProviderProviderId;
+  status: VoiceCatalogProviderStatus;
+  /** @nullable */
+  errorCode: VoiceCatalogProviderErrorCode;
+}
+
+export type VoiceCatalogEntryProviderId = typeof VoiceCatalogEntryProviderId[keyof typeof VoiceCatalogEntryProviderId];
+
+
+export const VoiceCatalogEntryProviderId = {
+  anam: 'anam',
+  tavus: 'tavus',
+} as const;
+
+export type VoiceCatalogEntryGender = typeof VoiceCatalogEntryGender[keyof typeof VoiceCatalogEntryGender];
+
+
+export const VoiceCatalogEntryGender = {
+  male: 'male',
+  female: 'female',
+  neutral: 'neutral',
+  unclassified: 'unclassified',
+} as const;
+
+export type VoiceCatalogEntryGenderSource = typeof VoiceCatalogEntryGenderSource[keyof typeof VoiceCatalogEntryGenderSource];
+
+
+export const VoiceCatalogEntryGenderSource = {
+  provider: 'provider',
+  admin: 'admin',
+  unknown: 'unknown',
+} as const;
+
+export interface VoiceCatalogEntry {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  id: string;
+  providerId: VoiceCatalogEntryProviderId;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /** @maxLength 1000 */
+  description: string;
+  gender: VoiceCatalogEntryGender;
+  genderSource: VoiceCatalogEntryGenderSource;
+  /**
+     * @maxItems 20
+     * @items.maxLength 40
+     */
+  languages: string[];
+  available: boolean;
+}
+
+export interface VoiceCatalogResponse {
+  /** @maxItems 2 */
+  providers: VoiceCatalogProvider[];
+  /** @maxItems 1000 */
+  voices: VoiceCatalogEntry[];
+}
+
+export type SetVoiceGenderBodyGender = typeof SetVoiceGenderBodyGender[keyof typeof SetVoiceGenderBodyGender];
+
+
+export const SetVoiceGenderBodyGender = {
+  male: 'male',
+  female: 'female',
+  neutral: 'neutral',
+  unclassified: 'unclassified',
+} as const;
+
+export interface SetVoiceGenderBody {
+  gender: SetVoiceGenderBodyGender;
+}
+
 export type AvatarKind = typeof AvatarKind[keyof typeof AvatarKind];
 
 
@@ -761,6 +867,18 @@ export interface Avatar {
 }
 
 /**
+ * Expected catalog classification; mismatch is rejected before session admission.
+ */
+export type RoleplayContextVoiceGender = typeof RoleplayContextVoiceGender[keyof typeof RoleplayContextVoiceGender];
+
+
+export const RoleplayContextVoiceGender = {
+  male: 'male',
+  female: 'female',
+  neutral: 'neutral',
+} as const;
+
+/**
  * Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider's native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona.
  */
 export interface RoleplayContext {
@@ -788,6 +906,14 @@ export interface RoleplayContext {
      * @maxLength 1000
      */
   greeting?: string;
+  /**
+     * ID from the selected provider's /voices catalog.
+     * @minLength 1
+     * @maxLength 160
+     */
+  voiceId?: string;
+  /** Expected catalog classification; mismatch is rejected before session admission. */
+  voiceGender?: RoleplayContextVoiceGender;
 }
 
 /**
@@ -831,7 +957,19 @@ export const SessionInputMode = {
 } as const;
 
 /**
- * Legacy name retained for compatibility. systemPrompt/context/greeting/languages work with both native providers; voiceId is Tavus-only. Anam integrations must send this input or roleplay.
+ * Expected catalog classification; mismatch is rejected before session admission.
+ */
+export type TavusFullOptionsVoiceGender = typeof TavusFullOptionsVoiceGender[keyof typeof TavusFullOptionsVoiceGender];
+
+
+export const TavusFullOptionsVoiceGender = {
+  male: 'male',
+  female: 'female',
+  neutral: 'neutral',
+} as const;
+
+/**
+ * Legacy name retained for compatibility. systemPrompt/context/greeting/languages and provider-specific voiceId work with either native provider. Anam integrations must send this input or roleplay.
  */
 export interface TavusFullOptions {
   /**
@@ -851,11 +989,13 @@ export interface TavusFullOptions {
      */
   languages?: string[];
   /**
-     * Tavus-managed voice ID; not an external provider API key.
+     * Voice ID from the selected provider's /voices catalog; not an external provider API key.
      * @minLength 1
      * @maxLength 160
      */
   voiceId?: string;
+  /** Expected catalog classification; mismatch is rejected before session admission. */
+  voiceGender?: TavusFullOptionsVoiceGender;
 }
 
 export interface SessionInput {
@@ -868,7 +1008,7 @@ export interface SessionInput {
   scenarioAssignmentName?: string;
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
-  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */
+  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. */
   fullPipeline?: TavusFullOptions;
   roleplay?: RoleplayContext;
   providerId: SessionInputProviderId;

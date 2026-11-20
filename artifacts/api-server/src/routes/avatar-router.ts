@@ -5,6 +5,7 @@ import {
   ListSessionEventsResponse, GetUsageResponse, GetSetupResponse,
   SendLiveAudioBody, GetLiveConnectionResponse, GetLiveLimitsResponse,
   GetTavusFullConnectionResponse, GetTavusFinalTranscriptResponse,
+  ListVoicesResponse,
 } from "@workspace/api-zod";
 import { getProviders, getAvatars, getSetupStatus } from "../lib/provider-registry";
 import { playgroundLimit } from "../middlewares/playground-owner";
@@ -25,6 +26,7 @@ import { SessionProblem } from "../lib/session-service";
 import { FinalTranscriptProblem } from "../lib/tavus-final-transcript";
 import { readSessionTranscript } from "../lib/session-transcript";
 import { tavusRoleplayOptions } from "../lib/roleplay-context";
+import { voiceCatalog, type VoiceGender, type VoiceProviderId } from "../lib/voice-catalog";
 import {
   createMockSession, getOwnedSession, listOwnedSessions, mutateOwnedSession,
   getOwnedEvents, getOwnedUsage, presentSession,
@@ -37,6 +39,9 @@ router.get("/v1/avatars", async (_req, res) => {
   const stock = await stockCatalog.list();
   const base = getAvatars().filter(a => !process.env.TAVUS_API_KEY || a.id !== STOCK_AVATAR);
   res.set("Cache-Control", "private, no-store").json(ListAvatarsResponse.parse([...base, ...stock]));
+});
+router.get("/v1/voices", assetTenant, async (_req, res) => {
+  res.set("Cache-Control", "private, no-store").json(ListVoicesResponse.parse(await voiceCatalog.list()));
 });
 router.get("/v1/setup", (_req, res) => { res.json(GetSetupResponse.parse(getSetupStatus())); });
 router.get("/v1/live-limits", assetTenant, async (req, res): Promise<void> => {
@@ -76,32 +81,42 @@ router.post("/v1/sessions", async (req, res): Promise<void> => {
   const fullPipeline = baseFullPipeline ? {
     ...baseFullPipeline, ...(assignmentName !== undefined ? { conversationName: assignmentName } : {}),
   } : undefined;
+  const requestedVoiceId = roleplay?.voiceId ?? fullPipeline?.voiceId;
+  const requestedVoiceGender = roleplay?.voiceGender ?? fullPipeline?.voiceGender;
   if (fullPipeline && !fullPipeline.systemPrompt.trim()) {
     throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "fullPipeline.systemPrompt must not be blank.");
   }
   if (roleplay && (!roleplay.persona.trim() || !roleplay.scenario.trim() || (roleplay.language !== undefined && !roleplay.language.trim()) || (roleplay.greeting !== undefined && !roleplay.greeting.trim()))) {
     throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "Roleplay fields must not be blank.");
   }
-  if (pipeline === "anam_full") {
-    if (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || purpose !== "conversation") {
-      throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam template and live conversation mode, not a custom asset.");
+  if (pipeline === "anam_full" && (mode !== "live" || providerId !== "anam" || avatarId !== ANAM_AVATAR || avatarAssetId || purpose !== "conversation")) {
+    throw new SessionProblem(400, "INVALID_ANAM_CONFIG", "anam_full requires the registered Anam template and live conversation mode, not a custom asset.");
+  }
+  if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || !fullPipeline || purpose === "validation" && !avatarAssetId)) ||
+      (!["tavus_full", "anam_full"].includes(pipeline) && fullPipeline)) {
+    throw new SessionProblem(400, "INVALID_PIPELINE_CONFIG", "Native full pipelines require the matching provider and live mode. Tavus validation additionally requires an owned avatarAssetId.");
+  }
+  if (requestedVoiceId) {
+    if ((providerId !== "tavus" && providerId !== "anam") ||
+        (pipeline !== "tavus_full" && pipeline !== "anam_full")) {
+      throw new SessionProblem(400, "INVALID_VOICE_SELECTION", "A provider voice can only be selected for a native live pipeline.");
     }
+    if (!costConfirmed) {
+      throw new SessionProblem(400, "LIVE_COST_CONFIRMATION_REQUIRED", "Confirm that the native live session can consume provider credits before voice selection is validated.");
+    }
+    await voiceCatalog.requireSelection(providerId as VoiceProviderId, requestedVoiceId,
+      requestedVoiceGender as VoiceGender | undefined);
+  }
+  if (pipeline === "anam_full") {
     // This async guard must settle before admission. Otherwise an expired
     // login rejects outside Express and can crash the API process.
     await assetTenant(req, res, () => {});
     if (integrationIdentity(res) && !roleplay && !fullPipeline) {
       throw new SessionProblem(400, "ROLEPLAY_CONTEXT_REQUIRED", "Anam integration conversations require roleplay or fullPipeline context. Send the same systemPrompt, context and greeting used for Tavus; the router adapts them. No paid session was started.");
     }
-    if (parsed.data.fullPipeline?.voiceId) {
-      throw new SessionProblem(400, "ANAM_UNSUPPORTED_VOICE", "Do not send a Tavus voiceId to Anam. Use the server-selected template voice.");
-    }
     const row = await createStockSession(res.locals.ownerHash, res.locals.tenantId, costConfirmed, undefined, purpose, fullPipeline, true, roleplay);
     res.status(201).json(GetSessionResponse.parse(presentSession(row)));
     return;
-  }
-  if ((pipeline === "tavus_full" && (mode !== "live" || providerId !== "tavus" || !fullPipeline || purpose === "validation" && !avatarAssetId)) ||
-      (pipeline !== "tavus_full" && fullPipeline)) {
-    res.status(400).json({ code: "INVALID_PIPELINE_CONFIG", error: "tavus_full requires Tavus live mode and fullPipeline options. Native validation additionally requires an owned avatarAssetId." }); return;
   }
   if (mode === "live" && providerId === "tavus" && !avatarAssetId) {
     await assetTenant(req, res, () => {});

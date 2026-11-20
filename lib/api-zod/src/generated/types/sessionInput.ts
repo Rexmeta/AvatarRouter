@@ -22,7 +22,7 @@ export interface SessionInput {
   scenarioAssignmentName?: string;
   /** Native full modes own dialogue and voice; anam_full uses the configured saved persona over Anam WebRTC. Never run Gemini concurrently. */
   pipeline?: SessionInputPipeline;
-  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam. */
+  /** Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. */
   fullPipeline?: TavusFullOptions;
   roleplay?: RoleplayContext;
   providerId: SessionInputProviderId;

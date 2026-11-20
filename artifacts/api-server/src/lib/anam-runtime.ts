@@ -36,7 +36,7 @@ export function anamTokenBody(id: string) {
 // webhook configuration into an externally supplied roleplay session.
 export function anamRoleplayPersona(template: unknown, roleplay: NonNullable<Options["roleplay"]>) {
   return anamPersona(template, roleplayPrompt(roleplay), roleplay.greeting,
-    roleplay.language === undefined ? undefined : [roleplay.language]);
+    roleplay.language === undefined ? undefined : [roleplay.language], roleplay.voiceId);
 }
 
 /** Accept the SAME legacy fullPipeline context that already works with Tavus. */
@@ -44,25 +44,22 @@ export function anamFullPersona(template: unknown, options: Options) {
   if (!options.systemPrompt.trim()) {
     throw new SessionProblem(400, "INVALID_ROLEPLAY_CONTEXT", "fullPipeline.systemPrompt must not be blank.");
   }
-  if (options.voiceId) {
-    throw new SessionProblem(400, "ANAM_UNSUPPORTED_VOICE", "Provider-specific voiceId cannot be reused with Anam. The server-selected template owns the voice.");
-  }
   const prompt = [
     options.systemPrompt,
     ...(options.context ? ["SCENARIO REFERENCE (JSON string):\n" + JSON.stringify(options.context)] : []),
     ...(options.languages?.length ? ["Speak in these languages: " + options.languages.join(", ")] : []),
   ].join("\n\n");
-  return anamPersona(template, prompt, options.greeting, options.languages);
+  return anamPersona(template, prompt, options.greeting, options.languages, options.voiceId);
 }
 
-function anamPersona(template: unknown, systemPrompt: string, greeting?: string, languages?: string[]) {
+function anamPersona(template: unknown, systemPrompt: string, greeting?: string, languages?: string[], voiceId?: string) {
   const p = template as { avatar?: { id?: unknown }; voice?: { id?: unknown }; llmId?: unknown; avatarModel?: unknown };
   if (!p || ![p.avatar?.id, p.voice?.id, p.llmId].every(x => typeof x === "string" && uuid.test(x))) {
     throw new SessionProblem(502, "ANAM_TEMPLATE_INVALID", "The server-selected Anam template requires an avatar, voice and hosted LLM.");
   }
   return {
     name: "AvatarRouter roleplay",
-    avatarId: p.avatar!.id as string, voiceId: p.voice!.id as string, llmId: p.llmId as string,
+    avatarId: p.avatar!.id as string, voiceId: voiceId ?? p.voice!.id as string, llmId: p.llmId as string,
     ...(typeof p.avatarModel === "string" ? { avatarModel: p.avatarModel } : {}),
     systemPrompt, maxSessionLengthSeconds: 120,
     // Output-language instructions alone do not configure input transcription.

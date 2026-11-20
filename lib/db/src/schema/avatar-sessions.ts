@@ -17,11 +17,12 @@ export const avatarSessions = pgTable("avatar_sessions", {
   pipeline: text("pipeline", { enum: ["external_audio", "tavus_full", "anam_full"] }).notNull().default("external_audio"),
   fullPipeline: jsonb("full_pipeline").$type<{
     systemPrompt: string; context?: string; greeting?: string; languages?: string[]; voiceId?: string;
+    voiceGender?: "male" | "female" | "neutral";
     conversationName?: string;
     palId?: string; url?: string; token?: string;
     transcriptConversationId?: string;
     personaId?: string; tokenExpiresAt?: string; connectionIssuedAt?: string;
-    roleplay?: { persona: string; scenario: string; language?: string; greeting?: string };
+    roleplay?: { persona: string; scenario: string; language?: string; greeting?: string; voiceId?: string; voiceGender?: "male" | "female" | "neutral" };
   }>(),
   rendererState: text("renderer_state").notNull().default("queued"),
   workerId: text("worker_id"),

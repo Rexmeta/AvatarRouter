@@ -1164,6 +1164,45 @@ export const ListAvatarsResponseItem = zod.object({
 export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
 
 
+/**
+ * Requires assets:read. Provider credentials, sample URLs and raw provider payloads are never returned.
+ * @summary List safe provider voice metadata for an authorized project
+ */
+export const listVoicesResponseProvidersMax = 2;
+
+export const listVoicesResponseVoicesItemIdMax = 160;
+
+export const listVoicesResponseVoicesItemNameMax = 200;
+
+export const listVoicesResponseVoicesItemDescriptionMax = 1000;
+
+export const listVoicesResponseVoicesItemLanguagesItemMax = 40;
+
+export const listVoicesResponseVoicesItemLanguagesMax = 20;
+
+export const listVoicesResponseVoicesMax = 1000;
+
+
+
+export const ListVoicesResponse = zod.object({
+  "providers": zod.array(zod.object({
+  "providerId": zod.enum(['anam', 'tavus']),
+  "status": zod.enum(['available', 'unconfigured', 'unavailable']),
+  "errorCode": zod.union([zod.literal('VOICE_CATALOG_UNAVAILABLE'),zod.literal(null)]).nullable()
+})).max(listVoicesResponseProvidersMax),
+  "voices": zod.array(zod.object({
+  "id": zod.string().min(1).max(listVoicesResponseVoicesItemIdMax),
+  "providerId": zod.enum(['anam', 'tavus']),
+  "name": zod.string().min(1).max(listVoicesResponseVoicesItemNameMax),
+  "description": zod.string().max(listVoicesResponseVoicesItemDescriptionMax),
+  "gender": zod.enum(['male', 'female', 'neutral', 'unclassified']),
+  "genderSource": zod.enum(['provider', 'admin', 'unknown']),
+  "languages": zod.array(zod.string().max(listVoicesResponseVoicesItemLanguagesItemMax)).max(listVoicesResponseVoicesItemLanguagesMax),
+  "available": zod.boolean()
+})).max(listVoicesResponseVoicesMax)
+})
+
+
 export const getLiveLimitsQueryProviderIdDefault = `tavus`;
 
 export const GetLiveLimitsQueryParams = zod.object({
@@ -1284,6 +1323,8 @@ export const createSessionBodyRoleplayLanguageMax = 80;
 
 export const createSessionBodyRoleplayGreetingMax = 1000;
 
+export const createSessionBodyRoleplayVoiceIdMax = 160;
+
 export const createSessionBodyAvatarIdMax = 160;
 
 export const createSessionBodyPurposeDefault = `conversation`;
@@ -1297,13 +1338,16 @@ export const CreateSessionBody = zod.object({
   "context": zod.string().max(createSessionBodyFullPipelineContextMax).optional(),
   "greeting": zod.string().max(createSessionBodyFullPipelineGreetingMax).optional(),
   "languages": zod.array(zod.string().min(createSessionBodyFullPipelineLanguagesItemMin).max(createSessionBodyFullPipelineLanguagesItemMax)).min(1).max(createSessionBodyFullPipelineLanguagesMax).optional(),
-  "voiceId": zod.string().min(1).max(createSessionBodyFullPipelineVoiceIdMax).optional().describe('Tavus-managed voice ID; not an external provider API key.')
-}).optional().describe('Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback. Omit voiceId for Anam.'),
+  "voiceId": zod.string().min(1).max(createSessionBodyFullPipelineVoiceIdMax).optional().describe('Voice ID from the selected provider\'s /voices catalog; not an external provider API key.'),
+  "voiceGender": zod.enum(['male', 'female', 'neutral']).optional().describe('Expected catalog classification; mismatch is rejected before session admission.')
+}).optional().describe('Legacy shared conversation input, translated internally for Tavus or Anam. Do not combine with roleplay. Anam server integrations require either context input; no default-persona fallback.'),
   "roleplay": zod.object({
   "persona": zod.string().min(1).max(createSessionBodyRoleplayPersonaMax).describe('Character identity, personality, speaking style, goals and behavioral constraints.'),
   "scenario": zod.string().min(1).max(createSessionBodyRoleplayScenarioMax).describe('Current setting, roles, objectives, approved facts and optional conversation summary.'),
   "language": zod.string().min(createSessionBodyRoleplayLanguageMin).max(createSessionBodyRoleplayLanguageMax).optional().describe('Desired spoken language, e.g. Korean.'),
-  "greeting": zod.string().min(1).max(createSessionBodyRoleplayGreetingMax).optional().describe('Optional exact opening line.')
+  "greeting": zod.string().min(1).max(createSessionBodyRoleplayGreetingMax).optional().describe('Optional exact opening line.'),
+  "voiceId": zod.string().min(1).max(createSessionBodyRoleplayVoiceIdMax).optional().describe('ID from the selected provider\'s /voices catalog.'),
+  "voiceGender": zod.enum(['male', 'female', 'neutral']).optional().describe('Expected catalog classification; mismatch is rejected before session admission.')
 }).optional().describe('Provider-neutral per-session roleplay for Anam or Tavus. Omit pipeline to select the provider\'s native engine. Do not combine with fullPipeline. Send only tenant-authorized context. Never mutates a shared persona.'),
   "providerId": zod.enum(['mock', 'anam', 'tavus']),
   "avatarId": zod.string().min(1).max(createSessionBodyAvatarIdMax),
@@ -1390,6 +1434,84 @@ export const ListRendererDiagnosticSessionsResponseItem = zod.object({
   "rendererState": zod.string()
 })
 export const ListRendererDiagnosticSessionsResponse = zod.array(ListRendererDiagnosticSessionsResponseItem)
+
+
+/**
+ * @summary Read voice catalog for trusted operator gender curation
+ */
+export const getOperatorVoiceCatalogResponseProvidersMax = 2;
+
+export const getOperatorVoiceCatalogResponseVoicesItemIdMax = 160;
+
+export const getOperatorVoiceCatalogResponseVoicesItemNameMax = 200;
+
+export const getOperatorVoiceCatalogResponseVoicesItemDescriptionMax = 1000;
+
+export const getOperatorVoiceCatalogResponseVoicesItemLanguagesItemMax = 40;
+
+export const getOperatorVoiceCatalogResponseVoicesItemLanguagesMax = 20;
+
+export const getOperatorVoiceCatalogResponseVoicesMax = 1000;
+
+
+
+export const GetOperatorVoiceCatalogResponse = zod.object({
+  "providers": zod.array(zod.object({
+  "providerId": zod.enum(['anam', 'tavus']),
+  "status": zod.enum(['available', 'unconfigured', 'unavailable']),
+  "errorCode": zod.union([zod.literal('VOICE_CATALOG_UNAVAILABLE'),zod.literal(null)]).nullable()
+})).max(getOperatorVoiceCatalogResponseProvidersMax),
+  "voices": zod.array(zod.object({
+  "id": zod.string().min(1).max(getOperatorVoiceCatalogResponseVoicesItemIdMax),
+  "providerId": zod.enum(['anam', 'tavus']),
+  "name": zod.string().min(1).max(getOperatorVoiceCatalogResponseVoicesItemNameMax),
+  "description": zod.string().max(getOperatorVoiceCatalogResponseVoicesItemDescriptionMax),
+  "gender": zod.enum(['male', 'female', 'neutral', 'unclassified']),
+  "genderSource": zod.enum(['provider', 'admin', 'unknown']),
+  "languages": zod.array(zod.string().max(getOperatorVoiceCatalogResponseVoicesItemLanguagesItemMax)).max(getOperatorVoiceCatalogResponseVoicesItemLanguagesMax),
+  "available": zod.boolean()
+})).max(getOperatorVoiceCatalogResponseVoicesMax)
+})
+
+
+/**
+ * @summary Set a provider voice gender classification
+ */
+export const setOperatorVoiceGenderPathVoiceIdMax = 160;
+
+
+
+export const SetOperatorVoiceGenderParams = zod.object({
+  "providerId": zod.enum(['anam', 'tavus']),
+  "voiceId": zod.coerce.string().min(1).max(setOperatorVoiceGenderPathVoiceIdMax)
+})
+
+export const SetOperatorVoiceGenderBody = zod.object({
+  "gender": zod.enum(['male', 'female', 'neutral', 'unclassified'])
+})
+
+export const setOperatorVoiceGenderResponseIdMax = 160;
+
+export const setOperatorVoiceGenderResponseNameMax = 200;
+
+export const setOperatorVoiceGenderResponseDescriptionMax = 1000;
+
+export const setOperatorVoiceGenderResponseLanguagesItemMax = 40;
+
+export const setOperatorVoiceGenderResponseLanguagesMax = 20;
+
+
+
+export const SetOperatorVoiceGenderResponse = zod.object({
+  "id": zod.string().min(1).max(setOperatorVoiceGenderResponseIdMax),
+  "providerId": zod.enum(['anam', 'tavus']),
+  "name": zod.string().min(1).max(setOperatorVoiceGenderResponseNameMax),
+  "description": zod.string().max(setOperatorVoiceGenderResponseDescriptionMax),
+  "gender": zod.enum(['male', 'female', 'neutral', 'unclassified']),
+  "genderSource": zod.enum(['provider', 'admin', 'unknown']),
+  "languages": zod.array(zod.string().max(setOperatorVoiceGenderResponseLanguagesItemMax)).max(setOperatorVoiceGenderResponseLanguagesMax),
+  "available": zod.boolean()
+})
 
 
 /**

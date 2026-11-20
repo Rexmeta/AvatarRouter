@@ -5,9 +5,10 @@
  * Contract for the AvatarRouter stock Tavus LiveKit renderer, tenant-owned image/avatar assets, and opt-in Tavus full-pipeline Daily sessions. Live create is asynchronous: HTTP 201 means queued, not video-ready. Recommended external integration: project-scoped server API key in Authorization Bearer. No issuer, JWKS or login migration is needed. Optional advanced RoleplayX JWT delegation remains supported.
  * OpenAPI spec version: 0.9.0
  */
+import type { TavusFullOptionsVoiceGender } from './tavusFullOptionsVoiceGender';
 
 /**
- * Legacy name retained for compatibility. systemPrompt/context/greeting/languages work with both native providers; voiceId is Tavus-only. Anam integrations must send this input or roleplay.
+ * Legacy name retained for compatibility. systemPrompt/context/greeting/languages and provider-specific voiceId work with either native provider. Anam integrations must send this input or roleplay.
  */
 export interface TavusFullOptions {
   /**
@@ -27,9 +28,11 @@ export interface TavusFullOptions {
      */
   languages?: string[];
   /**
-     * Tavus-managed voice ID; not an external provider API key.
+     * Voice ID from the selected provider's /voices catalog; not an external provider API key.
      * @minLength 1
      * @maxLength 160
      */
   voiceId?: string;
+  /** Expected catalog classification; mismatch is rejected before session admission. */
+  voiceGender?: TavusFullOptionsVoiceGender;
 }

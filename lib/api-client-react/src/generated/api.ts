@@ -64,11 +64,14 @@ import type {
   SessionEvent,
   SessionInput,
   SessionVideoObservation,
+  SetVoiceGenderBody,
   Setup,
   TavusFullConnection,
   TrainingImageModelDiagnostic,
   UpdateDeveloperKeyScopesInput,
   Usage,
+  VoiceCatalogEntry,
+  VoiceCatalogResponse,
   WorkspaceBudget,
   WorkspaceLiveCheck,
   WorkspaceLiveConsent
@@ -3052,6 +3055,108 @@ export function useListAvatars<TData = Awaited<ReturnType<typeof listAvatars>>, 
 
 
 
+export const getListVoicesUrl = () => {
+
+
+
+
+  return `/api/v1/voices`
+}
+
+/**
+ * Requires assets:read. Provider credentials, sample URLs and raw provider payloads are never returned.
+ * @summary List safe provider voice metadata for an authorized project
+ */
+export const listVoices = async ( options?: Parameters<typeof customFetch>[1]): Promise<VoiceCatalogResponse> => {
+
+  return customFetch<VoiceCatalogResponse>(getListVoicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVoicesQueryKey = () => {
+    return [
+    `/api/v1/voices`
+    ] as const;
+    }
+
+
+export const getListVoicesQueryOptions = <TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVoicesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVoices>>> = ({ signal }) => listVoices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListVoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listVoices>>>
+export type ListVoicesQueryError = ErrorType<void>
+
+
+export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listVoices>>,
+          TError,
+          Awaited<ReturnType<typeof listVoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listVoices>>,
+          TError,
+          Awaited<ReturnType<typeof listVoices>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List safe provider voice metadata for an authorized project
+ */
+
+export function useListVoices<TData = Awaited<ReturnType<typeof listVoices>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listVoices>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListVoicesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetLiveLimitsUrl = (params?: GetLiveLimitsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3434,6 +3539,198 @@ export function useListRendererDiagnosticSessions<TData = Awaited<ReturnType<typ
 
 
 
+
+export const getGetOperatorVoiceCatalogUrl = () => {
+
+
+
+
+  return `/api/v1/operator/voice-catalog`
+}
+
+/**
+ * @summary Read voice catalog for trusted operator gender curation
+ */
+export const getOperatorVoiceCatalog = async ( options?: Parameters<typeof customFetch>[1]): Promise<VoiceCatalogResponse> => {
+
+  return customFetch<VoiceCatalogResponse>(getGetOperatorVoiceCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOperatorVoiceCatalogQueryKey = () => {
+    return [
+    `/api/v1/operator/voice-catalog`
+    ] as const;
+    }
+
+
+export const getGetOperatorVoiceCatalogQueryOptions = <TData = Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOperatorVoiceCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>> = ({ signal }) => getOperatorVoiceCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOperatorVoiceCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>>
+export type GetOperatorVoiceCatalogQueryError = ErrorType<void>
+
+
+export function useGetOperatorVoiceCatalog<TData = Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError = ErrorType<void>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOperatorVoiceCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof getOperatorVoiceCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOperatorVoiceCatalog<TData = Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOperatorVoiceCatalog>>,
+          TError,
+          Awaited<ReturnType<typeof getOperatorVoiceCatalog>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOperatorVoiceCatalog<TData = Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Read voice catalog for trusted operator gender curation
+ */
+
+export function useGetOperatorVoiceCatalog<TData = Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOperatorVoiceCatalog>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOperatorVoiceCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetOperatorVoiceGenderUrl = (providerId: 'anam' | 'tavus',
+    voiceId: string,) => {
+
+
+
+
+  return `/api/v1/operator/voice-catalog/${providerId}/${voiceId}/gender`
+}
+
+/**
+ * @summary Set a provider voice gender classification
+ */
+export const setOperatorVoiceGender = async (providerId: 'anam' | 'tavus',
+    voiceId: string,
+    setVoiceGenderBody: SetVoiceGenderBody, options?: Parameters<typeof customFetch>[1]): Promise<VoiceCatalogEntry> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VoiceCatalogEntry>(getSetOperatorVoiceGenderUrl(providerId,voiceId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setVoiceGenderBody)
+  }
+);}
+
+
+
+
+
+export const getSetOperatorVoiceGenderMutationKey = () => ['setOperatorVoiceGender'] as const;
+
+export const getSetOperatorVoiceGenderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOperatorVoiceGender>>, TError,SetOperatorVoiceGenderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setOperatorVoiceGender>>, TError,SetOperatorVoiceGenderMutationVariables, TContext> => {
+
+const mutationKey = getSetOperatorVoiceGenderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setOperatorVoiceGender>>, SetOperatorVoiceGenderMutationVariables> = (props) => {
+          const {providerId,voiceId,data} = props ?? {};
+
+          return  setOperatorVoiceGender(providerId,voiceId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetOperatorVoiceGenderMutationResult = NonNullable<Awaited<ReturnType<typeof setOperatorVoiceGender>>>
+    export type SetOperatorVoiceGenderMutationBody = BodyType<SetVoiceGenderBody>
+    export type SetOperatorVoiceGenderMutationError = ErrorType<void>
+    export type SetOperatorVoiceGenderMutationVariables = {providerId: 'anam' | 'tavus';voiceId: string;data: BodyType<SetVoiceGenderBody>}
+
+    /**
+ * @summary Set a provider voice gender classification
+ */
+export const useSetOperatorVoiceGender = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOperatorVoiceGender>>, TError,SetOperatorVoiceGenderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setOperatorVoiceGender>>,
+        TError,
+        SetOperatorVoiceGenderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetOperatorVoiceGenderMutationOptions(options), queryClient);
+    }
 
 export const getCompareRendererDiagnosticsUrl = (params: CompareRendererDiagnosticsParams,) => {
   const normalizedParams = new URLSearchParams();
