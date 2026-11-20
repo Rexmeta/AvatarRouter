@@ -1,0 +1,661 @@
+diff --git a/client/src/components/admin/PersonaVoiceSettings.tsx b/client/src/components/admin/PersonaVoiceSettings.tsx
+index c46d640afeb7ff9a584f291de4cf09e35b1824f7..33c441af48e60abc0d896236efdbf6b903d91c47 100644
+--- a/client/src/components/admin/PersonaVoiceSettings.tsx
++++ b/client/src/components/admin/PersonaVoiceSettings.tsx
+@@ -6,10 +6,22 @@ import { personaVoiceCatalogResponseSchema, type PersonaLiveAvatar, type Persona
+ type VoiceSelection = NonNullable<PersonaLiveAvatar['voiceSelection']>;
+ type Gender = VoiceSelection['gender'];
+ type Catalog = ReturnType<typeof personaVoiceCatalogResponseSchema.parse>['voiceCatalog'];
+-type LoadState =
+-  | { status: 'loading' }
+-  | { status: 'error'; message: string }
+-  | { status: 'ready'; catalog: Catalog };
++type LoadState = {
++  catalog?: Catalog;
++  nextOffset: number | null;
++  pending: boolean;
++  error?: string;
++};
++
++const voicePath = '/api/admin/personas/live-avatar/voices';
++const initialState: LoadState = { nextOffset: null, pending: true };
++
++function appendVoices(previous: Catalog | undefined, page: Catalog): Catalog {
++  const voices = new Map<string, PersonaVoice>();
++  for (const voice of previous?.voices ?? []) voices.set(`${voice.providerId}:${voice.id}`, voice);
++  for (const voice of page.voices) voices.set(`${voice.providerId}:${voice.id}`, voice);
++  return { providers: page.providers, voices: Array.from(voices.values()) };
++}
+ 
+ function voiceError(error: unknown): string {
+   const message = error instanceof Error ? error.message : '';
+@@ -27,12 +39,14 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+ }) {
+   const selected = avatar.voiceSelection;
+   const [gender, setGender] = useState<Gender>(selected?.gender ?? 'male');
+-  const [state, setState] = useState<LoadState>({ status: 'loading' });
+-  const [attempt, setAttempt] = useState(0);
+-  const retry = () => {
+-    setState({ status: 'loading' });
+-    setAttempt(count => count + 1);
+-  };
++  const [state, setState] = useState<LoadState>(initialState);
++  const [request, setRequest] = useState({ offset: 0 });
++  function load(offset: number) {
++    if (state.pending || disabled) return;
++    setState(offset === 0 ? initialState : { ...state, pending: true, error: undefined });
++    setRequest({ offset });
++  }
++  const retry = () => load(0);
+ 
+   useEffect(() => { setGender(selected?.gender ?? 'male'); }, [selected?.gender]);
+   useEffect(() => {
+@@ -40,22 +54,34 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+     let active = true;
+     void (async () => {
+       try {
+-        const response = await apiRequest('GET', '/api/admin/personas/live-avatar/voices');
++        const { offset } = request;
++        const response = await apiRequest('GET', offset === 0 ? voicePath : `${voicePath}?offset=${offset}`);
+         const result = personaVoiceCatalogResponseSchema.parse(await response.json());
+         if (!active) return;
+         if (result.projectId !== projectId) {
+-          setState({ status: 'error', message: '연결된 프로젝트가 변경되었습니다. 아바타 목록을 먼저 새로고침하세요.' });
++          setState({ pending: false, nextOffset: null, error: '연결된 프로젝트가 변경되었습니다. 아바타 목록을 먼저 새로고침하세요.' });
+           return;
+         }
+-        setState({ status: 'ready', catalog: result.voiceCatalog });
++        const count = result.voiceCatalog.voices.length;
++        if (result.nextOffset !== null && (count === 0 || result.nextOffset !== offset + count)) {
++          throw new Error('invalid_voice_page');
++        }
++        if (offset > 0 && result.voiceCatalog.providers.find(item => item.providerId === avatar.providerId)?.status !== 'available') {
++          throw new Error('persona_voice_catalog_unavailable');
++        }
++        setState(previous => ({
++          catalog: appendVoices(offset > 0 ? previous.catalog : undefined, result.voiceCatalog),
++          nextOffset: result.nextOffset,
++          pending: false,
++        }));
+       } catch (cause) {
+-        if (active) setState({ status: 'error', message: voiceError(cause) });
++        if (active) setState(previous => ({ ...previous, pending: false, error: voiceError(cause) }));
+       }
+     })();
+     return () => { active = false; };
+-  }, [projectId, attempt]);
++  }, [projectId, avatar.providerId, request]);
+ 
+-  const catalog = state.status === 'ready' ? state.catalog : undefined;
++  const { catalog, nextOffset } = state;
+   const provider = catalog?.providers.find(item => item.providerId === avatar.providerId);
+   const verified = provider?.status === 'available';
+   const selectedEntry = verified && selected && catalog?.voices.find(voice =>
+@@ -89,10 +115,10 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+         </p>
+       </div>
+       {!projectId ? <p className="text-xs text-slate-600">음성 목록은 아바타 목록 조회 후 표시됩니다.</p>
+-        : state.status === 'loading' ? <p role="status" className="text-xs text-slate-600">음성 목록을 불러오는 중입니다.</p>
+-        : state.status === 'error' || !verified ? (
++        : state.pending && !catalog ? <p role="status" className="text-xs text-slate-600">음성 목록을 불러오는 중입니다.</p>
++        : !verified ? (
+           <div role="alert" className="text-xs text-amber-900">
+-            <p>{state.status === 'error' ? state.message
++            <p>{state.error ? state.error
+               : provider?.status === 'unconfigured' ? '이 제공자의 음성 목록이 설정되지 않았습니다.'
+               : '이 제공자의 음성 목록을 현재 확인할 수 없습니다.'} 아바타 목록은 계속 사용할 수 있습니다.</p>
+             <Button type="button" variant="link" className="h-auto p-0 text-amber-900" disabled={disabled} onClick={retry}>
+@@ -127,10 +153,21 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+                 </select>
+               </label>
+             </div>
+-            {!options.length && <p className="text-xs text-slate-600">이 성별로 분류되어 선택 가능한 음성이 없습니다.</p>}
+-            <Button type="button" variant="link" className="h-auto p-0" disabled={disabled} onClick={retry}>
+-              음성 목록 새로고침
+-            </Button>
++            {!options.length && <p className="text-xs text-slate-600">{nextOffset === null
++              ? '이 성별로 분류되어 선택 가능한 음성이 없습니다.'
++              : '불러온 목록에 이 성별의 음성이 없습니다. 다음 목록을 확인해 보세요.'}</p>}
++            {state.error && <p data-testid="status-persona-voice-next-error" role="alert" className="text-xs text-amber-900">{state.error} 이전에 불러온 음성은 그대로 표시됩니다.</p>}
++            <div className="flex flex-wrap gap-x-4">
++              {nextOffset !== null && (
++                <Button type="button" variant="link" className="h-auto p-0" data-testid="button-persona-voice-more"
++                  disabled={disabled || state.pending} onClick={() => load(nextOffset)}>
++                  {state.pending ? '다음 음성을 불러오는 중…' : state.error ? '다음 목록 다시 시도' : '음성 더 보기'}
++                </Button>
++              )}
++              <Button type="button" variant="link" className="h-auto p-0" disabled={disabled || state.pending} onClick={retry}>
++                음성 목록 새로고침
++              </Button>
++            </div>
+           </>
+         )}
+       {selected && !selectedEntry && (
+diff --git a/server/routes/adminPersonas.ts b/server/routes/adminPersonas.ts
+index eb77d192ff5501c88aa70ddfb387ebd1f94ed52a..2a187320213e24195f1216571e256e784d540b8b 100644
+--- a/server/routes/adminPersonas.ts
++++ b/server/routes/adminPersonas.ts
+@@ -21,6 +21,7 @@ import { personaAvatarCatalog } from "../services/liveAvatar/personaCatalog";
+ import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
+ import { createPersonaAvatarOperationsRouter } from "./personaAvatarOperations";
+ import { personaSeedLive } from "../services/liveAvatar/personaSeedLive";
++import { personaVoiceOffsetQuerySchema } from "../../shared/avatar/personaAvatar";
+ 
+ const videoUpload = multer({
+   storage: multer.memoryStorage(),
+@@ -53,7 +54,11 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
+ 
+   router.get("/api/admin/personas/live-avatar/voices", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+     res.setHeader("Cache-Control", "private, no-store");
+-    try { res.json(await personaAvatarCatalog.listVoices(req.user.id)); }
++    try {
++      const offset = personaVoiceOffsetQuerySchema.safeParse(req.query.offset === undefined ? "0" : req.query.offset);
++      if (!offset.success) throw new AvatarIdentityError("persona_voice_offset_invalid", 400);
++      res.json(await personaAvatarCatalog.listVoices(req.user.id, offset.data));
++    }
+     catch (error) { catalogError(error, res); }
+   }));
+ 
+diff --git a/server/services/liveAvatar/personaCatalog.ts b/server/services/liveAvatar/personaCatalog.ts
+index e3cc91e7822e8204095399f9ca4c8c1833c2f952..cd158a73ed99224d3fff8ddfb1e246591d5cb861 100644
+--- a/server/services/liveAvatar/personaCatalog.ts
++++ b/server/services/liveAvatar/personaCatalog.ts
+@@ -3,7 +3,7 @@ import { storage } from "../../storage";
+ import {
+   personaAvatarAssetSchema, personaAvatarModeSchema, personaLiveAvatarSchema,
+   isSelectablePersonaAvatar, isLiveValidatedPersonaAvatar,
+-  personaStockAvatarSchema, isSelectableStockAvatar, personaVoiceCatalogSchema,
++  personaStockAvatarSchema, isSelectableStockAvatar, type PersonaLiveAvatar,
+ } from "../../../shared/avatar/personaAvatar";
+ import { AvatarProjectClient } from "./projectClient";
+ import { avatarRouterProjectConnection } from "./projectConnection";
+@@ -12,7 +12,7 @@ import { AvatarIdentityError } from "./delegatedIdentity";
+ /** Read-only project catalog. No provisioning, image transfer or paid session calls. */
+ export class PersonaAvatarCatalog {
+   constructor(
+-    private readonly client: Pick<AvatarProjectClient, "call" | "image"> = new AvatarProjectClient(storage),
++    private readonly client: Pick<AvatarProjectClient, "call" | "image" | "voicePage"> = new AvatarProjectClient(storage),
+     private readonly connection: Pick<typeof avatarRouterProjectConnection, "check"> = avatarRouterProjectConnection,
+   ) {}
+ 
+@@ -34,10 +34,14 @@ export class PersonaAvatarCatalog {
+     };
+   }
+ 
+-  async listVoices(userId: string) {
++  async listVoices(userId: string, offset = 0) {
+     const auth = await this.authorize(userId);
++    return { projectId: auth.projectId, ...await this.readVoicePage(userId, offset) };
++  }
++
++  private async readVoicePage(userId: string, offset: number, signal?: AbortSignal) {
+     try {
+-      return { projectId: auth.projectId, voiceCatalog: await this.client.call(userId, "/voices", personaVoiceCatalogSchema) };
++      return await this.client.voicePage(userId, offset, signal);
+     } catch (error) {
+       if (error instanceof AvatarIdentityError && error.status === 503) {
+         throw new AvatarIdentityError("persona_voice_catalog_unavailable", 503);
+@@ -46,6 +50,25 @@ export class PersonaAvatarCatalog {
+     }
+   }
+ 
++  private async validateVoice(userId: string, providerId: PersonaLiveAvatar["providerId"],
++    selection: NonNullable<PersonaLiveAvatar["voiceSelection"]>) {
++    // Bound the entire save-time lookup, not just each individual GET.
++    const signal = AbortSignal.timeout(20_000);
++    let offset: number | null = 0;
++    while (offset !== null) {
++      if (signal.aborted) throw new AvatarIdentityError("persona_voice_catalog_unavailable", 503);
++      const { voiceCatalog, nextOffset } = await this.readVoicePage(userId, offset, signal);
++      if (voiceCatalog.providers.find(provider => provider.providerId === providerId)?.status !== "available") break;
++      const voice = voiceCatalog.voices.find(item => item.providerId === providerId && item.id === selection.voiceId);
++      if (voice) {
++        if (voice.available && voice.gender === selection.gender) return { voiceId: voice.id, gender: voice.gender };
++        break;
++      }
++      offset = nextOffset;
++    }
++    throw new AvatarIdentityError("persona_voice_unavailable", 409);
++  }
++
+   async thumbnail(userId: string, assetId: string) {
+     const parsedId = z.string().uuid().safeParse(assetId);
+     if (!parsedId.success) throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+@@ -94,16 +117,12 @@ export class PersonaAvatarCatalog {
+       throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
+     }
+     let voiceSelection = parsed.data.voiceSelection;
+-    if (voiceSelection && (parsed.data.providerId !== existing?.liveAvatar?.providerId ||
+-        JSON.stringify(voiceSelection) !== JSON.stringify(existing?.liveAvatar?.voiceSelection))) {
+-      const catalog = await this.client.call(userId, "/voices", personaVoiceCatalogSchema);
+-      const providerStatus = catalog.providers.find(provider => provider.providerId === parsed.data.providerId)?.status;
+-      const voice = catalog.voices.find(item =>
+-        item.providerId === parsed.data.providerId && item.id === voiceSelection!.voiceId);
+-      if (providerStatus !== "available" || !voice || !voice.available || voice.gender !== voiceSelection.gender) {
+-        throw new AvatarIdentityError("persona_voice_unavailable", 409);
+-      }
+-      voiceSelection = { voiceId: voice.id, gender: voice.gender };
++    const saved = existing?.liveAvatar;
++    if (voiceSelection && (parsed.data.providerId !== saved?.providerId ||
++        (saved?.projectId && saved.projectId !== auth.projectId) ||
++        voiceSelection.voiceId !== saved?.voiceSelection?.voiceId ||
++        voiceSelection.gender !== saved?.voiceSelection?.gender)) {
++      voiceSelection = await this.validateVoice(userId, parsed.data.providerId, voiceSelection);
+     }
+     if (parsed.data.kind === "stock") {
+       const reference = parsed.data;
+diff --git a/server/services/liveAvatar/projectClient.ts b/server/services/liveAvatar/projectClient.ts
+index eb8b7e16cc18ebc4b25cbe0b04ec0b0de0c2cda7..b2925655ec96bb6c0d948a0d3060f3c9563f3e28 100644
+--- a/server/services/liveAvatar/projectClient.ts
++++ b/server/services/liveAvatar/projectClient.ts
+@@ -1,6 +1,7 @@
+ import { z } from "zod";
+ import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
+ import { AvatarIdentityError, resolveAvatarIdentity, type AvatarIdentityStore } from "./delegatedIdentity";
++import { personaVoiceCatalogSchema, personaVoiceOffsetSchema } from "../../../shared/avatar/personaAvatar";
+ 
+ async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
+   if (Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error("invalid_body");
+@@ -19,6 +20,16 @@ async function readBoundedBody(response: Response, maxBytes: number): Promise<Bu
+   return Buffer.concat(chunks);
+ }
+ 
++function readVoicePageHeader(headers: Headers, name: string): number | null {
++  const raw = headers.get(name);
++  if (raw === null) return null;
++  const value = Number(raw);
++  if (!Number.isSafeInteger(value) || value < 0 || String(value) !== raw) {
++    throw new Error("invalid_voice_page_header");
++  }
++  return value;
++}
++
+ /** Pinned project-key BFF. Callers supply only constant paths and encoded owned IDs. */
+ export class AvatarProjectClient {
+   constructor(
+@@ -60,23 +71,50 @@ export class AvatarProjectClient {
+     }
+   }
+ 
++  async voicePage(userId: string, offset: number, signal?: AbortSignal) {
++    if (!personaVoiceOffsetSchema.safeParse(offset).success) {
++      throw new AvatarIdentityError("persona_voice_offset_invalid", 400);
++    }
++    // The Router's default remains 1,000 rows; the existing response byte cap also applies.
++    const path = offset === 0 ? "/voices" : `/voices?offset=${offset}`;
++    return this.requestJson(userId, path, (value, headers) => {
++      const voiceCatalog = personaVoiceCatalogSchema.parse(value);
++      const nextOffset = readVoicePageHeader(headers, "X-Voice-Catalog-Next-Offset");
++      const total = readVoicePageHeader(headers, "X-Voice-Catalog-Total");
++      const count = voiceCatalog.voices.length;
++      const end = offset + count;
++      // A pre-pagination Router sent neither header. Only its first page is a valid legacy response.
++      if (offset === 0 && total === null && nextOffset === null) return { voiceCatalog, nextOffset };
++      if (total === null || (count > 0 && end > total) ||
++          (nextOffset === null ? end < total :
++            count === 0 || nextOffset !== end || nextOffset >= total ||
++            !personaVoiceOffsetSchema.safeParse(nextOffset).success)) {
++        throw new Error("invalid_voice_page");
++      }
++      return { voiceCatalog, nextOffset };
++    }, undefined, signal);
++  }
++
+   async call<T>(userId: string, path: string, schema: z.ZodType<T>, body?: object, signal?: AbortSignal): Promise<T> {
+-    const input = this.input();
+-    const base = normalizeAvatarRouterBaseUrl(input.baseUrl);
+-    const key = input.apiKey;
+-    if (!base || !key) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
+-    if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
+     const catalogRead = body === undefined && /^\/avatar-assets(?:\/[a-fA-F0-9-]{36})?$/.test(path);
+     const assetWrite = body !== undefined && /^\/(?:assets\/images|avatar-assets(?:\/[a-fA-F0-9-]{36}\/live-validation)?)$/.test(path);
+     const imageRead = body === undefined && (path === "/assets/images" ||
+       /^\/assets\/images\/[a-fA-F0-9-]{36}\/live-options$/.test(path));
+     const stockRead = body === undefined && path === "/avatars";
+-    const voiceRead = body === undefined && path === "/voices";
+     // Owned lifecycle evidence is read-only; never widen this to operator APIs.
+     const eventRead = body === undefined && /^\/sessions\/[a-zA-Z0-9_-]{1,160}\/events$/.test(path);
+-    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !voiceRead && !eventRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:video-playing|client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
++    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !eventRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:video-playing|client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
+       throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+     }
++    return this.requestJson(userId, path, value => schema.parse(value), body, signal);
++  }
++
++  private async requestJson<T>(userId: string, path: string, parse: (value: unknown, headers: Headers) => T, body?: object, signal?: AbortSignal): Promise<T> {
++    const input = this.input();
++    const base = normalizeAvatarRouterBaseUrl(input.baseUrl);
++    const key = input.apiKey;
++    if (!base || !key) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
++    if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
+     const identity = await resolveAvatarIdentity(this.store, userId);
+     try {
+       const response = await this.request(`${base}${path}`, {
+@@ -111,7 +149,7 @@ export class AvatarProjectClient {
+           Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
+       const raw = (await readBoundedBody(response, maxBytes)).toString("utf8");
+       if (raw.includes(key)) throw new Error();
+-      return schema.parse(JSON.parse(raw));
++      return parse(JSON.parse(raw), response.headers);
+     } catch (error) {
+       if (error instanceof AvatarIdentityError) throw error;
+       // POST may already have been accepted. Never retry or claim no charge occurred.
+diff --git a/shared/avatar/personaAvatar.ts b/shared/avatar/personaAvatar.ts
+index 3697f2cf50bf5bd5aabbf4b3c6ffba5da27dbde6..370558ae926e5f0d0c0687e3a02e3511940ee0bb 100644
+--- a/shared/avatar/personaAvatar.ts
++++ b/shared/avatar/personaAvatar.ts
+@@ -88,6 +88,9 @@ export const personaVoiceCatalogSchema = z.object({
+ }).strict();
+ export type PersonaVoiceCatalog = z.infer<typeof personaVoiceCatalogSchema>;
+ export type PersonaVoice = PersonaVoiceCatalog["voices"][number];
++export const personaVoiceOffsetSchema = z.number().int().min(0).max(5000);
++export const personaVoiceOffsetQuerySchema = z.string().max(4).refine(text => String(Number(text)) === text)
++  .transform(Number).pipe(personaVoiceOffsetSchema);
+ 
+ export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
+   const supported = ((avatar.id === "tavus-stock-lucy" || avatar.stock === true && /^tavus-stock-[a-zA-Z0-9_-]{1,128}$/.test(avatar.id)) && avatar.providerId === "tavus") ||
+@@ -130,6 +133,7 @@ export const personaAvatarCatalogSchema = z.object({
+ export const personaVoiceCatalogResponseSchema = z.object({
+   projectId: z.string().min(1).max(256),
+   voiceCatalog: personaVoiceCatalogSchema,
++  nextOffset: personaVoiceOffsetSchema.nullable(),
+ });
+ 
+ export function isSelectablePersonaAvatar(asset: z.infer<typeof personaAvatarAssetSchema>): boolean {
+diff --git a/tests/client/personaAvatarSettings.test.tsx b/tests/client/personaAvatarSettings.test.tsx
+index cb2a0ac42fb788877cd1d1c5994ec0690d077287..bcc36c6870ff87fa7f5fb433480e7602fa6813b2 100644
+--- a/tests/client/personaAvatarSettings.test.tsx
++++ b/tests/client/personaAvatarSettings.test.tsx
+@@ -42,7 +42,7 @@ const voiceCatalog = {
+   voices: [],
+ };
+ const response = (assets = [row()], voices = voiceCatalog.voices) => ({
+-  projectId: "project-one", runtimeAvailable: false, assets, voiceCatalog: { ...voiceCatalog, voices },
++  projectId: "project-one", runtimeAvailable: false, assets, voiceCatalog: { ...voiceCatalog, voices }, nextOffset: null,
+ });
+ const voicesPath = "/api/admin/personas/live-avatar/voices";
+ const faceCalls = () => api.mock.calls.filter(([, url]) => url !== voicesPath);
+@@ -128,6 +128,48 @@ describe("persona avatar settings", () => {
+     });
+   });
+ 
++  it("loads later voices on demand and preserves the draft and filter through a failed page and retry", async () => {
++    const stored: PersonaLiveAvatar = { ...saved, voiceSelection: { voiceId: "stored-voice", gender: "female" } };
++    const voice = (id: string, name: string, gender = "female") => ({
++      id, name, gender, providerId: "tavus", description: "", genderSource: "provider", languages: ["ko"], available: true,
++    });
++    const first = voice("first", "First voice", "male");
++    const firstPage = { ...response(), voiceCatalog: { ...voiceCatalog, voices: [first] }, nextOffset: 1 };
++    const secondPage = { ...response(), voiceCatalog: { ...voiceCatalog, voices: [voice("later", "Later voice"), first] } };
++    const nextPath = `${voicesPath}?offset=1`;
++    let nextAttempts = 0;
++    let failFirstNext!: (error: Error) => void;
++    const firstNext = new Promise((_, reject) => { failFirstNext = reject; });
++    api.mockImplementation(async (_method: string, url: string) => {
++      if (url === voicesPath) return { json: async () => firstPage };
++      if (url === nextPath) return ++nextAttempts === 1 ? firstNext : { json: async () => secondPage };
++      return { json: async () => response() };
++    });
++    render(<Harness initial={stored} />);
++    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
++    const more = await screen.findByRole("button", { name: "음성 더 보기" });
++    const models = () => screen.getByLabelText<HTMLSelectElement>("음성 모델");
++    expect(models().value).toBe("saved/stored-voice");
++    expect(screen.getByText(/다음 목록을 확인/)).toBeTruthy();
++    expect(screen.queryByRole("option", { name: "Later voice" })).toBeNull();
++    fireEvent.click(more);
++    expect(screen.getByRole<HTMLButtonElement>("button", { name: "다음 음성을 불러오는 중…" }).disabled).toBe(true);
++    await act(async () => failFirstNext(new Error('503: {"code":"persona_voice_catalog_unavailable"}')));
++    expect(await screen.findByText(/이전에 불러온 음성은 그대로/)).toBeTruthy();
++    expect(models().value).toBe("saved/stored-voice");
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stored);
++    fireEvent.click(screen.getByRole("button", { name: "다음 목록 다시 시도" }));
++    expect(await screen.findByRole("option", { name: "Later voice" })).toBeTruthy();
++    expect(screen.getByLabelText<HTMLSelectElement>("음성 성별").value).toBe("female");
++    expect(models().value).toBe("saved/stored-voice");
++    expect(screen.queryByRole("button", { name: "음성 더 보기" })).toBeNull();
++    fireEvent.change(models(), { target: { value: "later" } });
++    expect(JSON.parse(screen.getByTestId("draft").textContent!).voiceSelection).toEqual({ voiceId: "later", gender: "female" });
++    fireEvent.change(screen.getByLabelText("음성 성별"), { target: { value: "male" } });
++    expect(screen.getAllByRole("option", { name: "First voice" })).toHaveLength(1);
++    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"], ["GET", voicesPath], ["GET", nextPath], ["GET", nextPath]]);
++  });
++
+   it("keeps stock faces and the saved voice while a slow voice request fails, and retries only voices", async () => {
+     const stored = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
+       activation: "draft", validationStatus: "unverified", projectId: "project-one",
+@@ -265,7 +307,7 @@ describe("persona avatar settings", () => {
+     }
+     render(<PersonaHarness />);
+     expect(await screen.findByTestId("seed-panel")).toBeTruthy();
+-    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"], ["GET", voicesPath]]);
++    await waitFor(() => expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"], ["GET", voicesPath]]));
+ 
+     fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+     expect(screen.getByTestId("custom-avatar-test").textContent).toContain(id);
+diff --git a/tests/server/personaAvatarCatalogRoutes.test.ts b/tests/server/personaAvatarCatalogRoutes.test.ts
+index a29e7ee0dcddb7311cbd3ff8888ea4d163a32b8b..2aae2735bb49120a6525535595587069b7ab607a 100644
+--- a/tests/server/personaAvatarCatalogRoutes.test.ts
++++ b/tests/server/personaAvatarCatalogRoutes.test.ts
+@@ -39,6 +39,7 @@ function app(role?: string) {
+ beforeEach(() => {
+   vi.clearAllMocks();
+   fakes.list.mockResolvedValue({ projectId: "project-one", runtimeAvailable: false, assets: [] });
++  fakes.listVoices.mockResolvedValue({ projectId: "project-one", voiceCatalog: { providers: [], voices: [] }, nextOffset: null });
+   fakes.thumbnail.mockResolvedValue({ bytes: Buffer.from("thumbnail"), contentType: "image/png" });
+   fakes.normalize.mockResolvedValue({});
+   fakes.create.mockImplementation(async p => p);
+@@ -47,6 +48,7 @@ beforeEach(() => {
+ });
+ describe("persona catalog authenticated bridge", () => {
+   const path = "/api/admin/personas/live-avatar/assets";
++  const voicePath = "/api/admin/personas/live-avatar/voices";
+   it("requires login and a content-management role before invoking any upstream reads", async () => {
+     expect((await request(app()).get(path)).status).toBe(401);
+     expect((await request(app("user")).get(path)).status).toBe(403);
+@@ -59,10 +61,9 @@ describe("persona catalog authenticated bridge", () => {
+     expect(fakes.list).toHaveBeenCalledExactlyOnceWith("owner");
+   });
+   it("keeps voice failures and auth checks on their own read-only route", async () => {
+-    const voicePath = "/api/admin/personas/live-avatar/voices";
+     fakes.listVoices.mockRejectedValue(new AvatarIdentityError("persona_voice_catalog_unavailable", 503));
+-    expect((await request(app()).get(voicePath)).status).toBe(401);
+-    expect((await request(app("user")).get(voicePath)).status).toBe(403);
++    expect((await request(app()).get(`${voicePath}?offset=7`)).status).toBe(401);
++    expect((await request(app("user")).get(`${voicePath}?offset=7`)).status).toBe(403);
+     expect(fakes.listVoices).not.toHaveBeenCalled();
+     expect((await request(app("operator")).get(path)).status).toBe(200);
+     expect(fakes.listVoices).not.toHaveBeenCalled();
+@@ -70,7 +71,18 @@ describe("persona catalog authenticated bridge", () => {
+     expect(result.status).toBe(503);
+     expect(result.body).toEqual({ code: "persona_voice_catalog_unavailable", error: "persona_voice_catalog_unavailable" });
+     expect(result.headers["cache-control"]).toBe("private, no-store");
+-    expect(fakes.listVoices).toHaveBeenCalledExactlyOnceWith("owner");
++    expect(fakes.listVoices).toHaveBeenCalledExactlyOnceWith("owner", 0);
++  });
++  it("passes only a bounded offset and the authenticated identity to the voice catalog", async () => {
++    const page = await request(app("operator")).get(`${voicePath}?offset=5000&limit=9999`).set("X-Avatar-User-ID", "forged-user");
++    expect(page.status).toBe(200);
++    expect(page.body.nextOffset).toBeNull();
++    expect(page.headers["cache-control"]).toBe("private, no-store");
++    expect(fakes.listVoices).toHaveBeenCalledExactlyOnceWith("owner", 5000);
++  });
++  it.each(["", "-1", "5001", "01", "1.5", "1e2", "1&offset=2", "%2Fvoices", "1%0A"])("rejects invalid voice offsets %j", async offset => {
++    expect((await request(app("operator")).get(`${voicePath}?offset=${offset}`)).status).toBe(400);
++    expect(fakes.listVoices).not.toHaveBeenCalled();
+   });
+   it("serves image thumbnails through the authenticated catalog bridge", async () => {
+     const response = await request(app("admin")).get(`${path}/12345678-1234-4234-8234-123456789abc/thumbnail`);
+diff --git a/tests/server/personaLiveAvatar.test.ts b/tests/server/personaLiveAvatar.test.ts
+index f95348a9ab153a908be63491cedd608595a05096..30ddfa0771890f39dbec903de9a7360bdd586302 100644
+--- a/tests/server/personaLiveAvatar.test.ts
++++ b/tests/server/personaLiveAvatar.test.ts
+@@ -27,16 +27,22 @@ const voices = {
+   ],
+   voices: [],
+ };
++const femaleVoice = {
++  id: "tavus-female-voice", providerId: "tavus", name: "Female voice", description: "",
++  gender: "female", genderSource: "admin", languages: ["ko"], available: true,
++};
+ let call: ReturnType<typeof vi.fn>;
++let voicePage: ReturnType<typeof vi.fn>;
+ let check: ReturnType<typeof vi.fn>;
+ let catalog: PersonaAvatarCatalog;
+ let image: ReturnType<typeof vi.fn>;
+ beforeEach(() => {
+   call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()]
+-    : path === "/avatar-assets" ? [asset()] : path === "/voices" ? voices : asset()));
++    : path === "/avatar-assets" ? [asset()] : asset()));
++  voicePage = vi.fn(async () => ({ voiceCatalog: voices, nextOffset: null }));
+   image = vi.fn(async () => ({ bytes: Buffer.from("thumbnail"), contentType: "image/png" }));
+   check = vi.fn(async () => ({ projectId: "project-one", scopes: ["assets:read"] }));
+-  catalog = new PersonaAvatarCatalog({ call, image } as any, { check } as any);
++  catalog = new PersonaAvatarCatalog({ call, image, voicePage } as any, { check } as any);
+ });
+ 
+ describe("persona project catalog and inactive drafts", () => {
+@@ -67,17 +73,14 @@ describe("persona project catalog and inactive drafts", () => {
+ 
+   it("keeps faces available during a voice-only 503 without accepting a new voice", async () => {
+     const existing = draft({ projectId: "project-one", voiceSelection: { voiceId: "saved-voice", gender: "female" } });
+-    const read = call.getMockImplementation()!;
+-    call.mockImplementation(async (...args) => {
+-      if (args[1] === "/voices") throw new AvatarIdentityError("avatar_test_upstream_503", 503);
+-      return read(...args);
+-    });
++    voicePage.mockRejectedValue(new AvatarIdentityError("avatar_test_upstream_503", 503));
+     await expect(catalog.list("operator")).resolves.toMatchObject({
+       stockAvatars: [stock()], assets: [{ id }],
+     });
+     await expect(catalog.listVoices("operator")).rejects.toMatchObject({ code: "persona_voice_catalog_unavailable", status: 503 });
+     await expect(catalog.normalize("operator", { liveAvatar: existing }, { liveAvatar: existing }))
+       .resolves.toEqual({ liveAvatar: existing });
++    expect(voicePage).toHaveBeenCalledTimes(1);
+     await expect(catalog.normalize("operator", { liveAvatar: {
+       ...existing, voiceSelection: { voiceId: "another-voice", gender: "female" },
+     } }, { liveAvatar: existing })).rejects.toMatchObject({ status: 503 });
+@@ -103,8 +106,10 @@ describe("persona project catalog and inactive drafts", () => {
+   it("requires assets:read before reading catalog or accepting references", async () => {
+     check.mockResolvedValue({ projectId: "project-one", scopes: ["sessions:read"] });
+     await expect(catalog.list("operator")).rejects.toMatchObject({ code: "avatar_assets_read_scope_missing", status: 403 });
++    await expect(catalog.listVoices("operator", 12)).rejects.toMatchObject({ status: 403 });
+     await expect(catalog.normalize("operator", { liveAvatar: draft() })).rejects.toMatchObject({ status: 403 });
+     expect(call).not.toHaveBeenCalled();
++    expect(voicePage).not.toHaveBeenCalled();
+   });
+ 
+   it("resolves owner-bound assets and overwrites fabricated validation with server evidence", async () => {
+@@ -116,28 +121,30 @@ describe("persona project catalog and inactive drafts", () => {
+     expect(call.mock.calls[0]).toHaveLength(3);
+   });
+ 
+-  it("validates and persists a provider-specific voice selection with its gender", async () => {
+-    const catalogResponse = {
+-      providers: [
+-        { providerId: "anam", status: "available", errorCode: null },
+-        { providerId: "tavus", status: "available", errorCode: null },
+-      ],
+-      voices: [{
+-        id: "tavus-female-voice", providerId: "tavus", name: "Female voice", description: "",
+-        gender: "female", genderSource: "admin", languages: ["ko"], available: true,
+-      }],
+-    };
+-    call.mockImplementation(async (_user, path, schema) => schema.parse(path === "/voices" ? catalogResponse
+-      : path === `/avatar-assets/${id}` ? asset() : [stock()]));
++  it("validates a later-page selection with the same provider, gender and read-only credentials", async () => {
++    voicePage.mockImplementation(async (_user, offset) => offset === 0
++      ? { voiceCatalog: { ...voices, voices: [{ ...femaleVoice, providerId: "anam" }] }, nextOffset: 1 }
++      : { voiceCatalog: { ...voices, voices: [femaleVoice] }, nextOffset: offset === 1 ? 2 : null });
+     const selection = draft({ voiceSelection: { voiceId: "tavus-female-voice", gender: "female" } });
+     const normalized = await catalog.normalize("operator", { liveAvatar: selection });
+     expect(normalized.liveAvatar).toMatchObject({ voiceSelection: selection.voiceSelection, providerId: "tavus" });
+-    expect(call.mock.calls.map(args => args[1])).toEqual(["/voices", `/avatar-assets/${id}`]);
++    expect(voicePage.mock.calls.map(([user, offset]) => [user, offset])).toEqual([["operator", 0], ["operator", 1]]);
++    expect(voicePage.mock.calls[0][2]).toBe(voicePage.mock.calls[1][2]);
++    expect(call.mock.calls.map(args => args[1])).toEqual([`/avatar-assets/${id}`]);
+     await expect(catalog.normalize("operator", { liveAvatar: draft({
+       voiceSelection: { voiceId: "tavus-female-voice", gender: "male" },
+     }) })).rejects.toMatchObject({ code: "persona_voice_unavailable", status: 409 });
+   });
+ 
++  it("does not accept a new selection when a later page fails", async () => {
++    voicePage.mockResolvedValueOnce({ voiceCatalog: { ...voices, voices: [femaleVoice] }, nextOffset: 1 })
++      .mockRejectedValueOnce(new AvatarIdentityError("avatar_test_upstream_503", 503));
++    await expect(catalog.normalize("operator", { liveAvatar: draft({
++      voiceSelection: { voiceId: "not-yet-seen", gender: "female" },
++    }) })).rejects.toMatchObject({ code: "persona_voice_catalog_unavailable", status: 503 });
++    expect(call).not.toHaveBeenCalled();
++  });
++
+   it("keeps even live-verified assets draft-only", async () => {
+     call.mockImplementation(async (_user, _path, schema) => schema.parse(asset({
+       capabilities: { reusable: true, liveRendering: true, validation: "live_verified" },
+@@ -199,7 +206,8 @@ describe("persona project catalog and inactive drafts", () => {
+     const list = await catalog.list("operator");
+     expect(list.stockAvatars).toEqual([stock()]);
+     expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars"]);
+-    await expect(catalog.listVoices("operator")).resolves.toEqual({ projectId: "project-one", voiceCatalog: voices });
++    await expect(catalog.listVoices("operator", 5)).resolves.toEqual({ projectId: "project-one", voiceCatalog: voices, nextOffset: null });
++    expect(voicePage).toHaveBeenCalledExactlyOnceWith("operator", 5, undefined);
+     call.mockClear();
+     const stockDraft = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
+       voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified" };
+@@ -280,10 +288,56 @@ describe("project client catalog transport boundary", () => {
+     const client = new AvatarProjectClient(identity, request as any, () => ({
+       baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_key_not_real_123456",
+     }));
+-    await client.call("admin", "/voices", z.object({ voices: z.array(z.unknown()) }));
++    await expect(client.voicePage("admin", 0)).resolves.toEqual({ voiceCatalog: voices, nextOffset: null });
+     expect(request.mock.calls[0][0]).toBe("https://avatar-router.replit.app/api/v1/voices");
+     expect(request.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "X-Avatar-User-ID": expect.any(String) } });
+     await expect(client.call("admin", "/voices", z.unknown(), {})).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
++    await expect(client.call("admin", "/voices?offset=1&limit=2000", z.unknown())).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
++    await expect(client.voicePage("admin", 5001)).rejects.toMatchObject({ code: "persona_voice_offset_invalid" });
+     expect(request).toHaveBeenCalledTimes(1);
+   });
++
++  function clientForVoicePage(headers: Record<string, string>, payload: unknown = { ...voices, voices: [femaleVoice] }) {
++    const request = vi.fn(async (_url: string) => new Response(JSON.stringify(payload), {
++      headers: { "content-type": "application/json", ...headers },
++    }));
++    const client = new AvatarProjectClient(identity, request as any, () => ({
++      baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_key_not_real_123456",
++    }));
++    return { client, request };
++  }
++
++  it("follows the validated offset of a short page rather than the default page size", async () => {
++    const { client, request } = clientForVoicePage({ "X-Voice-Catalog-Total": "4", "X-Voice-Catalog-Next-Offset": "3" });
++    await expect(client.voicePage("admin", 2)).resolves.toMatchObject({ nextOffset: 3 });
++    expect(request.mock.calls[0][0]).toBe("https://avatar-router.replit.app/api/v1/voices?offset=2");
++    await expect(clientForVoicePage({ "X-Voice-Catalog-Total": "3" }).client.voicePage("admin", 2))
++      .resolves.toMatchObject({ nextOffset: null });
++  });
++
++  it.each(["2", "0", "4", "5001", "3, 3", "03", "3e0", "../sessions", ""])(
++    "rejects an invalid continuation header %j", async value => {
++      const { client } = clientForVoicePage({ "X-Voice-Catalog-Total": "5002", "X-Voice-Catalog-Next-Offset": value });
++      await expect(client.voicePage("admin", 2)).rejects.toMatchObject({ code: "avatar_test_read_failed", status: 502 });
++    });
++
++  it("rejects missing continuations, non-advancing empty pages and legacy responses after page one", async () => {
++    for (const { client } of [
++      clientForVoicePage({ "X-Voice-Catalog-Total": "4" }),
++      clientForVoicePage({ "X-Voice-Catalog-Total": "4", "X-Voice-Catalog-Next-Offset": "2" }, voices),
++      clientForVoicePage({}),
++    ]) {
++      await expect(client.voicePage("admin", 2)).rejects.toMatchObject({ status: 502 });
++    }
++  });
++
++  it("keeps the row limit and the byte cap even on later pages", async () => {
++    for (const entries of [
++      Array.from({ length: 1001 }, (_, index) => ({ ...femaleVoice, id: `${index}` })),
++      Array.from({ length: 90 }, (_, index) => ({ ...femaleVoice, id: `${index}`, description: "한".repeat(1000) })),
++    ]) {
++      const { client } = clientForVoicePage({ "X-Voice-Catalog-Total": String(entries.length + 2) }, { ...voices, voices: entries });
++      await expect(client.voicePage("admin", 2)).rejects.toMatchObject({ status: 502 });
++    }
++  });
+ });
