@@ -14,3 +14,4 @@
 - [Training image AI](training-image-ai-policy.md) — preserve original identity, verify regenerated output before dispatch, and never silently switch Gemini billing accounts.
 - [Browser cache validation](browser-cache-validation.md) — preserve preview auth for negative auth checks; keep service-worker registration owners alive across iframe replacement.
 - [Catalog rollout dependencies](catalog-rollout-dependencies.md) — verify applied schemas and keep optional voice reads from hiding otherwise healthy face lists.
+- [RoleplayX persona errors](roleplayx-persona-error-boundary.md) — derive stages locally and translate approved codes; never forward router error text.

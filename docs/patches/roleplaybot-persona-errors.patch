@@ -1,0 +1,1406 @@
+diff --git a/client/src/components/admin/AnamAvatarTestPanel.tsx b/client/src/components/admin/AnamAvatarTestPanel.tsx
+index 5bd6b3efb1d2028b04f3a2e1dd9020987cd5a53f..c485dab260e0d4b2b65ec706bdcfa8cd651f55e0 100644
+--- a/client/src/components/admin/AnamAvatarTestPanel.tsx
++++ b/client/src/components/admin/AnamAvatarTestPanel.tsx
+@@ -1,5 +1,6 @@
+ import { useCallback, useEffect, useRef, useState } from "react";
+ import { apiRequest } from "@/lib/queryClient";
++import { personaAvatarFailureText } from "@/lib/personaAvatarFailure";
+ import { Button } from "@/components/ui/button";
+ import { avatarTestReady, avatarTestTerminal, type AvatarTestPreflight, type AvatarTestSession } from "@shared/avatar/adminAvatarTest";
+ import ManagedAvatarRoom from "@/components/chat/ManagedAvatarRoom";
+@@ -13,6 +14,7 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+   const [busy, setBusy] = useState(false);
+   const [uncertain, setUncertain] = useState(false);
+   const [error, setError] = useState("");
++  const [preflightError, setPreflightError] = useState("");
+   const [timingReportFailed, setTimingReportFailed] = useState(false);
+   useEffect(() => { setTimingReportFailed(false); }, [session?.id]);
+   const sessionRef = useRef<AvatarTestSession>();
+@@ -28,10 +30,13 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+       const data = await response.json() as AvatarTestPreflight;
+       if (!mounted.current) return;
+       setPreflight(data);
++      setPreflightError("");
+       setUncertain(false);
+       const recovered = data.sessions.find(s => !avatarTestTerminal(s));
+       if (recovered) { sessionRef.current = recovered; setSession(recovered); }
+-    } catch { /* Session discovery is optional; manual connections go to the router. */ }
++    } catch (cause) {
++      if (mounted.current) setPreflightError(personaAvatarFailureText(cause, "test_preflight"));
++    }
+   }, []);
+   const keepaliveEnd = () => {
+     const current = sessionRef.current;
+@@ -65,7 +70,7 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+           if (cancelled) return;
+           sessionRef.current = next; setSession(next);
+           if (avatarTestTerminal(next)) void refresh();
+-        }).catch(() => { if (!cancelled) setError("세션 상태 조회 실패. 종료를 요청한 뒤 정리 상태를 확인하세요."); })
++        }).catch(cause => { if (!cancelled) setError(personaAvatarFailureText(cause, "test_status")); })
+         .finally(() => { polling = false; });
+     }, 2000);
+     return () => { cancelled = true; clearInterval(timer); };
+@@ -79,9 +84,9 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+       sessionRef.current = next;
+       if (!mounted.current) { keepaliveEnd(); return; }
+       setSession(next); setPlaybackSessionId(next.id); setUncertain(false);
+-    } catch {
++    } catch (cause) {
+       if (mounted.current) {
+-        setError("아바타 라우터 연결 요청을 완료하지 못했습니다.");
++        setError(personaAvatarFailureText(cause, "test_start"));
+         setUncertain(false);
+       }
+     } finally {
+@@ -96,7 +101,7 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+       const response = await apiRequest("POST", `${base}/sessions/${encodeURIComponent(session.id)}/end`, {});
+       const next = await response.json() as AvatarTestSession;
+       if (mounted.current) { sessionRef.current = next; setSession(next); }
+-    } catch { if (mounted.current) setError("종료를 확인하지 못했습니다. 종료 요청을 다시 시도하세요."); }
++    } catch (cause) { if (mounted.current) setError(personaAvatarFailureText(cause, "test_end")); }
+     finally { if (mounted.current) setBusy(false); }
+   };
+   return <section className="space-y-3 border-t pt-4" aria-label="기본 아바타 테스트">
+@@ -106,6 +111,12 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
+       <Button type="button" disabled={busy || !!session && !terminal} onClick={() => void start()}>기본 아바타 테스트 시작</Button>
+       {session && !terminal && <Button type="button" variant="outline" disabled={busy} onClick={() => void end()}>종료 요청</Button>}
+     </div>
++    {preflightError && <div className="space-y-1">
++      <p role="alert" data-testid="text-anam-test-preflight-error" className="text-sm text-red-700">{preflightError}</p>
++      <Button type="button" variant="outline" data-testid="button-anam-test-retry-preflight" onClick={() => void refresh()}>
++        테스트 상태 다시 조회
++      </Button>
++    </div>}
+     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+     {session && <p role="status" className="text-sm">{session.status} · {session.rendererState} {session.cleanupPending ? "· 제공자 정리 중" : ""}</p>}
+     {session && <AvatarSessionTiming timing={session.timing} reportFailed={timingReportFailed} />}
+diff --git a/client/src/components/admin/PersonaAvatarCreationPanel.tsx b/client/src/components/admin/PersonaAvatarCreationPanel.tsx
+index 80ba97b5d4bae1635ecb1476ece580583ca1c984..e60189ad30c774ef5546706789dd204c2f72b9c5 100644
+--- a/client/src/components/admin/PersonaAvatarCreationPanel.tsx
++++ b/client/src/components/admin/PersonaAvatarCreationPanel.tsx
+@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
+ import { AlertTriangle, CheckCircle2, RefreshCw, Upload } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { apiRequest } from "@/lib/queryClient";
++import { legacyPersonaAvatarErrorCode, personaAvatarFailureText } from "@/lib/personaAvatarFailure";
+ import type { PersonaAvatarCreationInput, PersonaAvatarCreationState } from "@shared/avatar/personaAvatarCreation";
+ import { toMediaUrl } from "@/lib/mediaUrl";
+ 
+@@ -31,11 +32,8 @@ async function readPersonaImage(image: string): Promise<string> {
+ const endpoint = "/api/admin/personas/live-avatar/creation";
+ 
+ function messageFor(error: unknown) {
+-  const message = error instanceof Error ? error.message : "";
+-  if (/persona_avatar_contract_upgrade_required/.test(message)) return "연결된 AvatarRouter가 커스텀 재생 검증 계약을 제공하지 않습니다. API 0.5 이상과 기능 검색 응답을 게시한 뒤 다시 확인하세요. 이미지 전송·생성 요청은 실행되지 않았습니다.";
+-  if (/403|scope|forbidden/i.test(message)) return "커스텀 아바타 생성 권한을 확인하세요.";
+-  if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 먼저 조회해 작업 결과를 확인하세요.";
+-  return message || "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
++  if (legacyPersonaAvatarErrorCode(error) === "persona_avatar_contract_upgrade_required") return "연결된 AvatarRouter가 커스텀 재생 검증 계약을 제공하지 않습니다. API 0.5 이상과 기능 검색 응답을 게시한 뒤 다시 확인하세요. 이미지 전송·생성 요청은 실행되지 않았습니다.";
++  return personaAvatarFailureText(error, "creation");
+ }
+ 
+ async function imageAsBase64(file: File): Promise<string> {
+@@ -120,11 +118,11 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange, sour
+       if (encoded.length > 6_000_000) throw new Error("이미지 크기가 허용 범위를 초과합니다.");
+       setImageBase64(encoded);
+       setImageName(file.name);
+-    } catch (cause) {
++    } catch {
+       if (!mounted.current || sequence !== fileSequence.current) return;
+       setImageBase64("");
+       setImageName("");
+-      setError(messageFor(cause));
++      setError("기본 이미지를 읽지 못했습니다.");
+     }
+   };
+ 
+@@ -185,12 +183,12 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange, sour
+     } catch (cause) {
+       if (!mounted.current) return;
+       if (!postAttempted) {
+-        setError(messageFor(cause));
++        setError("기본 이미지를 읽지 못했습니다.");
+         return;
+       }
+       // This exact code is returned before image ingestion or paid provisioning.
+       // Keep all ambiguous POST outcomes fenced; never generalize this to other 409s.
+-      if (cause instanceof Error && /persona_avatar_contract_upgrade_required/.test(cause.message)) {
++      if (legacyPersonaAvatarErrorCode(cause) === "persona_avatar_contract_upgrade_required") {
+         setError(messageFor(cause));
+         setNotice("서버 버전 확인 단계에서 중단했습니다. 기존 작업 상태는 변경하지 않았습니다.");
+         return;
+diff --git a/client/src/components/admin/PersonaAvatarSettings.tsx b/client/src/components/admin/PersonaAvatarSettings.tsx
+index 25c38a62c1f93d68916863b676180ccf7a60ebac..6caef4219e7c53055500848760a151e8b09398c4 100644
+--- a/client/src/components/admin/PersonaAvatarSettings.tsx
++++ b/client/src/components/admin/PersonaAvatarSettings.tsx
+@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
+ import { Image as ImageIcon } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
+ import { apiRequest } from '@/lib/queryClient';
++import { personaAvatarFailureText } from '@/lib/personaAvatarFailure';
+ import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@shared/avatar/personaAvatar';
+ import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+ import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/components/admin/PersonaAvatarCreationPanel';
+@@ -75,11 +76,13 @@ const provisioningLabels: Record<AvatarAsset['status'], string> = {
+ function AssetThumbnail({ asset }: { asset: AvatarAsset }) {
+   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+   const [unavailable, setUnavailable] = useState(false);
++  const [failure, setFailure] = useState<string | null>(null);
+   const name = displayCatalogName(asset.name);
+   useEffect(() => {
+     let active = true;
+     let objectUrl: string | null = null;
+     setThumbnailUrl(null);
++    setFailure(null);
+     setUnavailable(!asset.imageAssetId);
+     if (!asset.imageAssetId) return;
+ 
+@@ -97,7 +100,11 @@ function AssetThumbnail({ asset }: { asset: AvatarAsset }) {
+         }
+         setThumbnailUrl(objectUrl);
+       })
+-      .catch(() => { if (active) setUnavailable(true); });
++      .catch(cause => {
++        if (!active) return;
++        setUnavailable(true);
++        setFailure(personaAvatarFailureText(cause, 'thumbnail'));
++      });
+ 
+     return () => {
+       active = false;
+@@ -116,28 +123,15 @@ function AssetThumbnail({ asset }: { asset: AvatarAsset }) {
+           onError={() => setUnavailable(true)}
+         />
+       ) : (
+-        <div role="img" aria-label={`${name} 미리보기 없음`} className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-slate-500">
++        <div role="img" aria-label={failure ? `${name} · ${failure}` : `${name} 미리보기 없음`} title={failure ?? undefined} className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-slate-500">
+           <ImageIcon size={22} aria-hidden="true" />
+-          <span>{asset.imageAssetId && !unavailable ? '미리보기 불러오는 중' : '미리보기 없음'}</span>
++          <span>{failure ? '미리보기 조회 실패' : asset.imageAssetId && !unavailable ? '미리보기 불러오는 중' : '미리보기 없음'}</span>
+         </div>
+       )}
+     </div>
+   );
+ }
+ 
+-function errorMessage(error: unknown): string {
+-  if (error instanceof Error && error.name === 'ZodError') return '서버의 아바타 목록 응답 형식이 올바르지 않습니다. 관리자에게 연결 상태 확인을 요청하세요.';
+-  const message = error instanceof Error ? error.message : '';
+-  if (/persona_voice_unavailable|VOICE_NOT_AVAILABLE|VOICE_GENDER_CHANGED/.test(message)) {
+-    return '선택한 음성이 현재 공급자 목록이나 성별 분류와 일치하지 않습니다. 음성 목록을 새로고침한 뒤 다시 선택해 주세요.';
+-  }
+-  if (/403/.test(message)) return '아바타 목록 조회 권한이 없습니다. assets:read scope가 필요합니다.';
+-  if (/서버에 연결할 수 없습니다|Failed to fetch|NetworkError|fetch/i.test(message)) {
+-    return '서버에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
+-  }
+-  return message || '아바타 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
+-}
+-
+ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false,
+   creationSource, personaId, seedSource = '', seedDraft = null, onSeedDraftChange }: Props) {
+   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
+@@ -191,7 +185,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+       setProjectId(result.projectId);
+     } catch (cause) {
+       if (!mountedRef.current || requestRef.current !== requestId) return;
+-      setError(errorMessage(cause));
++      setError(personaAvatarFailureText(cause, 'catalog'));
+     } finally {
+       if (mountedRef.current && requestRef.current === requestId) setLoading(false);
+     }
+@@ -362,7 +356,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
+           )}
+           {error && (
+             <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+-              <p>{error}</p>
++              <p data-testid="text-persona-catalog-error">{error}</p>
+               <Button type="button" variant="link" className="h-auto p-0 text-red-800" onClick={loadAssets} disabled={loading}>
+                 다시 시도
+               </Button>
+diff --git a/client/src/components/admin/PersonaManager.tsx b/client/src/components/admin/PersonaManager.tsx
+index e81a06fd57364558dbdafb0b0dcb5a491b2ce3e7..4c3ef19692ea2a787499534da4fad1a750f2de95 100644
+--- a/client/src/components/admin/PersonaManager.tsx
++++ b/client/src/components/admin/PersonaManager.tsx
+@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+ import { useToast } from '@/hooks/use-toast';
+ import { apiRequest, queryClient } from '@/lib/queryClient';
++import { personaAvatarFailureText } from '@/lib/personaAvatarFailure';
+ import { MoreVertical, RefreshCw, Languages, Download, Upload, Wand2 } from 'lucide-react';
+ import { PersonaEditor, PersonaEditorRegion } from './personaEditor/PersonaEditor';
+ import { AiGenerateButton, EditorGroup, Field, FieldGrid, ToggleRow } from './contentEditor/EditorPrimitives';
+@@ -567,10 +568,10 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps =
+         description: t('admin.personaManager.toast.createSuccessDesc')
+       });
+     },
+-    onError: () => {
++    onError: (cause) => {
+       toast({
+         title: t('admin.personaManager.toast.createError'),
+-        description: t('admin.personaManager.toast.createErrorDesc'),
++        description: personaAvatarFailureText(cause) ?? t('admin.personaManager.toast.createErrorDesc'),
+         variant: "destructive"
+       });
+     }
+@@ -600,10 +601,10 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps =
+         autoSavingRef.current = false;
+       }
+     },
+-    onError: () => {
++    onError: (cause) => {
+       toast({
+         title: t('admin.personaManager.toast.updateError'),
+-        description: t('admin.personaManager.toast.updateErrorDesc'),
++        description: personaAvatarFailureText(cause) ?? t('admin.personaManager.toast.updateErrorDesc'),
+         variant: "destructive"
+       });
+       autoSavingRef.current = false;
+diff --git a/client/src/components/admin/PersonaSeedLivePanel.tsx b/client/src/components/admin/PersonaSeedLivePanel.tsx
+index 10ceabad1bae8ee16530d5f06ff35c3026d7da1d..1461a46a7827a1050abad60b105065aa34bf3b7d 100644
+--- a/client/src/components/admin/PersonaSeedLivePanel.tsx
++++ b/client/src/components/admin/PersonaSeedLivePanel.tsx
+@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { PersonaAvatarValidationPanel } from "@/components/admin/PersonaAvatarValidationPanel";
+ import { apiRequest } from "@/lib/queryClient";
++import { legacyPersonaAvatarErrorCode, personaAvatarFailureText } from "@/lib/personaAvatarFailure";
+ import { useAuth } from "@/hooks/useAuth";
+ import { canSubmitSeedCreation, personaSeedStateSchema, seedSourceIdentity, type PersonaSeedDraft, type PersonaSeedState } from "@shared/avatar/personaSeedLive";
+ import type { PersonaLiveAvatar } from "@shared/avatar/personaAvatar";
+@@ -15,13 +16,7 @@ const basePath = (personaId: string) =>
+   `/api/admin/personas/live-avatar/personas/${encodeURIComponent(personaId)}/seed`;
+ 
+ function messageFor(error: unknown): string {
+-  const message = error instanceof Error ? error.message : "";
+-  try {
+-    const payload = JSON.parse(message.replace(/^\d{3}:\s*/, ""));
+-    if (typeof payload?.avatarRouter?.code === "string" && typeof payload?.avatarRouter?.error === "string") {
+-      return `아바타 라우터 응답 · ${payload.avatarRouter.code}: ${payload.avatarRouter.error}`;
+-    }
+-  } catch { /* Local/transport failures have no Router response. */ }
++  const message = legacyPersonaAvatarErrorCode(error);
+   if (/persona_seed_save_image_first/.test(message)) return "기본 이미지를 먼저 저장하세요. 저장된 이미지만 시드로 사용할 수 있습니다.";
+   if (/persona_seed_reset_blocked/.test(message)) return "생성 진행 중이거나 결과가 불확실하여 초기화할 수 없습니다. 상태를 조회하고 작업 완료 또는 조정 후 다시 시도하세요.";
+   if (/persona_seed_reset_stale/.test(message)) return "다른 화면에서 준비 상태가 변경되었습니다. 상태를 다시 조회하세요.";
+@@ -30,12 +25,15 @@ function messageFor(error: unknown): string {
+   if (/persona_seed_upload_mismatch/.test(message)) return "라우터가 반환한 시드 이미지가 전송한 원본과 일치하지 않아 아바타 생성 요청을 보내지 않았습니다.";
+   if (/persona_seed_image_unavailable|persona_seed_source_unsupported/.test(message)) return "저장된 시드 이미지 파일을 읽을 수 없어 전송하지 못했습니다. 기본 이미지를 확인하세요.";
+   if (/persona_seed_consent_required/.test(message)) return "이미지 사용 권리와 외부 전송 동의를 확인하세요.";
+-  if (/persona_seed_upload_avatar_test_upstream_(\d+)/.test(message)) return `시드 이미지 업로드 단계에서 HTTP ${message.match(/persona_seed_upload_avatar_test_upstream_(\d+)/)?.[1]} 응답을 받았습니다. 아바타 생성 API는 호출하지 않았습니다.`;
++  if (message.startsWith("persona_seed_upload_avatar_test_")) {
++    const detail = personaAvatarFailureText(error);
++    if (detail) return `${detail} 아바타 생성 API는 호출하지 않았습니다.`;
++  }
++  const detail = personaAvatarFailureText(error);
++  if (detail) return detail;
++  if (/^persona_seed_upload_avatar_test_upstream_(\d{3})$/.test(message)) return `시드 이미지 업로드 단계에서 HTTP ${message.match(/(\d{3})$/)?.[1]} 응답을 받았습니다. 아바타 생성 API는 호출하지 않았습니다.`;
+   if (/persona_seed_upload_avatar_test_/.test(message)) return "시드 이미지 업로드 응답을 확인하지 못했습니다. 아바타 생성 API는 호출하지 않았습니다.";
+-  if (/avatar_test_upstream_(\d+)/.test(message)) return `아바타 라우터 응답: HTTP ${message.match(/avatar_test_upstream_(\d+)/)?.[1]}. 상세 메시지가 없는 응답입니다.`;
+-  if (/403|scope|forbidden/i.test(message)) return "시드 라이브 설정 권한을 확인하세요.";
+-  if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
+-  return "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
++  return personaAvatarFailureText(error, "seed");
+ }
+ 
+ const stageLabels: Record<PersonaSeedState["stage"], string> = {
+@@ -156,7 +154,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange,
+       onSuccess?.();
+     } catch (cause) {
+       if (!live(epoch)) return;
+-      const msg = cause instanceof Error ? cause.message : "";
++      const msg = legacyPersonaAvatarErrorCode(cause);
+       if (/persona_seed_upload_|persona_seed_image_unavailable|persona_seed_source_unsupported/.test(msg)) {
+         setNotice("이미지 전송 단계에서 중단되어 아바타 생성 API는 호출하지 않았습니다.");
+       } else if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale|persona_seed_creation_blocked|persona_seed_register_first|persona_seed_consent_required/.test(msg)) {
+diff --git a/client/src/components/admin/PersonaVoiceSettings.tsx b/client/src/components/admin/PersonaVoiceSettings.tsx
+index 33c441af48e60abc0d896236efdbf6b903d91c47..2058505edf08ffbfaf4052c910cbc986bb5a00cf 100644
+--- a/client/src/components/admin/PersonaVoiceSettings.tsx
++++ b/client/src/components/admin/PersonaVoiceSettings.tsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import { Button } from '@/components/ui/button';
+ import { apiRequest } from '@/lib/queryClient';
++import { personaAvatarFailureText } from '@/lib/personaAvatarFailure';
+ import { personaVoiceCatalogResponseSchema, type PersonaLiveAvatar, type PersonaVoice } from '@shared/avatar/personaAvatar';
+ 
+ type VoiceSelection = NonNullable<PersonaLiveAvatar['voiceSelection']>;
+@@ -23,14 +24,6 @@ function appendVoices(previous: Catalog | undefined, page: Catalog): Catalog {
+   return { providers: page.providers, voices: Array.from(voices.values()) };
+ }
+ 
+-function voiceError(error: unknown): string {
+-  const message = error instanceof Error ? error.message : '';
+-  if (/^403:/.test(message)) return '음성 목록 조회 권한이 없습니다. 프로젝트 API 키의 assets:read 권한을 확인하세요.';
+-  if (/^404:/.test(message)) return '현재 AvatarRouter에서 음성 목록을 제공하지 않습니다. 라우터 버전을 확인하세요.';
+-  if (/^503:|persona_voice_catalog_unavailable/.test(message)) return 'AvatarRouter 음성 목록이 일시적으로 중단되었습니다.';
+-  return '음성 목록을 불러오지 못했습니다. 연결 상태를 확인하세요.';
+-}
+-
+ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }: {
+   projectId: string | null;
+   avatar: PersonaLiveAvatar;
+@@ -64,10 +57,11 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+         }
+         const count = result.voiceCatalog.voices.length;
+         if (result.nextOffset !== null && (count === 0 || result.nextOffset !== offset + count)) {
+-          throw new Error('invalid_voice_page');
++          throw new SyntaxError('invalid_voice_page');
+         }
+         if (offset > 0 && result.voiceCatalog.providers.find(item => item.providerId === avatar.providerId)?.status !== 'available') {
+-          throw new Error('persona_voice_catalog_unavailable');
++          setState(previous => ({ ...previous, pending: false, error: '음성 목록 조회 실패: 이 제공자의 음성 목록을 현재 확인할 수 없습니다.' }));
++          return;
+         }
+         setState(previous => ({
+           catalog: appendVoices(offset > 0 ? previous.catalog : undefined, result.voiceCatalog),
+@@ -75,7 +69,7 @@ export function PersonaVoiceSettings({ projectId, avatar, disabled, onChange }:
+           pending: false,
+         }));
+       } catch (cause) {
+-        if (active) setState(previous => ({ ...previous, pending: false, error: voiceError(cause) }));
++        if (active) setState(previous => ({ ...previous, pending: false, error: personaAvatarFailureText(cause, 'voice_catalog') }));
+       }
+     })();
+     return () => { active = false; };
+diff --git a/client/src/components/admin/avatarTest/AvatarTestPreflightView.tsx b/client/src/components/admin/avatarTest/AvatarTestPreflightView.tsx
+index 6feab2d5a79a622359df1f43ba7b86ff02ae9b54..838fb7b83261170a632f0060d3324b28c594407c 100644
+--- a/client/src/components/admin/avatarTest/AvatarTestPreflightView.tsx
++++ b/client/src/components/admin/avatarTest/AvatarTestPreflightView.tsx
+@@ -6,11 +6,18 @@ type TestState = ReturnType<typeof useAdminAvatarTest>;
+ 
+ /** Connection controls only. AvatarRouter owns admission and session policy. */
+ export function AvatarTestPreflightView({ test }: { test: TestState }) {
+-  if (test.recoverable) return null;
+-  return <Button type="button" onClick={() => void test.createSession()} disabled={test.creating}>
+-    {test.creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+-    {test.creating ? "라우터 연결 중…" : "아바타 연결"}
+-  </Button>;
++  return <>
++    {test.preflightError && <div className="space-y-1">
++      <p role="alert" data-testid="text-avatar-test-preflight-error" className="text-sm text-destructive">{test.preflightError}</p>
++      <Button type="button" variant="outline" data-testid="button-avatar-test-retry-preflight" onClick={() => void test.loadPreflight()}>
++        테스트 상태 다시 조회
++      </Button>
++    </div>}
++    {!test.recoverable && <Button type="button" onClick={() => void test.createSession()} disabled={test.creating}>
++      {test.creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
++      {test.creating ? "라우터 연결 중…" : "아바타 연결"}
++    </Button>}
++  </>;
+ }
+ 
+ export function AvatarTestHeader({ test: _test }: { test: TestState }) {
+diff --git a/client/src/components/admin/avatarTest/useAdminAvatarTest.ts b/client/src/components/admin/avatarTest/useAdminAvatarTest.ts
+index 0310c33da739369f1535556520dee9d1c26b9df0..327b4e0e86c75c2bf8c9fca233b9c7da989bf13c 100644
+--- a/client/src/components/admin/avatarTest/useAdminAvatarTest.ts
++++ b/client/src/components/admin/avatarTest/useAdminAvatarTest.ts
+@@ -1,5 +1,6 @@
+ import { useCallback, useEffect, useRef, useState } from "react";
+ import { apiRequest } from "@/lib/queryClient";
++import { personaAvatarFailureText } from "@/lib/personaAvatarFailure";
+ import {
+   AvatarTestPreflight,
+   AvatarTestSession,
+@@ -10,20 +11,6 @@ import { useAvatarTestConversation } from "./useAvatarTestConversation";
+ import { useAvatarTestRoom } from "./useAvatarTestRoom";
+ 
+ const endpoint = "/api/live-avatar/test";
+-function friendlyError(cause: unknown): string {
+-  const code = (cause instanceof Error ? cause.message : "").toUpperCase();
+-  if (code.includes("SCOPE") || code.includes("FORBIDDEN") || code.includes("403")) return "관리자 테스트 권한을 확인할 수 없습니다. 필요한 권한 범위를 확인하세요.";
+-  if (code.includes("AI_NOT_READY") || code.includes("AI_UNAVAILABLE")) return "AI 응답 제공자가 준비되지 않았습니다. 사전 점검을 다시 확인하세요.";
+-  if (code.includes("WORKER") || code.includes("RENDERER")) return "아바타 워커가 준비되지 않았습니다. 새 세션을 만들지 말고 상태를 확인하세요.";
+-  if (code.includes("LIMIT") || code.includes("QUOTA") || code.includes("429")) return "관리자 테스트 사용 한도에 도달했습니다. 잔여 시간과 초기화 시각을 확인하세요.";
+-  if (code.includes("CREATION_UNCERTAIN")) return "이전 세션 생성 결과를 확인 중입니다. 원격 조정이 끝날 때까지 다시 생성할 수 없습니다.";
+-  if (code.includes("SESSION_EXPIRED") || code.includes("410")) return "테스트 세션이 만료되었습니다. 종료 상태를 확인하세요.";
+-  if (code.includes("NOT_READY")) return "아바타가 아직 준비되지 않았습니다. renderer 상태가 running이 될 때까지 기다리세요.";
+-  if (code.includes("CLEANUP_PENDING")) return "이전 세션 정리가 진행 중입니다. 정리 완료를 확인하세요.";
+-  if (code.includes("NETWORK") || code.includes("FAILED TO FETCH")) return "서버에 연결하지 못했습니다. 연결 상태를 확인한 뒤 새로고침하세요.";
+-  return "요청을 완료하지 못했습니다. 상태를 확인하고 필요한 경우 세션을 복구하거나 종료하세요.";
+-}
+-
+ async function get<T>(path: string, base = endpoint): Promise<T> {
+   const response = await apiRequest("GET", `${base}${path}?_=${Date.now()}`);
+   return response.json() as Promise<T>;
+@@ -122,7 +109,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
+         if (recoverable) setCurrentSession(recoverable);
+       }
+     } catch (cause) {
+-      if (mountedRef.current) setPreflightError(friendlyError(cause));
++      if (mountedRef.current) setPreflightError(personaAvatarFailureText(cause, "test_preflight"));
+     } finally {
+       if (initial && mountedRef.current) setLoading(false);
+     }
+@@ -167,7 +154,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
+           setPollFailed(true);
+           stopMicrophone();
+           disconnectMedia();
+-          setError(friendlyError(cause));
++          setError(personaAvatarFailureText(cause, "test_status"));
+         }
+       } finally {
+         pollBusyRef.current = false;
+@@ -209,7 +196,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
+       if (mountedRef.current) {
+         creationHoldRef.current = false;
+         setCreationUncertainHold(false);
+-        setError(friendlyError(cause));
++        setError(personaAvatarFailureText(cause, "test_start"));
+         await loadPreflight();
+       }
+     } finally {
+@@ -250,7 +237,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
+       }
+       await loadPreflight();
+     } catch (cause) {
+-      if (mountedRef.current) setStopWarning(`종료 상태를 확인하지 못했습니다: ${friendlyError(cause)}`);
++      if (mountedRef.current) setStopWarning(personaAvatarFailureText(cause, "test_end"));
+     } finally {
+       stoppingRef.current = false;
+       if (mountedRef.current) setStopping(false);
+diff --git a/client/src/components/admin/avatarTest/useAvatarTestConversation.ts b/client/src/components/admin/avatarTest/useAvatarTestConversation.ts
+index ad8aa024fe9d6ed317a41121e822695fa0186563..7ba660506019a83609e8a48a83046bcce47ff2b5 100644
+--- a/client/src/components/admin/avatarTest/useAvatarTestConversation.ts
++++ b/client/src/components/admin/avatarTest/useAvatarTestConversation.ts
+@@ -1,3 +1,4 @@
++import { personaAvatarFailureText } from "@/lib/personaAvatarFailure";
+ import { MutableRefObject, useCallback, useRef, useState } from "react";
+ import { apiRequest } from "@/lib/queryClient";
+ import { AvatarTestMessage, AvatarTestSession, AvatarTestTurnInput, avatarTestReady } from "@shared/avatar/adminAvatarTest";
+@@ -18,6 +19,8 @@ async function postTurn(sessionId: string, payload: AvatarTestTurnInput, endpoin
+   return response.json() as Promise<TurnResponse>;
+ }
+ function friendlyTurnError(cause: unknown): string {
++  const diagnostic = personaAvatarFailureText(cause);
++  if (diagnostic) return diagnostic;
+   const code = (cause instanceof Error ? cause.message : "").toUpperCase();
+   if (code.includes("AUDIO") || code.includes("CONSENT")) return "음성 입력 동의 또는 지원 형식을 확인하세요.";
+   if (code.includes("SESSION_EXPIRED") || code.includes("410")) return "테스트 세션이 만료되었습니다. 종료 상태를 확인하세요.";
+diff --git a/client/src/lib/personaAvatarFailure.ts b/client/src/lib/personaAvatarFailure.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d4a666f3d0b74cf182d715d0ac57a2a796a4cc02
+--- /dev/null
++++ b/client/src/lib/personaAvatarFailure.ts
+@@ -0,0 +1,82 @@
++import { personaAvatarFailureSchema, type PersonaAvatarFailureReason, type PersonaAvatarStage } from "@shared/avatar/personaAvatarFailure";
++
++const stages: Record<PersonaAvatarStage, string> = {
++  catalog: "아바타 목록 조회", stock_faces: "기본 얼굴 조회", custom_faces: "맞춤 얼굴 조회",
++  voice_catalog: "음성 목록 조회", thumbnail: "얼굴 미리보기 조회", persona_input: "페르소나 설정 확인",
++  project_check: "프로젝트 권한 확인", seed: "시드 준비", seed_image: "시드 이미지 처리",
++  seed_options: "시드 후보 조회", creation: "맞춤 아바타 생성",
++  test: "아바타 테스트", test_preflight: "테스트 사전 확인", test_sessions: "테스트 세션 목록 조회",
++  test_start: "테스트 연결 요청", test_status: "테스트 세션 상태 조회", test_connection: "테스트 연결 정보 조회",
++  test_end: "테스트 종료 요청",
++};
++const reasons: Record<PersonaAvatarFailureReason, string> = {
++  invalid_input: "입력값이 올바르지 않습니다. 선택 내용을 확인하세요.",
++  invalid_request: "라우터가 요청을 거부했습니다. 선택 내용과 연결된 라우터의 버전을 확인하세요.",
++  invalid_response: "라우터 응답의 형식이나 크기가 맞지 않습니다. 연결 상태를 확인하세요.",
++  connection_failed: "라우터 응답을 받지 못했습니다. 연결 상태를 확인하세요.",
++  connection_unconfigured: "관리자가 AvatarRouter 연결 설정을 확인해야 합니다.",
++  authentication_failed: "라우터 인증이 거부되었습니다. 관리자가 프로젝트 연결을 확인해야 합니다.",
++  permission_denied: "라우터 권한이 부족합니다. 관리자가 프로젝트 권한을 확인해야 합니다.",
++  not_found: "요청한 항목 또는 기능을 현재 라우터에서 찾지 못했습니다.",
++  conflict: "현재 상태에서는 요청할 수 없습니다. 최신 상태를 다시 확인하세요.",
++  rate_limited: "요청이 너무 많습니다. 잠시 후 상태를 다시 확인하세요.",
++  unavailable: "라우터가 일시적으로 응답하지 않습니다. 잠시 후 상태를 다시 확인하세요.",
++  stock_catalog_unavailable: "기본 얼굴 목록을 확인할 수 없습니다. 잠시 후 다시 조회하세요.",
++  voice_catalog_unavailable: "음성 목록을 확인할 수 없습니다. 잠시 후 다시 조회하세요.",
++  voice_selection_invalid: "선택한 음성을 사용할 수 없거나 성별 분류가 변경되었습니다. 음성 목록을 다시 확인하세요.",
++  face_selection_invalid: "선택한 얼굴을 찾지 못했거나 현재 사용할 수 없습니다. 얼굴 목록을 다시 확인하세요.",
++  test_input_invalid: "테스트 요청이 유효하지 않습니다. 선택한 아바타와 연결 모드를 확인하세요.",
++  selection_project_mismatch: "선택한 아바타가 현재 프로젝트와 일치하지 않습니다. 목록에서 다시 선택하세요.",
++  outcome_uncertain: "요청 결과를 확인하지 못했습니다. 다시 제출하기 전에 상태를 조회하세요.",
++  unknown: "요청을 완료하지 못했습니다. 상태를 다시 확인하세요.",
++};
++
++// apiRequest prefixes a rejected response with its HTTP status. Never render its message/body.
++function unpack(cause: unknown): { status?: number; code?: string; failure?: unknown } {
++  if (!(cause instanceof Error)) return {};
++  const [prefix, status] = cause.message.match(/^(\d{3}):\s*/) ?? [];
++  if (!prefix) return {};
++  const body = cause.message.slice(prefix.length);
++  if (body.length > 16_384) return { status: Number(status) };
++  try {
++    const parsed = JSON.parse(body);
++    return { status: Number(status), code: typeof parsed?.code === "string" ? parsed.code : undefined, failure: parsed?.failure };
++  } catch {
++    return { status: Number(status), code: /^[a-z_0-9]{1,100}$/.test(body) ? body : undefined };
++  }
++}
++
++export function legacyPersonaAvatarErrorCode(cause: unknown): string {
++  return unpack(cause).code ?? "";
++}
++
++export function personaAvatarFailureText(cause: unknown, fallbackStage: PersonaAvatarStage): string;
++export function personaAvatarFailureText(cause: unknown): string | null;
++export function personaAvatarFailureText(cause: unknown, fallbackStage?: PersonaAvatarStage): string | null {
++  const { status, code, failure } = unpack(cause);
++  const checked = personaAvatarFailureSchema.safeParse(failure);
++  if (checked.success) {
++    const { stage, reason } = checked.data;
++    const detail = code === "avatar_assets_read_scope_missing" && reason === "permission_denied"
++      ? "얼굴과 음성 조회에 프로젝트의 assets:read 권한이 필요합니다."
++      : reasons[reason];
++    return `${stages[stage]} 실패: ${detail}`;
++  }
++  if (code === "avatar_assets_read_scope_missing") {
++    return `${stages.project_check} 실패: 얼굴과 음성 조회에 프로젝트의 assets:read 권한이 필요합니다.`;
++  }
++  if (code === "persona_voice_catalog_unavailable") {
++    return `${stages.voice_catalog} 실패: ${reasons.voice_catalog_unavailable}`;
++  }
++  if (!fallbackStage) return null;
++  const reason = cause instanceof Error && (cause.name === "ZodError" || cause.name === "SyntaxError") ? "invalid_response"
++    : status === 400 ? "invalid_request"
++    : status === 401 ? "authentication_failed"
++    : status === 403 ? "permission_denied"
++    : status === 404 ? "not_found"
++    : status === 409 ? "conflict"
++    : status === 429 ? "rate_limited"
++    : status !== undefined && status >= 500 ? "unavailable"
++    : cause instanceof TypeError ? "connection_failed" : "unknown";
++  return `${stages[fallbackStage]} 실패: ${reasons[reason]}`;
++}
+diff --git a/server/routes/adminPersonas.ts b/server/routes/adminPersonas.ts
+index 2a187320213e24195f1216571e256e784d540b8b..b6301ae701570c2b80b144dc8b1a7a25e68359ad 100644
+--- a/server/routes/adminPersonas.ts
++++ b/server/routes/adminPersonas.ts
+@@ -1,4 +1,4 @@
+-import { Router } from "express";
++import { Router, type Response } from "express";
+ import { randomUUID } from "crypto";
+ import multer from "multer";
+ import { storage } from "../storage";
+@@ -18,10 +18,12 @@ import {
+ import { videoJobStore } from "../utils/videoJobStore";
+ import { hasVideoAvatarConfiguration, requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
+ import { personaAvatarCatalog } from "../services/liveAvatar/personaCatalog";
+-import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
+ import { createPersonaAvatarOperationsRouter } from "./personaAvatarOperations";
+ import { personaSeedLive } from "../services/liveAvatar/personaSeedLive";
++import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
+ import { personaVoiceOffsetQuerySchema } from "../../shared/avatar/personaAvatar";
++import { personaAvatarFailureResponse } from "../services/liveAvatar/personaFailures";
++import type { PersonaAvatarStage } from "../../shared/avatar/personaAvatarFailure";
+ 
+ const videoUpload = multer({
+   storage: multer.memoryStorage(),
+@@ -38,18 +40,16 @@ const videoUpload = multer({
+ export default function createAdminPersonasRouter(isAuthenticated: any) {
+   const router = Router();
+   router.use("/api/admin/personas/live-avatar", isAuthenticated, isOperatorOrAdmin, createPersonaAvatarOperationsRouter());
+-  const catalogError = (error: unknown, res: any) => {
+-    if (error instanceof AvatarIdentityError) {
+-      res.status(error.status).json({ code: error.code, error: error.code });
+-      return;
+-    }
+-    throw error;
++  const catalogError = (error: unknown, res: Response, stage: PersonaAvatarStage) => {
++    const failure = personaAvatarFailureResponse(error, stage, "persona_avatar_request_failed");
++    if (!res.hasHeader("Cache-Control")) res.setHeader("Cache-Control", "no-store");
++    res.status(failure.status).json(failure.body);
+   };
+ 
+   router.get("/api/admin/personas/live-avatar/assets", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+     res.setHeader("Cache-Control", "no-store");
+     try { res.json(await personaAvatarCatalog.list(req.user.id)); }
+-    catch (error) { catalogError(error, res); }
++    catch (error) { catalogError(error, res, "catalog"); }
+   }));
+ 
+   router.get("/api/admin/personas/live-avatar/voices", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+@@ -59,7 +59,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
+       if (!offset.success) throw new AvatarIdentityError("persona_voice_offset_invalid", 400);
+       res.json(await personaAvatarCatalog.listVoices(req.user.id, offset.data));
+     }
+-    catch (error) { catalogError(error, res); }
++    catch (error) { catalogError(error, res, "voice_catalog"); }
+   }));
+ 
+   router.get("/api/admin/personas/live-avatar/assets/:assetId/thumbnail", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+@@ -70,7 +70,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
+         "X-Content-Type-Options": "nosniff",
+         "Cache-Control": "private, no-store",
+       }).send(image.bytes);
+-    } catch (error) { catalogError(error, res); }
++    } catch (error) { catalogError(error, res, "thumbnail"); }
+   }));
+ 
+   router.get("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+@@ -101,7 +101,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
+       avatar = await personaAvatarCatalog.normalize(req.user.id,
+         { ...req.body, ...("liveAvatar" in seed ? { liveAvatar: undefined } : {}) });
+     }
+-    catch (error) { catalogError(error, res); return; }
++    catch (error) { catalogError(error, res, "persona_input"); return; }
+     const input = { ...req.body, ...avatar, ...seed };
+     if (hasVideoAvatarConfiguration(input.videos)) {
+       await requireVideoAvatarManagementAccess(req);
+@@ -119,7 +119,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
+       avatar = await personaAvatarCatalog.normalize(req.user.id,
+         { ...req.body, ...("liveAvatar" in seed ? { liveAvatar: undefined } : {}) }, existing);
+     }
+-    catch (error) { catalogError(error, res); return; }
++    catch (error) { catalogError(error, res, "persona_input"); return; }
+     const input = { ...req.body, ...avatar, ...seed };
+     if ((req as any).user.role === "operator" && input.videos !== undefined) {
+       if (JSON.stringify(existing?.videos ?? null) !== JSON.stringify(input.videos ?? null)) {
+diff --git a/server/routes/liveAvatarTest.ts b/server/routes/liveAvatarTest.ts
+index af7ec6645cce1cd229079414e7451c005326c6c0..d80ca6bdda423d7cf9e42b66e8d4f41790ed7845 100644
+--- a/server/routes/liveAvatarTest.ts
++++ b/server/routes/liveAvatarTest.ts
+@@ -1,7 +1,8 @@
+ import { Router } from "express";
+ import { z } from "zod";
+ import { isSystemAdmin } from "../middleware/authMiddleware";
+-import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
++import { personaAvatarFailureResponse } from "../services/liveAvatar/personaFailures";
++import type { PersonaAvatarStage } from "../../shared/avatar/personaAvatarFailure";
+ import { adminAvatarTestService, type AdminAvatarTestService } from "../services/liveAvatar/adminTestService";
+ import { testTurnSchema, videoPlayingObservationSchema } from "../services/liveAvatar/testContracts";
+ 
+@@ -10,43 +11,46 @@ export function createLiveAvatarTestRouter(service: AdminAvatarTestService = adm
+   const router = Router();
+   router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+   router.use(isSystemAdmin);
+-  const handle = (fn: (req: any, res: any) => Promise<unknown>) => async (req: any, res: any) => {
++  const handle = (fn: (req: any, res: any) => Promise<unknown>, stage: PersonaAvatarStage = "test") => async (req: any, res: any) => {
+     try { await fn(req, res); }
+     catch (error) {
+-      if (error instanceof AvatarIdentityError) res.status(error.status).json({ code: error.code, error: error.code });
+-      else res.status(502).json({ code: "avatar_test_failed", error: "avatar_test_failed" });
++      const failure = personaAvatarFailureResponse(error, stage, "avatar_test_failed");
++      res.status(failure.status).json(failure.body);
+     }
+   };
++  const invalidInput = (res: any) => res.status(400).json({
++    code: "avatar_test_invalid_input", failure: { stage: "test", reason: "test_input_invalid" },
++  });
+   const empty = (req: any, res: any) => {
+     if (z.object({}).strict().safeParse(req.body ?? {}).success) return true;
+-    res.status(400).json({ code: "avatar_test_invalid_input" });
++    invalidInput(res);
+     return false;
+   };
+-  router.get("/preflight", handle(async (req, res) => res.json(await service.preflight(req.user.id))));
++  router.get("/preflight", handle(async (req, res) => res.json(await service.preflight(req.user.id)), "test_preflight"));
+   router.post("/sessions", handle(async (req, res) => {
+     res.status(201).json(await service.create(req.user.id));
+-  }));
+-  router.get("/sessions/:id", handle(async (req, res) => res.json(await service.session(req.user.id, req.params.id))));
++  }, "test_start"));
++  router.get("/sessions/:id", handle(async (req, res) => res.json(await service.session(req.user.id, req.params.id)), "test_status"));
+   router.post("/sessions/:id/video-playing", handle(async (req, res) => {
+     if (!videoPlayingObservationSchema.safeParse(req.body).success) {
+-      res.status(400).json({ code: "avatar_test_invalid_input" }); return;
++      invalidInput(res); return;
+     }
+     res.json(await service.videoPlaying(req.user.id, req.params.id));
+   }));
+   router.get("/sessions/:id/connection", handle(async (req, res) =>
+-    res.json(await service.connectionToken(req.user.id, req.params.id))));
++    res.json(await service.connectionToken(req.user.id, req.params.id)), "test_connection"));
+   router.post("/sessions/:id/client-connection", handle(async (req, res) => {
+     if (empty(req, res)) res.json(await service.managedConnection(req.user.id, req.params.id));
+-  }));
++  }, "test_connection"));
+   router.post("/sessions/:id/turn", handle(async (req, res) => {
+     const parsed = testTurnSchema.safeParse(req.body);
+-    if (!parsed.success) { res.status(400).json({ code: "avatar_test_invalid_input" }); return; }
++    if (!parsed.success) { invalidInput(res); return; }
+     res.json(await service.turn(req.user.id, req.params.id, parsed.data));
+   }));
+   for (const operation of ["interrupt", "end"] as const) {
+     router.post(`/sessions/:id/${operation}`, handle(async (req, res) => {
+       if (empty(req, res)) res.json(await service.stop(req.user.id, req.params.id, operation === "end"));
+-    }));
++    }, operation === "end" ? "test_end" : "test"));
+   }
+   return router;
+ }
+diff --git a/server/routes/personaAvatarOperations.ts b/server/routes/personaAvatarOperations.ts
+index e05c620cae7dec4264f4ef09a3d2052b3bf4726b..90cb0f63032028153d5bc450d1a843ad04eec4c0 100644
+--- a/server/routes/personaAvatarOperations.ts
++++ b/server/routes/personaAvatarOperations.ts
+@@ -1,6 +1,7 @@
+ import { Router } from "express";
+ import { z } from "zod";
+-import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
++import { personaAvatarFailureResponse } from "../services/liveAvatar/personaFailures";
++import type { PersonaAvatarStage } from "../../shared/avatar/personaAvatarFailure";
+ import { personaAvatarCreation } from "../services/liveAvatar/personaCreation";
+ import { personaAvatarValidation } from "../services/liveAvatar/personaValidation";
+ import { personaAvatarCreationInput } from "../../shared/avatar/personaAvatarCreation";
+@@ -13,19 +14,32 @@ export function createPersonaAvatarOperationsRouter(
+ ) {
+   const router = Router();
+   router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
++  const stageFor = (req: any): PersonaAvatarStage => {
++    const path = req.route.path as string;
++    if (path.endsWith("/seed/image")) return "seed_image";
++    if (path.includes("/seed")) return "seed";
++    if (path === "/creation") return "creation";
++    if (path.endsWith("/preflight")) return "test_preflight";
++    if (path.endsWith("/sessions")) return "test_start";
++    if (path.endsWith("/sessions/:id")) return "test_status";
++    if (path.endsWith("/connection")) return "test_connection";
++    if (path.endsWith("/end")) return "test_end";
++    return "test";
++  };
+   const handle = (fn: (req: any, res: any) => Promise<unknown>) => async (req: any, res: any) => {
+     try { await fn(req, res); }
+     catch (error) {
+-      if (error instanceof AvatarIdentityError) res.status(error.status).json({
+-        code: error.code, error: error.code, ...(error.routerResponse ? { avatarRouter: error.routerResponse } : {}),
+-      });
+-      else res.status(502).json({ code: "persona_avatar_operation_failed", error: "persona_avatar_operation_failed" });
++      const failure = personaAvatarFailureResponse(error, stageFor(req), "persona_avatar_operation_failed");
++      res.status(failure.status).json(failure.body);
+     }
+   };
+   const valid = <T>(schema: z.ZodType<T>, req: any, res: any): T | undefined => {
+     const result = schema.safeParse(req.body ?? {});
+     if (result.success) return result.data;
+-    res.status(400).json({ code: "persona_avatar_invalid_input" });
++    const stage = stageFor(req);
++    res.status(400).json({ code: "persona_avatar_invalid_input", failure: {
++      stage, reason: stage.startsWith("test") ? "test_input_invalid" : "invalid_request",
++    } });
+   };
+   const source = (req: any) => typeof req.query.source === "string" ? req.query.source : "";
+   router.get("/personas/:personaId/seed", handle(async (req, res) =>
+diff --git a/server/routes/tavus.ts b/server/routes/tavus.ts
+index 99356c69aa2ab979a7b457ccb4373238146b1ef4..eee05ca8d88ce2936060f938209d92472f4ea55e 100644
+--- a/server/routes/tavus.ts
++++ b/server/routes/tavus.ts
+@@ -32,7 +32,6 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
+       if (error instanceof TavusError || error instanceof AvatarIdentityError) res.status(error.status).json({
+         code: error.code, error: error.code,
+         ...(error instanceof TavusError && error.details ? error.details : {}),
+-        ...(error instanceof AvatarIdentityError && error.routerResponse ? { avatarRouter: error.routerResponse } : {}),
+       });
+       else next(error);
+     }
+diff --git a/server/services/liveAvatar/delegatedIdentity.ts b/server/services/liveAvatar/delegatedIdentity.ts
+index cc3b8065d5eb041f186665195b3885dd0f16ac45..8af7bfe08f09a340f63f8a4cb2b2d200b61b2d4e 100644
+--- a/server/services/liveAvatar/delegatedIdentity.ts
++++ b/server/services/liveAvatar/delegatedIdentity.ts
+@@ -1,4 +1,5 @@
+ import { createHash } from "node:crypto";
++import type { PersonaAvatarFailure } from "../../../shared/avatar/personaAvatarFailure";
+ 
+ const verifiedIdentity = Symbol("server-verified-avatar-identity");
+ export type VerifiedAvatarIdentity = Readonly<{
+@@ -19,7 +20,7 @@ export interface AvatarIdentityStore {
+ 
+ export class AvatarIdentityError extends Error {
+   constructor(readonly code: string, readonly status: number,
+-    readonly routerResponse?: { code: string; error: string }) { super(code); }
++    readonly failure?: PersonaAvatarFailure) { super(code); }
+ }
+ 
+ const opaque = (namespace: string, id: string) =>
+diff --git a/server/services/liveAvatar/personaFailures.ts b/server/services/liveAvatar/personaFailures.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..86a1f0775d1bba81bb84136fcf2c74ddee6ea694
+--- /dev/null
++++ b/server/services/liveAvatar/personaFailures.ts
+@@ -0,0 +1,106 @@
++import { personaAvatarFailureSchema, type PersonaAvatarFailureReason, type PersonaAvatarStage } from "../../../shared/avatar/personaAvatarFailure";
++import { AvatarIdentityError } from "./delegatedIdentity";
++
++// Accept only exact public AvatarRouter codes and their expected status. Never copy its text.
++const routerReasons = new Map<string, readonly [number, PersonaAvatarFailureReason]>([
++  ["STOCK_CATALOG_UNAVAILABLE", [503, "stock_catalog_unavailable"]],
++  ["VOICE_CATALOG_UNAVAILABLE", [503, "voice_catalog_unavailable"]],
++  ["VOICE_NOT_AVAILABLE", [409, "voice_selection_invalid"]],
++  ["VOICE_GENDER_CHANGED", [409, "voice_selection_invalid"]],
++  ["INVALID_VOICE_SELECTION", [400, "voice_selection_invalid"]],
++  ["STOCK_AVATAR_UNAVAILABLE", [409, "face_selection_invalid"]],
++  ["AVATAR_ASSET_NOT_FOUND", [404, "face_selection_invalid"]],
++  ["AVATAR_ASSET_NOT_READY", [409, "face_selection_invalid"]],
++  ["AVATAR_ASSET_MISMATCH", [400, "face_selection_invalid"]],
++  ["INVALID_SESSION_INPUT", [400, "test_input_invalid"]],
++  ["INVALID_PIPELINE_CONFIG", [400, "test_input_invalid"]],
++  ["INVALID_ANAM_CONFIG", [400, "test_input_invalid"]],
++  ["INVALID_ROLEPLAY_PIPELINE", [400, "test_input_invalid"]],
++  ["INVALID_ROLEPLAY_CONTEXT", [400, "test_input_invalid"]],
++  ["ROLEPLAY_CONTEXT_REQUIRED", [400, "test_input_invalid"]],
++  ["LIVE_COST_CONFIRMATION_REQUIRED", [400, "test_input_invalid"]],
++]);
++
++export function avatarFailureReason(status: number): PersonaAvatarFailureReason {
++  switch (status) {
++    case 400: case 413: case 415: case 422: return "invalid_request";
++    case 401: return "authentication_failed";
++    case 403: return "permission_denied";
++    case 404: return "not_found";
++    case 409: return "conflict";
++    case 429: return "rate_limited";
++    default: return status >= 500 ? "unavailable" : "unknown";
++  }
++}
++
++export function routerFailureReason(status: number, body: unknown): PersonaAvatarFailureReason {
++  const code = body && typeof body === "object" && "code" in body ? body.code : undefined;
++  const approved = typeof code === "string" ? routerReasons.get(code) : undefined;
++  return approved?.[0] === status ? approved[1] : avatarFailureReason(status);
++}
++
++const localFailures = new Map<string, readonly [PersonaAvatarStage | null, PersonaAvatarFailureReason]>([
++  ["avatar_assets_read_scope_missing", ["project_check", "permission_denied"]],
++  ["avatar_connection_unconfigured", [null, "connection_unconfigured"]],
++  ["avatar_connection_invalid", [null, "connection_unconfigured"]],
++  ["avatar_connection_rejected", [null, "authentication_failed"]],
++  ["avatar_connection_forbidden", [null, "permission_denied"]],
++  ["avatar_connection_rate_limited", [null, "rate_limited"]],
++  ["avatar_connection_check_failed", [null, "connection_failed"]],
++  ["avatar_connection_timeout", [null, "connection_failed"]],
++  ["persona_voice_unavailable", ["voice_catalog", "voice_selection_invalid"]],
++  ["persona_voice_catalog_unavailable", ["voice_catalog", "voice_catalog_unavailable"]],
++  ["persona_voice_offset_invalid", ["voice_catalog", "invalid_input"]],
++  ["persona_avatar_mode_invalid", ["persona_input", "invalid_input"]],
++  ["persona_live_avatar_invalid", ["persona_input", "invalid_input"]],
++  ["persona_avatar_asset_id_invalid", [null, "invalid_input"]],
++  ["persona_stock_avatar_unavailable", ["stock_faces", "face_selection_invalid"]],
++  ["persona_avatar_asset_not_ready", ["custom_faces", "face_selection_invalid"]],
++  ["persona_avatar_asset_mismatch", ["custom_faces", "face_selection_invalid"]],
++  ["persona_avatar_project_mismatch", ["persona_input", "selection_project_mismatch"]],
++  ["avatar_test_operation_uncertain", [null, "outcome_uncertain"]],
++  ["persona_seed_operation_uncertain", [null, "outcome_uncertain"]],
++  ["persona_avatar_creation_uncertain", [null, "outcome_uncertain"]],
++]);
++
++// Retain the existing machine codes used by the editor. Unknown local errors also use the safe fallback.
++const legacyCodes = new Set([
++  "avatar_test_read_failed", "avatar_test_path_invalid",
++  "avatar_test_id_invalid", "avatar_test_creation_in_progress", "avatar_test_session_mismatch", "avatar_test_session_not_running",
++  "avatar_test_token_expired", "avatar_test_turn_in_progress", "avatar_test_turn_limit", "avatar_test_turn_cancelled",
++  "avatar_test_pcm_invalid", "avatar_test_audio_rejected", "avatar_test_ai_unconfigured", "avatar_test_ai_failed",
++  "avatar_test_transcript_invalid", "avatar_managed_connection_post_required", "avatar_managed_connection_unavailable",
++  "avatar_client_connection_invalid", "anam_owns_dialogue_and_audio",
++  "avatar_identity_account_inactive", "avatar_identity_membership_invalid", "avatar_identity_not_verified",
++  "avatar_connection_upstream_unavailable",
++  "persona_avatar_thumbnail_not_available", "persona_avatar_asset_scopes_required", "persona_avatar_custom_runtime_unavailable",
++  "persona_avatar_contract_upgrade_required", "persona_avatar_creation_input_invalid", "persona_avatar_creation_in_progress",
++  "persona_avatar_image_invalid", "persona_avatar_pending_image_mismatch", "persona_avatar_provision_mismatch",
++  "persona_avatar_session_revision_mismatch", "persona_avatar_validation_capacity",
++  "persona_seed_busy", "persona_seed_candidate_mismatch", "persona_seed_consent_required", "persona_seed_contract_upgrade_required",
++  "persona_seed_cost_confirmation_required", "persona_seed_creation_blocked", "persona_seed_draft_invalid",
++  "persona_seed_draft_mismatch", "persona_seed_draft_required", "persona_seed_id_invalid", "persona_seed_image_invalid",
++  "persona_seed_image_stale", "persona_seed_image_unavailable", "persona_seed_persona_not_found", "persona_seed_register_first",
++  "persona_seed_reset_blocked", "persona_seed_reset_confirmation_required", "persona_seed_reset_stale", "persona_seed_save_image_first",
++  "persona_seed_source_unsupported", "persona_seed_upload_mismatch", "persona_seed_upload_avatar_test_operation_uncertain",
++  "persona_seed_upload_avatar_test_read_failed", "persona_seed_upload_avatar_test_path_invalid", "persona_seed_response_mismatch",
++]);
++export const avatarUpstreamStatuses = [400, 401, 403, 404, 409, 413, 415, 422, 429, 502, 503];
++for (const status of avatarUpstreamStatuses) {
++  legacyCodes.add(`avatar_test_upstream_${status}`);
++  legacyCodes.add(`persona_seed_upload_avatar_test_upstream_${status}`);
++}
++
++/** Shared by catalog, save and test routes; do not treat an upstream credential failure as local logout. */
++export function personaAvatarFailureResponse(error: unknown, stage: PersonaAvatarStage, fallbackCode: string) {
++  const local = error instanceof AvatarIdentityError ? error : undefined;
++  const mapped = local && localFailures.get(local.code);
++  const status = local?.status ?? 502;
++  const safe = personaAvatarFailureSchema.safeParse(local?.failure);
++  const failure = safe.success ? safe.data : {
++    stage: mapped?.[0] ?? stage,
++    reason: mapped?.[1] ?? (local ? avatarFailureReason(status) : "unknown" as const),
++  };
++  const code = local && (localFailures.has(local.code) || legacyCodes.has(local.code)) ? local.code : fallbackCode;
++  return { status: status === 401 ? 502 : status, body: { code, error: code, failure } };
++}
+diff --git a/server/services/liveAvatar/personaSeedLive.ts b/server/services/liveAvatar/personaSeedLive.ts
+index 132633d4e0704fb3244674db0dc98de974dede63..bacacf5cd8be6b0870f14c0d3946b84a5102902e 100644
+--- a/server/services/liveAvatar/personaSeedLive.ts
++++ b/server/services/liveAvatar/personaSeedLive.ts
+@@ -221,7 +221,7 @@ export class PersonaSeedLiveService {
+           op = await this.upload(userId, personaId, ctx, op, input.data.registration);
+         } catch (error) {
+           if (error instanceof AvatarIdentityError && error.code.startsWith("avatar_test_")) {
+-            throw new AvatarIdentityError(`persona_seed_upload_${error.code}`, error.status, error.routerResponse);
++            throw new AvatarIdentityError(`persona_seed_upload_${error.code}`, error.status, error.failure);
+           }
+           throw error;
+         }
+diff --git a/server/services/liveAvatar/projectClient.ts b/server/services/liveAvatar/projectClient.ts
+index b2925655ec96bb6c0d948a0d3060f3c9563f3e28..fbeb1ac3133b80a33adb2b6b38e396150ddd336f 100644
+--- a/server/services/liveAvatar/projectClient.ts
++++ b/server/services/liveAvatar/projectClient.ts
+@@ -2,6 +2,8 @@ import { z } from "zod";
+ import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
+ import { AvatarIdentityError, resolveAvatarIdentity, type AvatarIdentityStore } from "./delegatedIdentity";
+ import { personaVoiceCatalogSchema, personaVoiceOffsetSchema } from "../../../shared/avatar/personaAvatar";
++import { avatarFailureReason, avatarUpstreamStatuses, routerFailureReason } from "./personaFailures";
++import type { PersonaAvatarStage } from "../../../shared/avatar/personaAvatarFailure";
+ 
+ async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
+   if (Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error("invalid_body");
+@@ -30,6 +32,36 @@ function readVoicePageHeader(headers: Headers, name: string): number | null {
+   return value;
+ }
+ 
++function requestStage(path: string, read: boolean): PersonaAvatarStage | undefined {
++  const [endpoint] = path.split("?", 1);
++  if (endpoint === "/avatars") return "stock_faces";
++  if (endpoint === "/voices") return "voice_catalog";
++  if (endpoint.endsWith("/live-validation")) return "test";
++  if (endpoint === "/avatar-assets" || endpoint.startsWith("/avatar-assets/")) return read ? "custom_faces" : "creation";
++  if (endpoint.endsWith("/live-options")) return "seed_options";
++  if (endpoint === "/assets/images") return "seed_image";
++  if (endpoint === "/live-limits") return "test_preflight";
++  if (endpoint === "/sessions") return read ? "test_sessions" : "test_start";
++  if (endpoint.startsWith("/sessions/")) {
++    if (endpoint.endsWith("/end")) return "test_end";
++    if (/\/(?:client-connection|connection|full-connection)$/.test(endpoint)) return "test_connection";
++    return read ? "test_status" : "test";
++  }
++}
++
++async function responseFailure(response: Response, stage?: PersonaAvatarStage) {
++  const status = avatarUpstreamStatuses.includes(response.status) ? response.status : 502;
++  let reason = avatarFailureReason(status);
++  if (response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() === "application/json") {
++    try {
++      reason = routerFailureReason(status, JSON.parse((await readBoundedBody(response, 16_384)).toString("utf8")));
++    } catch { /* Invalid or oversized upstream bodies cannot contribute to the response. */ }
++  } else {
++    void response.body?.cancel().catch(() => {});
++  }
++  return new AvatarIdentityError(`avatar_test_upstream_${status}`, status, stage ? { stage, reason } : undefined);
++}
++
+ /** Pinned project-key BFF. Callers supply only constant paths and encoded owned IDs. */
+ export class AvatarProjectClient {
+   constructor(
+@@ -56,10 +88,7 @@ export class AvatarProjectClient {
+         headers: { Accept: "image/png, image/jpeg, image/webp", Authorization: `Bearer ${key}`, "X-Avatar-User-ID": identity.subject },
+         signal: AbortSignal.timeout(20_000),
+       });
+-      if (!response.ok) {
+-        const status = [401, 403, 404, 409, 429, 503].includes(response.status) ? response.status : 502;
+-        throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
+-      }
++      if (!response.ok) throw await responseFailure(response);
+       const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
+       if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) throw new Error("invalid_image_type");
+       const bytes = await readBoundedBody(response, 4_500_000);
+@@ -115,7 +144,9 @@ export class AvatarProjectClient {
+     const key = input.apiKey;
+     if (!base || !key) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
+     if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
++    const stage = requestStage(path, body === undefined);
+     const identity = await resolveAvatarIdentity(this.store, userId);
++    let receivedResponse = false;
+     try {
+       const response = await this.request(`${base}${path}`, {
+         method: body === undefined ? "GET" : "POST",
+@@ -125,25 +156,8 @@ export class AvatarProjectClient {
+         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
+       });
+-      if (!response.ok) {
+-        const status = [400, 401, 403, 404, 409, 413, 415, 422, 429, 503].includes(response.status) ? response.status : 502;
+-        // Only the Router's documented public ApiFailure fields may leave the BFF.
+-        // Never forward arbitrary bodies, provider internals, or credentials.
+-        let routerResponse: { code: string; error: string } | undefined;
+-        if (response.headers.get("content-type")?.includes("application/json")) {
+-          try {
+-            const text = (await readBoundedBody(response, 16_384)).toString("utf8");
+-            if (!text.includes(key) && !/(?:ar_sk_|Bearer\s|PRIVATE KEY)/i.test(text)) {
+-              const parsed = z.object({
+-                code: z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/),
+-                error: z.string().min(1).max(1000),
+-              }).safeParse(JSON.parse(text));
+-              if (parsed.success) routerResponse = parsed.data;
+-            }
+-          } catch { /* Untrusted/non-contract error body: retain HTTP status only. */ }
+-        }
+-        throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status, routerResponse);
+-      }
++      receivedResponse = true;
++      if (!response.ok) throw await responseFailure(response, stage);
+       const maxBytes = body === undefined && path.endsWith("/transcript") ? 2 * 1024 * 1024 : 262_144;
+       if (!response.headers.get("content-type")?.includes("application/json") ||
+           Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
+@@ -153,7 +167,10 @@ export class AvatarProjectClient {
+     } catch (error) {
+       if (error instanceof AvatarIdentityError) throw error;
+       // POST may already have been accepted. Never retry or claim no charge occurred.
+-      throw new AvatarIdentityError(body === undefined ? "avatar_test_read_failed" : "avatar_test_operation_uncertain", 502);
++      throw new AvatarIdentityError(body === undefined ? "avatar_test_read_failed" : "avatar_test_operation_uncertain", 502, stage ? {
++        stage,
++        reason: body !== undefined ? "outcome_uncertain" : receivedResponse ? "invalid_response" : "connection_failed",
++      } : undefined);
+     }
+   }
+ }
+diff --git a/shared/avatar/personaAvatarFailure.ts b/shared/avatar/personaAvatarFailure.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..11b58e58f84a4872168ce55bad5a7582e40a3968
+--- /dev/null
++++ b/shared/avatar/personaAvatarFailure.ts
+@@ -0,0 +1,18 @@
++import { z } from "zod";
++
++export const personaAvatarFailureSchema = z.object({
++  stage: z.enum([
++    "catalog", "stock_faces", "custom_faces", "voice_catalog", "thumbnail", "persona_input",
++    "project_check", "seed", "seed_image", "seed_options", "creation",
++    "test", "test_preflight", "test_sessions", "test_start", "test_status", "test_connection", "test_end",
++  ]),
++  reason: z.enum([
++    "invalid_input", "invalid_request", "invalid_response", "connection_failed", "connection_unconfigured",
++    "authentication_failed", "permission_denied", "not_found", "conflict", "rate_limited", "unavailable",
++    "stock_catalog_unavailable", "voice_catalog_unavailable", "voice_selection_invalid",
++    "face_selection_invalid", "test_input_invalid", "selection_project_mismatch", "outcome_uncertain", "unknown",
++  ]),
++});
++export type PersonaAvatarFailure = z.infer<typeof personaAvatarFailureSchema>;
++export type PersonaAvatarStage = PersonaAvatarFailure["stage"];
++export type PersonaAvatarFailureReason = PersonaAvatarFailure["reason"];
+diff --git a/tests/client/adminAvatarTest.test.tsx b/tests/client/adminAvatarTest.test.tsx
+index 6ed8c8b8606c33f1ca0ddc8eb99c193d50207c73..b7c35fc76a03596f533d36ab9f860185af3b27b2 100644
+--- a/tests/client/adminAvatarTest.test.tsx
++++ b/tests/client/adminAvatarTest.test.tsx
+@@ -84,6 +84,21 @@ const recoverRunning = async () => {
+   await waitFor(() => expect(fakes.rooms[0].connect).toHaveBeenCalledTimes(1));
+   return fakes.rooms[0];
+ };
++
++it("shows and retries the failed test-session list using only reads", async () => {
++  fakes.api.mockRejectedValueOnce(new Error(`400: ${JSON.stringify({
++    code: "avatar_test_upstream_400", error: "private-provider-value",
++    failure: { stage: "test_sessions", reason: "invalid_request" },
++  })}`));
++  render(<LiveAvatarTestPanel />);
++  const alert = await screen.findByTestId("text-avatar-test-preflight-error");
++  expect(alert.textContent).toContain("테스트 세션 목록 조회 실패");
++  expect(alert.textContent).not.toMatch(/private-provider-value|avatar_test_upstream_400/);
++  fireEvent.click(screen.getByRole("button", { name: "테스트 상태 다시 조회" }));
++  await waitFor(() => expect(screen.queryByTestId("text-avatar-test-preflight-error")).toBeNull());
++  expect(fakes.api.mock.calls).toHaveLength(2);
++  expect(fakes.api.mock.calls.every(([method]) => method === "GET")).toBe(true);
++});
+ const track = (kind: string) => {
+   const node = document.createElement(kind === "video" ? "video" : "audio");
+   return { kind, attach: () => node, detach: () => [node] };
+diff --git a/tests/client/personaAvatarSettings.test.tsx b/tests/client/personaAvatarSettings.test.tsx
+index bcc36c6870ff87fa7f5fb433480e7602fa6813b2..5738b82f93ba0744d8e6a5fb8647bcd992b8f3bc 100644
+--- a/tests/client/personaAvatarSettings.test.tsx
++++ b/tests/client/personaAvatarSettings.test.tsx
+@@ -187,8 +187,12 @@ describe("persona avatar settings", () => {
+     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+     expect(await screen.findByText(/Lucy · 선택 가능/)).toBeTruthy();
+     expect(screen.getByText("음성 목록을 불러오는 중입니다.")).toBeTruthy();
+-    await act(async () => rejectVoice(new Error('503: {"code":"persona_voice_catalog_unavailable"}')));
+-    expect(await screen.findByText(/AvatarRouter 음성 목록이 일시적으로 중단/)).toBeTruthy();
++    await act(async () => rejectVoice(new Error(`400: ${JSON.stringify({
++      code: "avatar_test_upstream_400", error: "private provider text", token: "opaque-private-token",
++      failure: { stage: "voice_catalog", reason: "invalid_request" },
++    })}`)));
++    const failure = await screen.findByText(/음성 목록 조회 실패: 라우터가 요청을 거부했습니다/);
++    expect(failure.textContent).not.toMatch(/avatar_test_upstream_400|private/);
+     expect(screen.getByText(/Lucy · 선택 가능/)).toBeTruthy();
+     expect(screen.queryByText("이 성별로 분류되어 선택 가능한 음성이 없습니다.")).toBeNull();
+     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stored);
+@@ -224,6 +228,34 @@ describe("persona avatar settings", () => {
+     expect(screen.queryByText(/조회 가능한 아바타 자산이 없습니다/)).toBeNull();
+   });
+ 
++  it.each([
++    ["stock_faces", "기본 얼굴 조회"],
++    ["custom_faces", "맞춤 얼굴 조회"],
++  ])("shows the failed %s read with fixed text and retains the draft", async (stage, label) => {
++    api.mockRejectedValue(new Error(`400: ${JSON.stringify({
++      code: "avatar_test_upstream_400", error: "private response", token: "opaque-private-token",
++      failure: { stage, reason: "invalid_request", settings: "private config value" },
++      avatarRouter: { code: "UNKNOWN", error: "original provider message" },
++    })}`));
++    render(<Harness initial={saved} />);
++    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
++    const alert = await screen.findByRole("alert");
++    expect(alert.textContent).toContain(`${label} 실패: 라우터가 요청을 거부했습니다.`);
++    expect(alert.textContent).not.toMatch(/avatar_test_upstream_400|private|original provider/);
++    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
++  });
++
++  it("does not display unknown diagnostic stages, reasons or messages", async () => {
++    api.mockRejectedValue(new Error(`400: ${JSON.stringify({
++      code: "private-config", error: "private-response", failure: { stage: "private-url", reason: "private-token" },
++    })}`));
++    render(<Harness />);
++    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
++    const alert = await screen.findByRole("alert");
++    expect(alert.textContent).toContain("아바타 목록 조회 실패");
++    expect(alert.textContent).not.toContain("private");
++  });
++
+   it("ignores requests resolved after the panel is removed", async () => {
+     let complete: (value: any) => void = () => {};
+     api.mockReturnValue(new Promise(resolve => { complete = resolve; }));
+diff --git a/tests/client/personaSeedLive.test.tsx b/tests/client/personaSeedLive.test.tsx
+index d7ec85041d2f481ba5d2fdeb4caa44aca1316427..674d894412eadee47e3bf7aa73625dc17b7d7ca3 100644
+--- a/tests/client/personaSeedLive.test.tsx
++++ b/tests/client/personaSeedLive.test.tsx
+@@ -250,19 +250,21 @@ describe("seed editor mock UI", () => {
+     expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(false);
+     mocks.api.mockRejectedValueOnce(new Error("409: avatar_test_upstream_409"));
+     fireEvent.click(screen.getByTestId("button-seed-create"));
+-    await screen.findByText(/아바타 라우터 응답: HTTP 409/);
++    await screen.findByText(/시드 준비 실패: 현재 상태에서는 요청할 수 없습니다/);
+     expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
+   });
+-  it("shows the router's public error without replacing it with local model guidance", async () => {
++  it("shows only the approved stage and reason even if a legacy router message is present", async () => {
+     render(<PersonaSeedLivePanel {...props()} />);
+     await screen.findByTestId("button-seed-create");
+     fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+     mocks.api.mockRejectedValueOnce(new Error(`409: ${JSON.stringify({
+       code: "avatar_test_upstream_409", avatarRouter: { code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message." },
++      failure: { stage: "creation", reason: "conflict" },
+     })}`));
+     fireEvent.click(screen.getByTestId("button-seed-create"));
+     const error = await screen.findByTestId("text-seed-error");
+-    expect(error.textContent).toContain("ROUTER_JOB_REJECTED: Router returned this exact message.");
++    expect(error.textContent).toContain("맞춤 아바타 생성 실패: 현재 상태에서는 요청할 수 없습니다.");
++    expect(error.textContent).not.toMatch(/ROUTER_JOB_REJECTED|Router returned/);
+     expect(error.textContent).not.toContain("모델");
+   });
+ });
+diff --git a/tests/server/adminAvatarTest.test.ts b/tests/server/adminAvatarTest.test.ts
+index 7b8e73e630862d528f64355f52ac13aaf301378e..1f7133ca0915d55867674192216e393843a15c31 100644
+--- a/tests/server/adminAvatarTest.test.ts
++++ b/tests/server/adminAvatarTest.test.ts
+@@ -241,6 +241,20 @@ describe("admin test HTTP boundary", () => {
+       expect((await request(a).post(`/test${path}`).set("x-role", role).send({})).status).toBe(403);
+     expect(client.call).not.toHaveBeenCalled();
+   });
++  it("labels a rejected session list during preflight without creating a session", async () => {
++    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
++      code: "INVALID_REQUEST", error: "opaque-private-message", token: "not-returned",
++    }, { status: 400 }));
++    const transport = new AvatarProjectClient({
++      getUser: async id => ({ id, isActive: true }), getCompany: vi.fn(), getOrganization: vi.fn(),
++    }, fetcher, () => ({ baseUrl: "https://router.example.test/api/v1", apiKey: "ar_sk_synthetic_test_key_123456" }));
++    service = new AdminAvatarTestService(transport, connection as any, attempts, dialogue);
++    const result = await request(app()).get("/test/preflight").set("x-role", "admin");
++    expect(result.status).toBe(400);
++    expect(result.body).toEqual({ code: "avatar_test_upstream_400", error: "avatar_test_upstream_400",
++      failure: { stage: "test_sessions", reason: "invalid_request" } });
++    expect(fetcher).toHaveBeenCalledExactlyOnceWith("https://router.example.test/api/v1/sessions", expect.objectContaining({ method: "GET" }));
++  });
+   it("requires login", async () => {
+     expect((await request(app()).get("/test/preflight")).status).toBe(401);
+   });
+@@ -261,7 +275,15 @@ describe("admin test HTTP boundary", () => {
+   it("strips internal/raw errors", async () => {
+     vi.spyOn(service, "preflight").mockRejectedValue(new Error("secret/raw upstream error"));
+     const result = await request(app()).get("/test/preflight").set("x-role", "admin");
+-    expect(result.body).toEqual({ code: "avatar_test_failed", error: "avatar_test_failed" });
++    expect(result.body).toEqual({ code: "avatar_test_failed", error: "avatar_test_failed",
++      failure: { stage: "test_preflight", reason: "unknown" } });
++  });
++  it("labels invalid test input without dispatching a session read or write", async () => {
++    const result = await request(app()).post("/test/sessions/session/turn").set("x-role", "admin")
++      .send({ text: "", history: [], providerToken: "private-input-value" });
++    expect(result.status).toBe(400);
++    expect(result.body).toEqual({ code: "avatar_test_invalid_input", failure: { stage: "test", reason: "test_input_invalid" } });
++    expect(client.call).not.toHaveBeenCalled();
+   });
+ });
+ 
+diff --git a/tests/server/personaAvatarCatalogRoutes.test.ts b/tests/server/personaAvatarCatalogRoutes.test.ts
+index 2aae2735bb49120a6525535595587069b7ab607a..df3c6a11619ccc45aea13c4386e3c09607657ef3 100644
+--- a/tests/server/personaAvatarCatalogRoutes.test.ts
++++ b/tests/server/personaAvatarCatalogRoutes.test.ts
+@@ -1,6 +1,7 @@
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ import express from "express";
+ import request from "supertest";
++import { z } from "zod";
+ const fakes = vi.hoisted(() => ({
+   list: vi.fn(), listVoices: vi.fn(), thumbnail: vi.fn(), normalize: vi.fn(), create: vi.fn(), update: vi.fn(), get: vi.fn(),
+ }));
+@@ -26,6 +27,7 @@ vi.mock("../../server/services/gemini-video-generator", () => ({
+ vi.mock("../../server/utils/videoJobStore", () => ({ videoJobStore: {} }));
+ import createAdminPersonasRouter from "../../server/routes/adminPersonas";
+ import { AvatarIdentityError } from "../../server/services/liveAvatar/delegatedIdentity";
++import { AvatarProjectClient } from "../../server/services/liveAvatar/projectClient";
+ function app(role?: string) {
+   const server = express();
+   server.use(express.json());
+@@ -69,7 +71,8 @@ describe("persona catalog authenticated bridge", () => {
+     expect(fakes.listVoices).not.toHaveBeenCalled();
+     const result = await request(app("operator")).get(voicePath).set("X-Avatar-User-ID", "forged-user");
+     expect(result.status).toBe(503);
+-    expect(result.body).toEqual({ code: "persona_voice_catalog_unavailable", error: "persona_voice_catalog_unavailable" });
++    expect(result.body).toEqual({ code: "persona_voice_catalog_unavailable", error: "persona_voice_catalog_unavailable",
++      failure: { stage: "voice_catalog", reason: "voice_catalog_unavailable" } });
+     expect(result.headers["cache-control"]).toBe("private, no-store");
+     expect(fakes.listVoices).toHaveBeenCalledExactlyOnceWith("owner", 0);
+   });
+@@ -81,7 +84,9 @@ describe("persona catalog authenticated bridge", () => {
+     expect(fakes.listVoices).toHaveBeenCalledExactlyOnceWith("owner", 5000);
+   });
+   it.each(["", "-1", "5001", "01", "1.5", "1e2", "1&offset=2", "%2Fvoices", "1%0A"])("rejects invalid voice offsets %j", async offset => {
+-    expect((await request(app("operator")).get(`${voicePath}?offset=${offset}`)).status).toBe(400);
++    const result = await request(app("operator")).get(`${voicePath}?offset=${offset}`);
++    expect(result.status).toBe(400);
++    expect(result.body.failure).toEqual({ stage: "voice_catalog", reason: "invalid_input" });
+     expect(fakes.listVoices).not.toHaveBeenCalled();
+   });
+   it("serves image thumbnails through the authenticated catalog bridge", async () => {
+@@ -97,7 +102,52 @@ describe("persona catalog authenticated bridge", () => {
+     fakes.list.mockRejectedValue(new AvatarIdentityError("avatar_assets_read_scope_missing", 403));
+     const response = await request(app("operator")).get(path);
+     expect(response.status).toBe(403);
+-    expect(response.body).toEqual({ code: "avatar_assets_read_scope_missing", error: "avatar_assets_read_scope_missing" });
++    expect(response.body).toEqual({
++      code: "avatar_assets_read_scope_missing", error: "avatar_assets_read_scope_missing",
++      failure: { stage: "project_check", reason: "permission_denied" },
++    });
++  });
++  it.each([
++    ["/avatars", "STOCK_CATALOG_UNAVAILABLE", 503, "stock_faces", "stock_catalog_unavailable", 503],
++    ["/avatar-assets", "unrecognized.opaque.private", 400, "custom_faces", "invalid_request", 400],
++    ["/voices", "INVALID_REQUEST", 400, "voice_catalog", "invalid_request", 400],
++    ["/voices", "VOICE_CATALOG_UNAVAILABLE", 503, "voice_catalog", "voice_catalog_unavailable", 503],
++    ["/voices", "VOICE_CATALOG_UNAVAILABLE", 400, "voice_catalog", "invalid_request", 400],
++    ["/voices", "invalid_api_key", 401, "voice_catalog", "authentication_failed", 502],
++  ] as const)("reports a failed read of %s (%s) with no upstream details", async (endpoint, code, status, stage, reason, expectedStatus) => {
++    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
++      code, error: "opaque provider message", settings: { url: "https://private.example.test/" },
++      token: "synthetic-token-without-a-known-prefix", stage: "test_start",
++    }, { status }));
++    const client = new AvatarProjectClient({
++      getUser: async id => ({ id, isActive: true }), getCompany: vi.fn(), getOrganization: vi.fn(),
++    }, fetcher, () => ({ baseUrl: "https://router.example.test/api/v1", apiKey: "ar_sk_synthetic_test_key_123456" }));
++    const voiceRead = endpoint === "/voices";
++    if (voiceRead) fakes.listVoices.mockImplementationOnce((userId, offset) => client.voicePage(userId, offset));
++    else fakes.list.mockImplementationOnce(userId => client.call(userId, endpoint, z.unknown()));
++    const response = await request(app("admin")).get(voiceRead ? `${voicePath}?offset=7` : path);
++    expect(response.status).toBe(expectedStatus);
++    expect(response.body).toEqual({ code: `avatar_test_upstream_${status}`, error: `avatar_test_upstream_${status}`, failure: { stage, reason } });
++    expect(fetcher).toHaveBeenCalledExactlyOnceWith(`https://router.example.test/api/v1${endpoint}${voiceRead ? "?offset=7" : ""}`,
++      expect.objectContaining({ method: "GET" }));
++  });
++  it("returns the voice stage for invalid saves without persisting or reflecting input", async () => {
++    fakes.normalize.mockRejectedValueOnce(new AvatarIdentityError("persona_voice_unavailable", 409));
++    const response = await request(app("operator")).put("/api/admin/personas/persona").send({ voice: "private-input-value" });
++    expect(response.status).toBe(409);
++    expect(response.body.failure).toEqual({ stage: "voice_catalog", reason: "voice_selection_invalid" });
++    expect(response.text).not.toContain("private-input-value");
++    expect(fakes.update).not.toHaveBeenCalled();
++  });
++  it("filters unapproved codes and failure fields even on an internal error", async () => {
++    fakes.list.mockRejectedValueOnce(new AvatarIdentityError("private-local-code", 400,
++      { stage: "private-url", reason: "private-token" } as any));
++    const response = await request(app("operator")).get(path);
++    expect(response.status).toBe(400);
++    expect(response.body).toEqual({
++      code: "persona_avatar_request_failed", error: "persona_avatar_request_failed",
++      failure: { stage: "catalog", reason: "invalid_request" },
++    });
+   });
+   it("normalizes both create and edit payloads before persistence", async () => {
+     const normalized = { avatarMode: "live", liveAvatar: { assetId: "resolved", activation: "draft", validationStatus: "unverified" } };
+diff --git a/tests/server/personaAvatarOperations.test.ts b/tests/server/personaAvatarOperations.test.ts
+index e12f129985936a99f17c152168308c30e15b5786..0483b133752b2e5f98139f1f2ca39f20e3b00c07 100644
+--- a/tests/server/personaAvatarOperations.test.ts
++++ b/tests/server/personaAvatarOperations.test.ts
+@@ -217,6 +217,15 @@ describe("persona operations routes", () => {
+     expect((await request(a).post("/avatar/creation").set("x-role", "operator").send({ ...input, tenantId: "forged" })).status).toBe(400);
+     expect(create).not.toHaveBeenCalled();
+   });
++  it("labels invalid custom avatar test input without invoking a test operation", async () => {
++    const turn = vi.fn();
++    const a = app({}, { service: () => ({ turn }) });
++    const response = await request(a).post(`/avatar/assets/${assetId}/validation/sessions/${sessionId}/turn`)
++      .set("x-role", "operator").send({ text: "", token: "not-returned" });
++    expect(response.status).toBe(400);
++    expect(response.body).toEqual({ code: "persona_avatar_invalid_input", failure: { stage: "test", reason: "test_input_invalid" } });
++    expect(turn).not.toHaveBeenCalled();
++  });
+   it.each([sessionId, "test-session"])("requires affirmative playback reports for lifecycle session %s", async sessionId => {
+     const report = vi.fn(async () => asset());
+     const a = app({}, { report });
+diff --git a/tests/server/personaSeedImageTransport.test.ts b/tests/server/personaSeedImageTransport.test.ts
+index 78a8c5a5b804b09f971052bc077c4460190e1056..114ec4967a6b990482afa9a4b3dd761ccae3c4b8 100644
+--- a/tests/server/personaSeedImageTransport.test.ts
++++ b/tests/server/personaSeedImageTransport.test.ts
+@@ -7,26 +7,28 @@ const identity: any = { getUser: async () => ({ id: "operator", isActive: true }
+ const input = () => ({ baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_not_real_123456789" });
+ 
+ describe("registered seed image transport", () => {
+-  it("preserves only the router's documented public failure fields", async () => {
++  it("classifies a known Router failure without preserving its message or details", async () => {
+     const fetcher = vi.fn(async () => Response.json({
+-      code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message.",
++      code: "AVATAR_ASSET_NOT_READY", error: "opaque-private-value-without-a-secret-prefix",
+       stack: "private stack", debug: { providerCredential: "private detail" },
+     }, { status: 409 }));
+-    await expect(new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {}))
+-      .rejects.toMatchObject({ code: "avatar_test_upstream_409",
+-        routerResponse: { code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message." } });
+-    try { await new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {}); }
+-    catch (error: any) { expect(Object.keys(error.routerResponse)).toEqual(["code", "error"]); }
++    const error = await new AvatarProjectClient(identity, fetcher as any, input)
++      .call("operator", `/avatar-assets/${imageId}`, z.any()).catch(cause => cause);
++    expect(error).toMatchObject({ code: "avatar_test_upstream_409",
++      failure: { stage: "custom_faces", reason: "face_selection_invalid" } });
++    expect(JSON.stringify(error)).not.toMatch(/opaque-private|private stack|providerCredential/);
++    expect(fetcher).toHaveBeenCalledTimes(1);
+   });
+-  it("never forwards a router body containing credentials", async () => {
+-    const fetcher = vi.fn(async () => Response.json({ code: "FAILED", error: `Bearer ${input().apiKey}` }, { status: 409 }));
++  it("never forwards an unknown code or credentials", async () => {
++    const fetcher = vi.fn(async () => Response.json({ code: "opaque-unknown-code", error: `Bearer ${input().apiKey}` }, { status: 409 }));
+     try {
+       await new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {});
+       throw new Error("expected rejection");
+     } catch (error: any) {
+       expect(error.code).toBe("avatar_test_upstream_409");
+-      expect(error.routerResponse).toBeUndefined();
+-      expect(error.message).not.toContain(input().apiKey);
++      expect(error.failure).toEqual({ stage: "creation", reason: "conflict" });
++      expect(JSON.stringify(error)).not.toContain(input().apiKey);
++      expect(JSON.stringify(error)).not.toContain("opaque-unknown-code");
+     }
+   });
+   it("uses the pinned content endpoint with server authentication and no browser credentials", async () => {
+diff --git a/tests/server/personaSeedLive.test.ts b/tests/server/personaSeedLive.test.ts
+index 4235e8d6d99fb11ce51bf3e45f1186e1ab39cc2e..fc039b9605379f6096f8b405c61b27d53e1efde9 100644
+--- a/tests/server/personaSeedLive.test.ts
++++ b/tests/server/personaSeedLive.test.ts
+@@ -59,10 +59,10 @@ const localFailure = () => ({
+   },
+ });
+ describe("persona seed safety and persistence", () => {
+-  it("preserves the public router response through the combined upload endpoint", async () => {
++  it("preserves only the safe image rejection through the combined upload endpoint", async () => {
+     const fake = { create: vi.fn(async () => {
+       throw new AvatarIdentityError("persona_seed_upload_avatar_test_upstream_422", 422,
+-        { code: "IMAGE_REJECTED", error: "Router image rejection." });
++        { stage: "seed_image", reason: "invalid_request" });
+     }) };
+     const app = express(); app.use(express.json());
+     app.use((req: any, _res, next) => { req.user = { id: "admin", role: "admin" }; next(); });
+@@ -71,7 +71,10 @@ describe("persona seed safety and persistence", () => {
+     const result = await request(app).post(`/api/admin/personas/live-avatar/personas/coach/seed/create?source=${encodeURIComponent(source)}`)
+       .send({ costConfirmed: true, registration: consent });
+     expect(result.status).toBe(422);
+-    expect(result.body.avatarRouter).toEqual({ code: "IMAGE_REJECTED", error: "Router image rejection." });
++    expect(result.body).toEqual({
++      code: "persona_seed_upload_avatar_test_upstream_422", error: "persona_seed_upload_avatar_test_upstream_422",
++      failure: { stage: "seed_image", reason: "invalid_request" },
++    });
+   });
+   it("uploads bytes and calls creation in one explicit request, without status preflights", async () => {
+     const result = await svc.create("admin", "coach", source, { costConfirmed: true, registration: consent });
