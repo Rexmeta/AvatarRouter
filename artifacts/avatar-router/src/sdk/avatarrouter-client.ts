@@ -1,12 +1,16 @@
 import { createClientWithDriver, type ClientOptions, type DriverFactory } from './client-core';
 import { tavusUtterance } from './dialogue-events';
 import type { DialogueMessage } from './client-core';
+import { createUserAudioActivity } from './user-audio-activity';
+import { createLocalMicrophoneMeter } from './local-microphone-meter';
 export type { ClientOptions, ClientState, CleanupState, SessionCleanupStatus, DialogueMessage } from './client-core';
 export type { PlaybackObservation, PlaybackState } from './playback-observer';
+export type { UserAudioActivity } from './user-audio-activity';
 
 const factory: DriverFactory = async (options, emit, active) => {
   const descriptor = options.connection;
   const video = options.video;
+  const userAudio = createUserAudioActivity(active, options.onUserAudioActivity);
   video.autoplay = true;
   video.playsInline = true;
   const play = () => { void video.play().catch(() => { /* host can provide a play gesture */ }); };
@@ -41,9 +45,11 @@ const factory: DriverFactory = async (options, emit, active) => {
       const c = descriptor.connection;
       if (!('sessionToken' in c) || c.transport !== 'anam') throw new Error('CLIENT_DESCRIPTOR_INVALID');
       const sdk = createClient(c.sessionToken, { api: { retry: { maxAttempts: 1 } } });
+      const meter = options.onUserAudioActivity ? createLocalMicrophoneMeter(active, userAudio.audioLevel) : undefined;
       if (!video.id) video.id = `avatarrouter-${crypto.randomUUID()}`;
       sdk.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => emit('connected'));
       sdk.addListener(AnamEvent.CONNECTION_CLOSED, () => emit('ended'));
+      if (meter) sdk.addListener(AnamEvent.INPUT_AUDIO_STREAM_STARTED, meter.watch);
       sdk.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
         if (!active()) return;
         try {
@@ -54,7 +60,10 @@ const factory: DriverFactory = async (options, emit, active) => {
       });
       return {
         start: () => sdk.streamToVideoElement(video.id),
-        stop: async () => { detach(); await sdk.stopStreaming(); },
+        stop: async () => {
+          try { detach(); meter?.stop(); }
+          finally { await sdk.stopStreaming(); }
+        },
         interrupt: async () => { sdk.interruptPersona(); },
       };
     }
@@ -64,6 +73,10 @@ const factory: DriverFactory = async (options, emit, active) => {
       const c = descriptor.connection;
       if (!('transport' in c) || c.transport !== 'daily') throw new Error('CLIENT_DESCRIPTOR_INVALID');
       const call = Daily.createCallObject({ audioSource: true, videoSource: false });
+      let observingAudio = false;
+      if (options.onUserAudioActivity) {
+        call.on('local-audio-level', ({ audioLevel }) => userAudio.audioLevel(audioLevel));
+      }
       const captions = new Map<string, DialogueMessage>();
       call.on('app-message', (event) => {
         if (!active()) return;
@@ -83,7 +96,18 @@ const factory: DriverFactory = async (options, emit, active) => {
           play();
         }
       };
-      call.on('joined-meeting', () => emit('connected'));
+      call.on('joined-meeting', () => {
+        if (!active()) return;
+        emit('connected');
+        if (options.onUserAudioActivity && !observingAudio) {
+          observingAudio = true;
+          void Promise.resolve().then(() => {
+            if (active()) return call.startLocalAudioLevelObserver(100);
+          })
+            .then(() => { if (!active()) call.stopLocalAudioLevelObserver(); })
+            .catch(() => {}); // The visual indicator is optional.
+        }
+      });
       call.on('participant-updated', refresh);
       call.on('participant-joined', refresh);
       call.on('participant-left', refresh);
@@ -93,7 +117,13 @@ const factory: DriverFactory = async (options, emit, active) => {
       call.on('error', () => emit('ended'));
       return {
         start: async () => { await call.join({ url: c.url, token: c.token }); refresh(); },
-        stop: async () => { detach(); try { await call.leave(); } finally { await call.destroy(); } },
+        stop: async () => {
+          detach();
+          if (observingAudio) {
+            try { call.stopLocalAudioLevelObserver(); } catch { /* always leave and destroy */ }
+          }
+          try { await call.leave(); } finally { await call.destroy(); }
+        },
         interrupt: async () => { call.sendAppMessage({ message_type: 'conversation', event_type: 'conversation.interrupt' }, '*'); },
       };
     }
@@ -144,4 +174,4 @@ export function createClient(options: ClientOptions) {
  */
 export const version = '0.9.2';
 /** Additive, immutable capability identifiers; never infer cleanup from local ended. */
-export const features = Object.freeze(['cleanup_status_v1', 'server_deadline_v1'] as const);
+export const features = Object.freeze(['cleanup_status_v1', 'server_deadline_v1', 'user_audio_activity_v1'] as const);
