@@ -2,19 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createUserAudioActivity, type UserAudioActivity } from './user-audio-activity';
 
-test('ignores duplicate and stale utterance edges, plus callbacks after closing', () => {
+test('does not deliver browser microphone callbacks after closing', () => {
   let active = true;
   const events: UserAudioActivity[] = [];
   const activity = createUserAudioActivity(() => active, event => events.push(event));
-  activity.speechStarted('first');
-  activity.speechStarted('first');
-  activity.speechStarted('second');
-  activity.speechEnded('first');
-  activity.speechEnded('second');
+  activity.audioLevel(0.3);
   active = false;
-  activity.speechStarted('third');
   activity.audioLevel(0.4);
-  assert.deepEqual(events, [{ speaking: true }, { speaking: true }, { speaking: false }]);
+  assert.deepEqual(events, [{ level: 0.3 }]);
 });
 
 test('emits only finite normalized local audio levels and isolates host render errors', () => {

@@ -2,6 +2,7 @@ import { createClientWithDriver, type ClientOptions, type DriverFactory } from '
 import { tavusUtterance } from './dialogue-events';
 import type { DialogueMessage } from './client-core';
 import { createUserAudioActivity } from './user-audio-activity';
+import { createLocalMicrophoneMeter } from './local-microphone-meter';
 export type { ClientOptions, ClientState, CleanupState, SessionCleanupStatus, DialogueMessage } from './client-core';
 export type { PlaybackObservation, PlaybackState } from './playback-observer';
 export type { UserAudioActivity } from './user-audio-activity';
@@ -44,13 +45,11 @@ const factory: DriverFactory = async (options, emit, active) => {
       const c = descriptor.connection;
       if (!('sessionToken' in c) || c.transport !== 'anam') throw new Error('CLIENT_DESCRIPTOR_INVALID');
       const sdk = createClient(c.sessionToken, { api: { retry: { maxAttempts: 1 } } });
+      const meter = options.onUserAudioActivity ? createLocalMicrophoneMeter(active, userAudio.audioLevel) : undefined;
       if (!video.id) video.id = `avatarrouter-${crypto.randomUUID()}`;
       sdk.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => emit('connected'));
       sdk.addListener(AnamEvent.CONNECTION_CLOSED, () => emit('ended'));
-      if (options.onUserAudioActivity) {
-        sdk.addListener(AnamEvent.USER_SPEECH_STARTED, userAudio.speechStarted);
-        sdk.addListener(AnamEvent.USER_SPEECH_ENDED, userAudio.speechEnded);
-      }
+      if (meter) sdk.addListener(AnamEvent.INPUT_AUDIO_STREAM_STARTED, meter.watch);
       sdk.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
         if (!active()) return;
         try {
@@ -61,7 +60,10 @@ const factory: DriverFactory = async (options, emit, active) => {
       });
       return {
         start: () => sdk.streamToVideoElement(video.id),
-        stop: async () => { detach(); await sdk.stopStreaming(); },
+        stop: async () => {
+          try { detach(); meter?.stop(); }
+          finally { await sdk.stopStreaming(); }
+        },
         interrupt: async () => { sdk.interruptPersona(); },
       };
     }
