@@ -1,5 +1,6 @@
 import type { ClientConnection } from '@workspace/api-client-react';
 import { observePlayback, type PlaybackObservation } from './playback-observer';
+import type { UserAudioActivity } from './user-audio-activity';
 
 export type ClientState = 'connecting' | 'connected' | 'playing' | 'ended' | 'error';
 /** Independent of local playback; confirmed is not permission to create a paid session. */
@@ -34,6 +35,8 @@ export type ClientOptions = {
   onPlaybackReport?(state: 'saved' | 'failed'): void;
   /** Provisional SDK captions, not the provider-authenticated final transcript. */
   onMessages?(messages: DialogueMessage[]): void;
+  /** Local visual feedback only. No additional capture or remote audio levels. */
+  onUserAudioActivity?(activity: UserAudioActivity): void;
   /** External-audio interrupt proxy; native engines are handled inside the client. */
   interruptSession?(sessionId: string): Promise<unknown>;
 };
