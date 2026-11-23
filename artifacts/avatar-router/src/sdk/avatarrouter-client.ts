@@ -103,6 +103,7 @@ const factory: DriverFactory = async (options, emit, active) => {
           observingAudio = true;
           void Promise.resolve().then(() => {
             if (active()) return call.startLocalAudioLevelObserver(100);
+            return undefined;
           })
             .then(() => { if (!active()) call.stopLocalAudioLevelObserver(); })
             .catch(() => {}); // The visual indicator is optional.

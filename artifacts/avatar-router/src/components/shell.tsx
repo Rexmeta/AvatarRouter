@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useUser } from '@clerk/react';
 import { useListDeveloperKeys } from '@workspace/api-client-react';
-import { Activity, ArrowLeft, AudioLines, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, ListTree, Menu, MonitorPlay, ScanFace, Settings, ShieldCheck, UserRound, Wand2, X } from 'lucide-react';
+import { Activity, ArrowLeft, AudioLines, BookOpen, Boxes, FlaskConical, ImageUp, KeyRound, Menu, MonitorPlay, ScanFace, Settings, ShieldCheck, UserRound, Wand2, X } from 'lucide-react';
 import { AuthControl } from './auth-control';
 import { useI18n } from '@/lib/i18n';
 import { activeAvatarAssetSection, avatarAssetNavigation } from '@/lib/avatar-asset-sections';
@@ -22,6 +22,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const personal = /^\/(avatar-assets|playground|sessions|usage)/.test(loc);
   const inside = !!projectId || personal;
   const base = projectId ? `/workspaces/${projectId}` : '';
+  const activeLoc = projectId && loc === `${base}/sessions` ? `${base}/activity` : loc;
   const currentAsset = activeAvatarAssetSection(loc, projectId);
   const assetMenu = inside ? <div key="avatar-assets" role="group" aria-label={t('Avatar assets', '아바타 에셋')}>
     <div className="arw-sidebar-label workspace-label">{t('AVATAR ASSETS', '아바타 에셋')}</div>
@@ -34,7 +35,6 @@ export function Shell({ children }: { children: ReactNode }) {
   </div> : null;
   const navigation = inside ? [
     [projectId ? `${base}/activity` : '/usage', Activity, t('Activity', '활동')],
-    [projectId ? `${base}/sessions` : '/sessions', ListTree, t('Sessions & logs', '세션·로그')],
     ...(projectId ? [[`${base}/live-check`, MonitorPlay, t('Live media check', '라이브 미디어 점검')]] : []),
     ...(projectId ? [[`${base}/keys`, KeyRound, t('API keys', 'API 키')]] : []),
     [projectId ? `${base}/limits` : '/usage', ShieldCheck, t('Usage & limits', '사용량·한도')],
@@ -75,7 +75,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <nav aria-label={inside ? 'Workspace' : 'Account'}>
           {navigation.map(([href, Icon, label],i) => {
             const Component = Icon as typeof Activity;
-            return <Link key={`${href}-${i}`} href={href as string} className="console-navlink" aria-current={loc === href || loc.startsWith(`${href}/`) ? 'page' : undefined} onClick={()=>setOpen(false)}><Component size={16}/>{label as string}</Link>;
+            return <Link key={`${href}-${i}`} href={href as string} className="console-navlink" aria-current={activeLoc === href || activeLoc.startsWith(`${href}/`) ? 'page' : undefined} onClick={()=>setOpen(false)}><Component size={16}/>{label as string}</Link>;
           })}
           {assetMenu}
           <div className="arw-sidebar-label">{t('PRODUCT','제품')}</div>

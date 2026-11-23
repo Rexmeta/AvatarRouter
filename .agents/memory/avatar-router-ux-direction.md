@@ -22,3 +22,5 @@ Use the existing integration project as a workspace, with Personal Studio separa
 **How to apply:** New account-console features must resolve exact project ownership server-side. A workspace label or client selector is not authority, and project membership never grants operator reconciliation privileges.
 
 Keep private asset management, provider catalogs, and creation guidance in separate workspace destinations. **Why:** The user found the all-in-one avatar asset page too crowded. **How to apply:** Add new functionality under the relevant destination rather than rebuilding a single combined page; keep old asset-detail links valid.
+
+Workspace session summaries and detailed event timelines belong together under Activity, not in duplicate sidebar destinations. Keep old session URLs as aliases and preserve expandable lifecycle details. **Why:** The user approved consolidating the overlapping Activity and Sessions & logs pages. **How to apply:** When adjusting workspace navigation, preserve the details needed to investigate individual sessions without repeating the same session list in separate pages.
